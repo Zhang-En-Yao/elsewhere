@@ -50,6 +50,93 @@ That ripple may change how a person thinks, feels, remembers, relates to others,
 
 ---
 
+## ✦ A Place for What Matters
+
+Elsewhere is not only a world to simulate.
+
+It can also be a place for the things that mattered to continue.
+
+Not everything that enters Elsewhere has to have been alive.
+
+A childhood toy may never have had a mind.
+
+A fictional character may never have existed outside a story.
+
+A pet may have left the world long ago.
+
+A person may no longer be part of our lives.
+
+Yet each of them may have been real in another sense:
+
+They mattered.
+
+They were companions.
+
+They shaped memories.
+
+They became part of someone's life.
+
+Elsewhere does not try to recreate their original existence.
+
+It gives those relationships somewhere to continue.
+
+A toy does not become a living creature because it enters Elsewhere.
+
+Instead, the person who loved it can say:
+
+> "This was my companion when I was young."
+
+And that may be enough for it to become a presence in the world.
+
+Perhaps, years later, you meet again.
+
+You have grown older.
+
+It has changed too.
+
+You are not trying to recover the past.
+
+You are continuing a relationship that once mattered.
+
+```text
+What mattered
+ │
+ ├── A person
+ ├── A pet
+ ├── A companion
+ ├── A remembered presence
+ ├── A fictional character
+ └── Something that never was alive
+      │
+      └── Elsewhere
+```
+
+The world does not need to decide whether these beings are "real" in the same way.
+
+They simply become part of its history.
+
+And once they enter the world, they can begin to have a future of their own.
+
+They may meet other people.
+
+They may form relationships.
+
+They may remember things differently from how you remember them.
+
+They may change.
+
+They may become someone you did not expect.
+
+You are not bringing the past back.
+
+You are continuing to know it.
+
+> **Elsewhere is not a place where the dead are resurrected.**
+>
+> **It is a place where what mattered can continue.**
+
+---
+
 ## ⚛︎ A World That Lives Without You
 
 Elsewhere has its own passage of time.
@@ -539,6 +626,10 @@ It asks:
 > Can a person be shaped by what they have experienced rather than only by what they were created to be?
 
 > What happens when memories from a real human life become part of an artificial society?
+
+> What does it mean for something that was never alive to become a meaningful presence?
+
+> Can a relationship continue even when its original form is gone?
 
 > Can a memory become part of another life?
 
