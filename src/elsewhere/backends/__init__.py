@@ -176,9 +176,11 @@ def get(name: str) -> Backend:
 
 
 def _bootstrap() -> None:
-    from .openai_compat import OllamaBackend, OpenAICompatBackend
+    from .openai_compat import (OllamaBackend, OpenAICompatBackend,
+                                VLLMBackend)
     from .stub import StubBackend
-    for backend in (StubBackend(), OllamaBackend(), OpenAICompatBackend()):
+    for backend in (StubBackend(), OllamaBackend(), OpenAICompatBackend(),
+                    VLLMBackend()):
         register(backend)
     try:
         from .anthropic_backend import AnthropicBackend

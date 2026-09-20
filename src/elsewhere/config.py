@@ -17,24 +17,44 @@ from .backends import Settings
 
 # Model names are deliberately left as plain strings: check the exact tag you
 # have with `ollama list` before trusting these.
-LOCAL = {"backend": "ollama", "model": "gemma4:26b-a4b",
-         "extra": {"think": False}}          # Gemma 4 hides JSON in reasoning otherwise
-SMALL = {"backend": "ollama", "model": "gemma4:e2b", "extra": {"think": False}}
+#
+# The defaults below assume the model runs on the same machine as the tick and
+# that machine has about 4GB to spare once the OS has taken its share. That
+# buys a 3-4B model at Q4 and nothing larger - which is a real constraint on
+# quality, not a detail. See `notes` in the written config for the two ways
+# out: a bigger model on a GPU somewhere (backend "vllm"), or sending the
+# calls that need judgement to a hosted model (backend "claude").
+SMALL = {"backend": "ollama", "model": "qwen3.5:4b"}       # ~3.4GB at Q4
+TINY = {"backend": "ollama", "model": "phi-4-mini"}        # ~2.2GB at Q4
 
 DEFAULTS: Dict[str, dict] = {
-    # closed-set decisions: a small model is enough
-    "act":      {**SMALL, "temperature": 0.9},
-    "perceive": {**LOCAL, "temperature": 0.7},
-    # voice and judgement: the calls worth spending on
-    "speak":    {**LOCAL, "temperature": 1.0},
-    "recall":   {**LOCAL, "temperature": 1.0},
-    "reflect":  {**LOCAL, "temperature": 0.8},
-    "direct":   {**LOCAL, "temperature": 1.0},
+    # closed-set decisions: the smallest thing that can follow a schema
+    "act":      {**TINY, "temperature": 0.9},
+    # judgement and voice: still local by default, and this is where a 4B
+    # model will disappoint first
+    "perceive": {**SMALL, "temperature": 0.7},
+    "speak":    {**SMALL, "temperature": 1.0},
+    "recall":   {**SMALL, "temperature": 1.0},
+    "reflect":  {**SMALL, "temperature": 0.8},
+    "direct":   {**SMALL, "temperature": 1.0},
 }
+
+NOTES = [
+    "backend: ollama | vllm | openai | claude | stub",
+    "vllm: set ELSEWHERE_OPENAI_BASE=http://your-gpu-host:8000/v1 - the tick "
+    "itself needs almost no memory, so the model does not have to be here",
+    "claude: pip install -e '.[llm]' and set ANTHROPIC_API_KEY; worth it for "
+    "perceive/speak/reflect if the local model makes everyone sound alike",
+    "a thinking-capable local model needs its thinking turned off or the JSON "
+    "arrives inside the reasoning field: ollama -> extra {\"think\": false}, "
+    "vllm -> extra {\"chat_template_kwargs\": {\"enable_thinking\": false}}",
+    "run `elsewhere doctor` after any change here",
+]
 
 
 def default_config() -> dict:
-    return {"agents": {k: dict(v) for k, v in DEFAULTS.items()}}
+    return {"notes": list(NOTES),
+            "agents": {k: dict(v) for k, v in DEFAULTS.items()}}
 
 
 def load(root) -> Dict[str, Settings]:
