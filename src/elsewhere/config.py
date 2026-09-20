@@ -40,7 +40,15 @@ DEFAULTS: Dict[str, dict] = {
 }
 
 NOTES = [
-    "backend: ollama | vllm | openai | claude | stub",
+    "backend: ollama | openai | vllm | claude | stub",
+    "anything with an OpenAI-compatible /v1 works through backend \"openai\"; "
+    "set ELSEWHERE_OPENAI_BASE. vllm-mlx: http://localhost:8000/v1 (MLX native, "
+    "JSON schema via response_format). llama-server: http://localhost:8080/v1 "
+    "(GBNF grammars, most control over context and KV quantisation). "
+    "LM Studio: http://localhost:1234/v1. Hosted endpoints work the same way "
+    "with ELSEWHERE_OPENAI_KEY.",
+    "backend \"ollama\" uses its native /api/chat, where the schema is passed "
+    "as format and constrains decoding directly",
     "vllm: set ELSEWHERE_OPENAI_BASE=http://your-gpu-host:8000/v1 - the tick "
     "itself needs almost no memory, so the model does not have to be here",
     "claude: pip install -e '.[llm]' and set ANTHROPIC_API_KEY; worth it for "
