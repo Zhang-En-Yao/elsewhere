@@ -1,0 +1,98 @@
+"""The one judgement the engine keeps: what can be reached right now.
+
+Everything else in Elsewhere v2 is decided by a mind. This is not, and it
+cannot be. A model asked "do you still remember the fire?" while the fire is
+sitting in its context will always say yes; a model that is not given the fire
+cannot say anything about it at all. Forgetting is therefore not an opinion -
+it is what the engine declines to hand over.
+
+So this file does three things and no more:
+
+  * work out how reachable a trace is, from the weight its owner gave it and
+    how long it has been since anyone touched it
+  * choose the handful that go into the prompt, under a fixed budget
+  * decide which ones have sunk below reach, and can only come back if
+    something in the world points straight at them
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Iterable, List, Optional, Sequence, Set
+
+from .world.memories import Trace
+
+HALF_LIFE = 45.0          # days, before the hold of an intense memory is applied
+FLOOR = 0.06              # below this a trace is out of reach
+CONTEXT_TRACES = 6        # how many can be laid in front of a mind at once
+
+
+def hold(trace: Trace) -> float:
+    """How well this trace resists time.
+
+    Weight is what its owner said it was worth; rehearsal counts for less than
+    the original charge, which is why a strong memory can survive years of not
+    being spoken about while an ordinary Tuesday cannot survive a season.
+    """
+    return 0.25 + 3.6 * (trace.salience ** 1.5) + 0.35 * math.log1p(trace.recalls)
+
+
+def reach(trace: Trace, day: int) -> float:
+    age = max(0, day - trace.last_touched)
+    return trace.salience * math.exp(-age / (HALF_LIFE * hold(trace)))
+
+
+def dormant(trace: Trace, day: int) -> bool:
+    return reach(trace, day) < FLOOR
+
+
+def relevance(trace: Trace, cues: Set[str]) -> float:
+    if not cues:
+        return 0.0
+    tags = set(trace.tags) | ({trace.place} if trace.place else set())
+    if not tags:
+        return 0.0
+    return len(tags & cues) / len(tags | cues)
+
+
+def score(trace: Trace, day: int, cues: Set[str]) -> float:
+    return reach(trace, day) * (1.0 + 2.0 * relevance(trace, cues))
+
+
+def recallable(traces: Iterable[Trace], day: int, cues: Optional[Set[str]] = None,
+               limit: int = CONTEXT_TRACES) -> List[Trace]:
+    """What this person has within reach, most available first.
+
+    Anything not in this list is, for the purposes of the next thought,
+    forgotten - whether or not it is still on disk.
+    """
+    cues = set(cues or ())
+    live = [t for t in traces if not dormant(t, day)]
+    live.sort(key=lambda t: score(t, day, cues), reverse=True)
+    return live[:limit]
+
+
+def cued_return(traces: Iterable[Trace], day: int, cues: Set[str]) -> Optional[Trace]:
+    """Something out of reach that this exact place or word points straight at.
+
+    'A memory that unexpectedly returns years later.' It has to be a direct
+    hit: general similarity is not enough to raise something already gone.
+    """
+    best, best_score = None, 0.0
+    for trace in traces:
+        if not dormant(trace, day):
+            continue
+        overlap = relevance(trace, set(cues))
+        if overlap < 0.34:
+            continue
+        value = overlap * trace.salience
+        if value > best_score:
+            best, best_score = trace, value
+    return best
+
+
+def cues_from(*sources: Sequence[str]) -> Set[str]:
+    out: Set[str] = set()
+    for source in sources:
+        out |= {s for s in source if s}
+    return out

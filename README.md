@@ -553,6 +553,12 @@ The goal is to build a world that feels worth returning to.
 
 ## ▶ Running It
 
+> **Branch `v2` is a rewrite in progress.** In v0.1 (tagged `v0.1`) every
+> judgement — what stuck, what it meant, what got said — was made by a formula.
+> In v2 the engine keeps the ledger and decides only what can be *reached*;
+> a language model decides what any of it meant. The commands below still
+> describe v0.1. See [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md).
+
 The first world runs on Python 3.10+ with no dependencies.
 
 ### Setup (first time)
