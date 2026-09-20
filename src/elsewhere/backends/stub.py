@@ -9,6 +9,9 @@ dial tone.
 from __future__ import annotations
 
 import json
+import os
+from collections import defaultdict
+from pathlib import Path
 from typing import Callable, Dict, Optional
 
 from . import Call
@@ -27,9 +30,15 @@ class StubBackend:
     name = "stub"
 
     def __init__(self, answers: Optional[Dict[str, object]] = None):
-        #: per call name, either a dict or a callable taking the Call
+        #: keyed by "<call>|<person id>" or just "<call>". The value may be a
+        #: dict, a raw string (to send back something unusable on purpose), a
+        #: callable taking the Call, or a list that is worked through in order.
         self.answers: Dict[str, object] = dict(answers or {})
         self.calls: list = []
+        self._taken: Dict[str, int] = defaultdict(int)
+        script = os.environ.get("ELSEWHERE_STUB")
+        if script:
+            self.answers.update(json.loads(Path(script).read_text(encoding="utf-8")))
 
     def set(self, call_name: str, answer) -> None:
         self.answers[call_name] = answer
@@ -37,7 +46,13 @@ class StubBackend:
     def complete(self, call: Call, model: str, temperature: float,
                  extra: Optional[dict] = None) -> str:
         self.calls.append(call)
-        answer = self.answers.get(call.name, DEFAULTS.get(call.name, {}))
+        key = f"{call.name}|{call.about}"
+        answer = self.answers.get(key, self.answers.get(
+            call.name, DEFAULTS.get(call.name, {})))
+        if isinstance(answer, list):
+            taken = self._taken[key]
+            self._taken[key] += 1
+            answer = answer[taken % len(answer)] if answer else {}
         if isinstance(answer, Callable):           # type: ignore[arg-type]
             answer = answer(call)
         if isinstance(answer, str):
