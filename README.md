@@ -551,60 +551,192 @@ The goal is to build a world that feels worth returning to.
 
 ---
 
+## ▶ Running It
+
+The first world runs on Python 3.10+ with no dependencies.
+
+### Setup (first time)
+
+The development environment uses Python 3.12 through
+[pyenv](https://github.com/pyenv/pyenv):
+
+```bash
+cd ~/Documents/elsewhere
+
+pyenv install 3.12.0        # install Python 3.12
+pyenv local 3.12.0          # use 3.12 in this directory
+python3 --version           # verify: Python 3.12.0
+
+python3 -m venv venv        # create the virtual environment
+source venv/bin/activate    # activate it
+pip install -e .            # install Elsewhere (editable mode)
+```
+
+### Every time you come back
+
+```bash
+cd ~/Documents/elsewhere
+source venv/bin/activate
+elsewhere status
+```
+
+Leave the environment with `deactivate`.
+
+### Starting over
+
+If the environment breaks, or you want a clean one:
+
+```bash
+cd ~/Documents/elsewhere
+deactivate                  # if a venv is active
+rm -rf venv
+python3 --version           # should still say 3.12.0
+python3 -m venv venv
+source venv/bin/activate
+pip install -e .
+```
+
+### Commands
+
+```bash
+pip install -e .
+
+elsewhere init --player "Your name"      # 4 people, 1 town, a fire nobody agrees about
+elsewhere advance --days 30 --away       # leave. the world keeps going
+elsewhere status                         # who is where, and what they just did
+elsewhere timeline                       # history: what happened
+elsewhere event ev0002                   # one event, and every version of it
+elsewhere person Alice                   # who she has become
+elsewhere memories Alice --all           # including what she has lost
+elsewhere art                            # what people made out of what happened
+elsewhere culture                        # what has hardened into practice
+elsewhere play                           # live in it for a while
+elsewhere end                            # close it, from outside
+```
+
+Nothing inside the world can end it. `elsewhere end` is the only way, and it
+is a command you run on the file rather than an action any resident can take:
+it prints what the town amounted to — who they turned out to be, what they
+lost, what outlived the reason for it, whether anyone still remembers you —
+writes a last line into the chronicle, and archives the world to `worlds/`.
+An ended world can still be read; no more time passes in it.
+
+Two things that are worth doing first:
+
+```bash
+elsewhere event ev0002
+```
+
+The old market burned down. Alice was frightened. Bram remembers the town
+putting itself back together. Carol remembers deciding to leave. David was
+there and has nothing at all.
+
+```bash
+elsewhere remember "the night bus back from Hualien, and the rain" --themes travel,rain
+```
+
+A memory from a real life enters the world as an event. Whoever was there gets
+their own version of it. What they do with it afterwards is not yours to
+decide.
+
+Something that mattered can be given somewhere to continue:
+
+```bash
+elsewhere invite "Momo" --note "A grey cat who slept on the windowsill for eleven years."
+```
+
+It does not come back as what it was. It enters as a presence, meets people,
+and starts accumulating a life of its own.
+
+People say things out loud. What the other person walks away with is a shorter,
+flatter version of it, and sometimes the wrong one:
+
+```
+Alice said:   "It was not as bad as people say now. A storm came down over
+               The Old Market. It got put back together."
+Carol kept:   "What I took from it was a storm came down over The Old Market
+               - though it may have been the opposite."
+```
+
+`elsewhere event <id>` shows both, for every conversation.
+
+### The inhabitants' minds are pluggable
+
+By default everyone runs on a rule engine: needs, disposition, time of day,
+and a softmax. It is fast (about two seconds per simulated year), free, and
+exactly reproducible from the world seed. A language model can be dropped in
+for the same interface:
+
+```bash
+pip install -e ".[llm]"
+export ANTHROPIC_API_KEY=...
+elsewhere advance --days 3 --mind llm
+```
+
+A mind only ever sees what its person could see, and can only return actions
+the world already understands. If the model is unreachable, that person falls
+back to the rule engine rather than standing still.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how memory, perception,
+minds and culture fit together, and `python -m unittest discover -s tests` to
+check that a saved world continues exactly as it would have.
+
+---
+
 ## ⛯ Roadmap
 
 ### The World
 
-- [ ] A persistent world
-- [ ] Passage of time
+- [x] A persistent world
+- [x] Passage of time
 - [ ] Places and communities
-- [ ] Events
-- [ ] A living timeline
+- [x] Events
+- [x] A living timeline
 
 ### People
 
-- [ ] Distinct personalities
-- [ ] Relationships
-- [ ] Goals and desires
-- [ ] Autonomous behavior
-- [ ] Conversations
-- [ ] Changing perspectives
+- [x] Distinct personalities
+- [x] Relationships
+- [x] Goals and desires
+- [x] Autonomous behavior
+- [x] Conversations
+- [x] Changing perspectives
 
 ### Memory
 
-- [ ] Experiences
-- [ ] Selective memories
-- [ ] Forgetting
-- [ ] Memory reinforcement
-- [ ] Reflection
-- [ ] Changing beliefs
-- [ ] Long-term influence
+- [x] Experiences
+- [x] Selective memories
+- [x] Forgetting
+- [x] Memory reinforcement
+- [x] Reflection
+- [x] Changing beliefs
+- [x] Long-term influence
 
 ### Art
 
-- [ ] Paintings
-- [ ] Stories
-- [ ] Poetry
-- [ ] Music
-- [ ] Personal styles
-- [ ] Cultural artifacts
+- [x] Paintings
+- [x] Stories
+- [x] Poetry
+- [x] Music
+- [x] Personal styles
+- [x] Cultural artifacts
 
 ### Real Life
 
-- [ ] Personal memories
+- [x] Personal memories
 - [ ] Travel experiences
 - [ ] Real-world places
 - [ ] Photographs as sources of memory
-- [ ] Real experiences becoming art
-- [ ] A personal presence within the world
+- [x] Real experiences becoming art
+- [x] A personal presence within the world
 
 ### Culture
 
 - [ ] Communities
 - [ ] Organizations
-- [ ] Traditions
+- [x] Traditions
 - [ ] Religion
-- [ ] Festivals
+- [x] Festivals
 - [ ] Artistic movements
 - [ ] Generational memory
 - [ ] Cultural evolution
@@ -662,6 +794,10 @@ A little history.
 A few memories.
 
 Enough time to see what happens.
+
+That world now runs. It has four people rather than three, a fire in its past
+that each of them remembers differently, and one of them who does not remember
+it at all. See [Running It](#-running-it).
 
 ---
 
