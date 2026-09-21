@@ -5,9 +5,9 @@
 # else, and a server bound to this machine's localhost is not reachable from
 # anywhere but this machine.
 #
-#   scripts/live.sh                       # vllm-mlx, Llama 3.2 3B, 4-bit
-#   MODEL=mlx-community/Phi-4-mini-instruct-4bit scripts/live.sh
-#   RUNTIME=ollama MODEL=phi-4-mini scripts/live.sh
+#   scripts/live.sh                       # ollama, phi4-mini
+#   MODEL=llama3.2:3b scripts/live.sh
+#   RUNTIME=vllm-mlx scripts/live.sh      # MLX server; see scripts/diagnose.sh if it will not start
 #   KEEP=1 scripts/live.sh                # leave the server up between runs
 #
 # The first run downloads the weights, which on a slow line takes longer than
@@ -16,12 +16,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-RUNTIME="${RUNTIME:-vllm-mlx}"
+RUNTIME="${RUNTIME:-ollama}"
 PORT="${PORT:-8000}"
-MODEL="${MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}"
+if [ "$RUNTIME" = "ollama" ]; then
+  MODEL="${MODEL:-phi4-mini}"
+else
+  MODEL="${MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}"
+fi
 VENV="${VENV:-.venv}"
 SERVER_PID=""
-LOG="${LOG:-/tmp/elsewhere-server.log}"
+mkdir -p .elsewhere
+LOG="${LOG:-$PWD/.elsewhere/server.log}"      # inside the repo, so it can be read back
 
 say() { printf "\n\033[1m%s\033[0m\n" "$*"; }
 

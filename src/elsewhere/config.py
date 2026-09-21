@@ -24,19 +24,17 @@ from .backends import Settings
 # quality, not a detail. See `notes` in the written config for the two ways
 # out: a bigger model on a GPU somewhere (backend "vllm"), or sending the
 # calls that need judgement to a hosted model (backend "claude").
-SMALL = {"backend": "ollama", "model": "qwen3.5:4b"}       # ~3.4GB at Q4
-TINY = {"backend": "ollama", "model": "phi-4-mini"}        # ~2.2GB at Q4
+# One model for every call site. On 8GB two models cannot both stay resident,
+# and swapping between them every tick costs more than it saves.
+LOCAL = {"backend": "ollama", "model": "phi4-mini"}        # ~2.5GB at Q4_K_M
 
 DEFAULTS: Dict[str, dict] = {
-    # closed-set decisions: the smallest thing that can follow a schema
-    "act":      {**TINY, "temperature": 0.9},
-    # judgement and voice: still local by default, and this is where a 4B
-    # model will disappoint first
-    "perceive": {**SMALL, "temperature": 0.7},
-    "speak":    {**SMALL, "temperature": 1.0},
-    "recall":   {**SMALL, "temperature": 1.0},
-    "reflect":  {**SMALL, "temperature": 0.8},
-    "direct":   {**SMALL, "temperature": 1.0},
+    "act":      {**LOCAL, "temperature": 0.9},
+    "perceive": {**LOCAL, "temperature": 0.7},
+    "speak":    {**LOCAL, "temperature": 1.0},
+    "recall":   {**LOCAL, "temperature": 1.0},
+    "reflect":  {**LOCAL, "temperature": 0.8},
+    "direct":   {**LOCAL, "temperature": 1.0},
 }
 
 NOTES = [
