@@ -49,7 +49,7 @@ def vantage(world, person: Person, event: Event) -> str:
     if told:
         return told
     if person.id in event.who:
-        return "it happened to you"
+        return "in the middle of it"
     place = world.places.get(event.where or "")
     here = world.places.get(person.place)
     if place and here and here.id == place.id:

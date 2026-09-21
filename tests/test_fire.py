@@ -25,14 +25,7 @@ from elsewhere.backends import Settings, Transcript
 from elsewhere.backends import register
 from elsewhere.backends.stub import StubBackend
 
-STOP = {"the", "and", "that", "with", "from", "into", "still", "this", "there",
-        "their", "were", "was", "had", "have", "then", "they", "them", "about"}
-
-
-def words(text):
-    import re
-    return {w for w in re.findall(r"[a-z']+", text.lower())
-            if len(w) > 3 and w not in STOP}
+from elsewhere.evals import words  # the same tripwires the eval uses
 
 
 # What four people might plausibly come back with. The stub is not pretending

@@ -51,6 +51,7 @@ class Person:
     id: str
     name: str
     card: str = ""                 # who they are, in prose; the model may revise it
+    voice: str = ""                # how they talk - a small model cannot infer this from a biography
     age: Optional[int] = None
     occupation: str = ""
     place: str = ""
@@ -82,7 +83,8 @@ class Person:
     @classmethod
     def from_dict(cls, d: dict) -> "Person":
         return cls(
-            id=d["id"], name=d["name"], card=d.get("card", ""), age=d.get("age"),
+            id=d["id"], name=d["name"], card=d.get("card", ""),
+            voice=d.get("voice", ""), age=d.get("age"),
             occupation=d.get("occupation", ""), place=d.get("place", ""),
             home=d.get("home", ""), mood=d.get("mood", "even"),
             wants=list(d.get("wants", [])),

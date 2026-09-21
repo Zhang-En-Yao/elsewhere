@@ -24,6 +24,8 @@ def person_block(person: Person) -> str:
         facts.append(person.occupation)
     if facts:
         lines.append(", ".join(facts).capitalize() + ".")
+    if getattr(person, "voice", ""):
+        lines.append(f"How you talk: {person.voice}")
     lines.append(f"Right now you feel {person.mood}.")
     if person.wants:
         lines.append("What you want at the moment: " + "; ".join(person.wants) + ".")
@@ -72,7 +74,10 @@ someone said, the part that frightened or moved them. Not a report. It may be
 less than what happened, and it may be slightly wrong. It must be in their own
 voice, a few words to one sentence, not a chronicle's.
 
-means: what they make of it, in a few words. Leave it empty if nothing.
+means: what they make of it, in their own words, the way they would say it
+out loud to someone. Not a lesson and not a moral - nobody says "a reminder of
+the fragility of life" about their own week. Plenty of people make nothing of
+things; leave it empty then.
 
 feeling, tags: one feeling; two to four short tags for what it was about.
 
@@ -94,14 +99,22 @@ reach for the obvious detail everyone would name. Reach for theirs."""
 def perceive_user(person: Person, what_happened: str, where: str, when: str,
                   others: Sequence[Person], traces: Sequence[Trace],
                   part_of_it: bool, vantage: str = "") -> str:
+    """Scene first, person last.
+
+    A small model weights the end of a prompt far more than the start. With the
+    character card at the top, by the time it reaches the question the card
+    has been drowned by the scene - and everyone answers as the same narrator.
+    """
     parts = [
-        person_block(person),
-        traces_block(traces),
-        ties_block(person, others),
         f"It was {when}, at {where}.",
-        f"Where you were: {vantage}." if vantage else "",
         ("What happened to you: " if part_of_it else "What happened: ")
         + what_happened,
-        f"What does {person.name} - not anyone else who was there - come away with?",
+        (f"You were {vantage}. That is where you stood, not what you noticed - "
+         f"do not reuse its words.") if vantage else "",
+        ties_block(person, others).replace("Who is here:", "Who else was there:"),
+        traces_block(traces),
+        person_block(person),
+        f"Now answer as {person.name}, and only as {person.name}: did any of it "
+        f"stay with you? For some people, nothing does.",
     ]
-    return "\n\n".join(p for p in parts if p)
+    return "\n\n".join(part for part in parts if part)

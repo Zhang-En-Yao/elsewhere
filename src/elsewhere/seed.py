@@ -25,8 +25,25 @@ def _place(world: World, pid: str, name: str, description: str, tags, neighbours
                               tags=list(tags), neighbours=list(neighbours))
 
 
+def _clear(root: Path) -> None:
+    """A new world starts with an empty past.
+
+    The chronicle is append-only by design, which means building a world into
+    a directory that already holds one would quietly give it two histories.
+    Transcripts are left alone: they are a record of questions asked, not part
+    of the world.
+    """
+    import shutil
+
+    (root / "chronicle.jsonl").unlink(missing_ok=True)
+    (root / "world.json").unlink(missing_ok=True)
+    for sub in ("people", "memories"):
+        shutil.rmtree(root / sub, ignore_errors=True)
+
+
 def build(root, name: str = "Wend") -> World:
     root = Path(root)
+    _clear(root)
     world = World(root=root, name=name, day=1, phase=0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
 
@@ -51,7 +68,8 @@ def build(root, name: str = "Wend") -> World:
 
     people = [
         Person(
-            id="p_alice", name="Alice", age=34, occupation="weaver",
+            id="p_alice",
+            voice="Short, careful sentences. You leave the important part unsaid.", name="Alice", age=34, occupation="weaver",
             place="house", home="house", mood="watchful",
             card=("You weave, and you are good at it, and you do not much like "
                   "being looked at while you work. You startle easily and you "
@@ -61,7 +79,8 @@ def build(root, name: str = "Wend") -> World:
             wants=["finish the piece on the loom", "not be asked about the fire"],
         ),
         Person(
-            id="p_bram", name="Bram", age=41, occupation="carpenter",
+            id="p_bram",
+            voice="Plain and practical. You talk about what was done, never about how it felt.", name="Bram", age=41, occupation="carpenter",
             place="workshop", home="workshop", mood="even",
             card=("You make things that hold. You are steady to the point of "
                   "being dull about it, and you would rather repair something "
@@ -70,7 +89,8 @@ def build(root, name: str = "Wend") -> World:
             wants=["get the roof at the long table sorted before winter"],
         ),
         Person(
-            id="p_carol", name="Carol", age=27, occupation="herbalist",
+            id="p_carol",
+            voice="Quick and a little sharp. You talk about what things mean for later.", name="Carol", age=27, occupation="herbalist",
             place="hill", home="square", mood="restless",
             card=("You know the plants on the hill better than anyone and you "
                   "are not sure you will be here next year. You notice change "
@@ -79,7 +99,8 @@ def build(root, name: str = "Wend") -> World:
             wants=["walk the hill road as far as it goes, one day"],
         ),
         Person(
-            id="p_david", name="David", age=63, occupation="miller",
+            id="p_david",
+            voice="As few words as possible. Most things are not worth mentioning, and you do not.", name="David", age=63, occupation="miller",
             place="market", home="market", mood="flat",
             card=("You mill grain, you have milled grain for forty years, and "
                   "you will mill grain tomorrow. You do not keep much. People "
@@ -111,8 +132,10 @@ def build(root, name: str = "Wend") -> World:
     tie("p_david", "p_carol", "The herb girl.", 0.26)
 
     # ---- the first page of the chronicle ---------------------------------
-    # Where each of them stood is part of what happened, so it is written
-    # into the chronicle. What each of them made of it is not.
+    # Where each of them stood is part of what happened, so it is written into
+    # the chronicle - as a position and nothing more. "Close enough to feel the
+    # heat" is already a perception, and a small model will copy it straight
+    # into the memory it is supposed to be forming for itself.
     world.day, world.phase = 18, 2                              # evening
     world.record("gathering",
                  "Alice and Bram built the long table, and the town ate outside.",
@@ -120,9 +143,9 @@ def build(root, name: str = "Wend") -> World:
                  present=["p_alice", "p_bram", "p_david"],
                  tags=["gathering", "town", "building"],
                  data={"vantage": {
-                     "p_alice": "at one end of the table, hands still sore from the planing",
-                     "p_bram": "at the other end, pressing on it to see if it rocked",
-                     "p_david": "at the far corner by the door, with a plate",
+                     "p_alice": "at one end of the table",
+                     "p_bram": "at the other end of the table",
+                     "p_david": "at the far corner, near the door",
                  }})
     world.day, world.phase = 68, 3                              # night
     world.record("fire", "The old market burned down.",
@@ -130,10 +153,10 @@ def build(root, name: str = "Wend") -> World:
                  present=["p_alice", "p_bram", "p_carol", "p_david"],
                  tags=["fire", "loss", "town"],
                  data={"vantage": {
-                     "p_alice": "in the street across from it, close enough to feel the heat on your face",
-                     "p_bram": "on the workshop roof next door, throwing water at the sparks",
-                     "p_carol": "up on the hill road, too far to hear it, watching the glow",
-                     "p_david": "at the edge of the crowd, holding a bucket you never used",
+                     "p_alice": "across the street from the market",
+                     "p_bram": "on the roof of the workshop next door",
+                     "p_carol": "on the hill road above the town",
+                     "p_david": "at the edge of the crowd in the square",
                  }})
     world.day, world.phase = 92, 1                              # afternoon
     world.record("building",
@@ -143,9 +166,9 @@ def build(root, name: str = "Wend") -> World:
                  present=["p_bram", "p_david", "p_alice"],
                  tags=["town", "work", "building"],
                  data={"vantage": {
-                     "p_bram": "up on the scaffold, fitting the new beams",
-                     "p_david": "hauling the timber up from the river, all afternoon",
-                     "p_alice": "walking past it on the way to the square",
+                     "p_bram": "on the scaffold at the market",
+                     "p_david": "on the road between the river and the market",
+                     "p_alice": "in the street outside the market",
                  }})
 
     world.day, world.phase = START_DAY, 0

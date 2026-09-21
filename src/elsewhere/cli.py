@@ -195,6 +195,18 @@ def cmd_remember(args) -> None:
         print(f"  {world.people[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
 
 
+def cmd_eval(args) -> None:
+    """Run a scenario N times against the configured minds and report."""
+    from . import evals
+
+    if args.scenario != "fire":
+        sys.exit("the only scenario so far is: fire")
+    tape_dir = Path(".elsewhere") / "eval"
+    print(f"Putting the fire to four people, {args.n} times. Tapes in {tape_dir}/")
+    samples, world, fire = evals.run_fire(args.n, tape_dir)
+    print(evals.report(samples, world, fire))
+
+
 # --------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
@@ -232,6 +244,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("remember", help="put one event past everyone again")
     p.add_argument("event_id")
     p.set_defaults(func=cmd_remember)
+
+    p = sub.add_parser("eval", help="measure the minds over N runs of a scenario")
+    p.add_argument("scenario", nargs="?", default="fire")
+    p.add_argument("-n", type=int, default=5)
+    p.set_defaults(func=cmd_eval)
 
     return ap
 
