@@ -81,12 +81,16 @@ things; leave it empty then.
 
 feeling, tags: one feeling; two to four short tags for what it was about.
 
-weight, last: how much of that survives.
-  nothing  - it is gone by tomorrow; most things are this
+weight, last: how much of that survives in this person.
+  nothing  - it is gone by tomorrow
   faint    - it might come back if something pointed at it
   ordinary - they will bring it up this week, and not next year
   stays    - they will still have it years from now
   marks    - it changes who they are
+
+Weigh it by who this person is, not by how big the event was. The same fire
+can mark one person for life and pass the next one by entirely - read who
+they are before you decide. An ordinary day is nothing for almost everyone.
 
 Almost nothing is "marks". Be sparing, or this person ends up with a hundred
 unforgettable days and no life.
@@ -114,7 +118,7 @@ def perceive_user(person: Person, what_happened: str, where: str, when: str,
         ties_block(person, others).replace("Who is here:", "Who else was there:"),
         traces_block(traces),
         person_block(person),
-        f"Now answer as {person.name}, and only as {person.name}: did any of it "
-        f"stay with you? For some people, nothing does.",
+        f"Now answer as {person.name}, and only as {person.name}: how much of this "
+        f"do you carry? For some people it is everything; for others, nothing at all.",
     ]
     return "\n\n".join(part for part in parts if part)

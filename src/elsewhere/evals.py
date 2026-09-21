@@ -48,9 +48,23 @@ def copied(trace: str, vantage: str) -> bool:
     return len(t & v) >= 2 or t <= v
 
 
+_CLICHE_STEMS = re.compile(r"\b(remind\w*|fragil\w*|impermanen\w*|inevitab\w*|"
+                           r"transien\w*|vulnerab\w*)\b")
+
+
 def cliche(means: str) -> bool:
+    """Greeting-card register. Stems, not phrases: 'another reminder of', 'a stark
+    reminder of' and 'it reminds me of' are all the same move, and a phrase list
+    only caught the first of them."""
     low = (means or "").lower()
-    return any(c in low for c in CLICHES)
+    return any(c in low for c in CLICHES) or bool(_CLICHE_STEMS.search(low))
+
+
+def echoes_chronicle(trace: str, event_what: str) -> bool:
+    """The trace is just the history line handed back - no perception at all.
+    Reported, not gated: for someone like David it may be exactly right."""
+    t, e = words(trace), words(event_what)
+    return bool(t) and t <= (e | {"fire", "night"})
 
 
 @dataclass
@@ -148,7 +162,7 @@ def report(samples: List[Sample], world, fire) -> str:
         out.append("  shared details: " + ", ".join(f"{w} x{c}" for w, c in shared.most_common(5)))
 
     out.append("\nPer person:")
-    out.append(f"  {'':<7} {'weights over the runs':<44} {'copied':>7} {'cliche':>7}")
+    out.append(f"  {'':<7} {'weights over the runs':<36} {'copied':>7} {'cliche':>7} {'echo':>7}")
     for pid in fire.present:
         name = world.people[pid].name
         weights = Counter(s.weight(pid) for s in samples)
@@ -158,8 +172,10 @@ def report(samples: List[Sample], world, fire) -> str:
                  for s in samples if pid in s.kept())
         cl = sum(cliche((s.answers.get(pid) or {}).get("means", ""))
                  for s in samples if pid in s.kept())
+        ec = sum(echoes_chronicle((s.answers.get(pid) or {}).get("trace", ""), fire.what)
+                 for s in samples if pid in s.kept())
         kept = sum(pid in s.kept() for s in samples)
-        out.append(f"  {name:<7} {wline:<44} {cp:>3}/{kept:<3} {cl:>3}/{kept:<3}")
+        out.append(f"  {name:<7} {wline:<36} {cp:>3}/{kept:<3} {cl:>3}/{kept:<3} {ec:>3}/{kept:<3}")
 
     out.append("\nWhat they kept, last run:")
     last = samples[-1]
