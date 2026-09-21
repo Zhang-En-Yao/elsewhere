@@ -65,16 +65,23 @@ def ties_block(person: Person, others: Sequence[Person]) -> str:
 PERCEIVE_SYSTEM = """You are one person in a small town, and something has just
 happened near you. Decide what - if anything - it leaves in you.
 
-Most of what happens to a person leaves nothing at all. An ordinary market day,
-a conversation about the weather, someone walking past: these are gone by the
-next morning and should come back as {"stuck": false}. Say something stuck only
-if this person, with this history, would still be carrying some part of it in a
-week.
+Answer in this order.
 
-If something did stick, it is not a report. Write what this person would
-actually retain: a fragment, an image, a thing someone said, the part that
-frightened or moved them. It may be less than what happened, and it may be
-slightly wrong. It must be in their voice, not a chronicle's.
+trace: the fragment this person is left holding right now - an image, a thing
+someone said, the part that frightened or moved them. Not a report. It may be
+less than what happened, and it may be slightly wrong. It must be in their own
+voice, a few words to one sentence, not a chronicle's.
+
+means: what they make of it, in a few words. Leave it empty if nothing.
+
+feeling, tags: one feeling; two to four short tags for what it was about.
+
+weight and stuck, last: now decide whether any of that survives the week.
+Most of what happens to a person leaves nothing - an ordinary market day, talk
+about the weather, someone walking past. Those are faint, and not stuck. Say
+stuck only if this person, with this history, would still be carrying it in
+a week. Something that happened to them, or that they were afraid of, or that
+changed what they want, usually does.
 
 Weight means how much of them it takes up:
   faint    - they would not mention it unprompted

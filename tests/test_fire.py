@@ -11,6 +11,7 @@ model to find out whether the model is any good at the only job that matters:
         python -m unittest tests.test_fire
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -130,6 +131,12 @@ class TestTheFireForReal(unittest.TestCase):
     """
 
     def test_four_people_do_not_sound_like_one(self):
+        # The tape is kept outside the temporary world so it survives the run:
+        # when this fails, what the model actually said is the whole diagnosis.
+        tape = Path(__file__).resolve().parents[1] / ".elsewhere" / "fire-live.jsonl"
+        tape.parent.mkdir(parents=True, exist_ok=True)
+        tape.write_text("", encoding="utf-8")
+
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "world"
             world = seed.build(root)
@@ -137,11 +144,21 @@ class TestTheFireForReal(unittest.TestCase):
             config = config_mod.load(root)
             fire = next(e for e in world.chronicle.all() if e.kind == "fire")
             world.day = fire.day
-            made = agents.perceive_all(world, fire, config,
-                                       Transcript(root / "live.jsonl"))
+            made = agents.perceive_all(world, fire, config, Transcript(tape))
+
+            print(f"\n  what the model said (full exchange in {tape}):")
+            for line in tape.read_text(encoding="utf-8").splitlines():
+                row = json.loads(line)
+                who = world.people.get(row.get("about", ""))
+                name = who.name if who else row.get("about", "?")
+                flag = "" if row.get("ok") else f"   <- unusable: {row.get('complaint')}"
+                print(f"    {name:<6} {row.get('raw', '').strip()[:300]}{flag}")
+            print("\n  what stayed:")
             for trace in made:
-                print(f"\n  {world.people[trace.owner].name}: {trace.trace}"
-                      f"\n    ({trace.feeling}, weight {trace.salience}) {trace.means}")
+                print(f"    {world.people[trace.owner].name}: {trace.trace}"
+                      f"  ({trace.feeling}, weight {trace.salience}) {trace.means}")
+            if not made:
+                print("    nothing, for anyone")
             self.assertGreaterEqual(len(made), 2, "somebody should keep something")
             self.assertEqual(len({t.trace for t in made}), len(made),
                              "four people should not produce the same sentence")

@@ -25,15 +25,19 @@ WEIGHTS = ["faint", "ordinary", "stays", "marks"]
 
 ACTIONS = ["stay", "go", "talk", "work", "rest", "make", "tend", "walk"]
 
+# Order matters under a grammar: keys are generated in this order, so a model
+# that is asked "stuck?" first commits to an answer in one token, before it has
+# written a word about what happened. Asking for the fragment first and the
+# verdict last lets the decision be about something it has already said.
 PERCEIVE = {
     "type": "object",
     "properties": {
-        "stuck": {"type": "boolean"},
-        "weight": {"type": "string", "enum": WEIGHTS},
         "trace": {"type": "string"},
         "means": {"type": "string"},
         "feeling": {"type": "string", "enum": FEELINGS},
         "tags": {"type": "array", "items": {"type": "string"}},
+        "weight": {"type": "string", "enum": WEIGHTS},
+        "stuck": {"type": "boolean"},
     },
     "required": ["stuck"],
 }
@@ -169,3 +173,19 @@ def validate(name: str, data: Any) -> Tuple[Optional[dict], Optional[str]]:
 
 def required_for(name: str) -> List[str]:
     return list(BY_NAME[name].get("required", []))
+
+
+def grammar(name: str) -> dict:
+    """The schema as handed to a decoder: every field required.
+
+    Under grammar-constrained decoding an optional field is an invitation to
+    stop early - the shortest valid answer to PERCEIVE is {"stuck": true},
+    which says something stayed and nothing about what. The inbound validator
+    stays lenient (other backends and recorded tapes may omit fields); the
+    grammar does not.
+    """
+    import copy
+
+    schema = copy.deepcopy(BY_NAME[name])
+    schema["required"] = list(schema.get("properties", {}).keys())
+    return schema

@@ -57,7 +57,7 @@ def perceive(world, person: Person, event: Event, config,
             traces=context,
             part_of_it=person.id in event.who,
         ),
-        schema=schemas.PERCEIVE,
+        schema=schemas.grammar("perceive"),
         about=person.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)

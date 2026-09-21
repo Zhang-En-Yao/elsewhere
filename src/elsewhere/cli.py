@@ -159,7 +159,7 @@ def cmd_doctor(args) -> None:
     for name, settings in config.items():
         key = (settings.backend, settings.model)
         if key in seen:
-            print(f"  {name:<9} {settings.backend}/{settings.model:<18} {seen[key]}")
+            print(f"  {name:<9} {settings.backend}/{settings.model:<18} (same model as above)")
             continue
         call = Call(name="probe", system="Answer only with JSON.",
                     user='Reply exactly {"ok": true}.', schema=probe, about="doctor")
