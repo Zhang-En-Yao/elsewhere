@@ -97,7 +97,36 @@ unforgettable days and no life.
 
 Other people were there too, and each of them kept something different: what
 someone like this person notices first, from where they were standing. Do not
-reach for the obvious detail everyone would name. Reach for theirs."""
+reach for the obvious detail everyone would name. Reach for theirs.
+
+Most people do not yet know what a thing means to them. An empty "means" is
+the usual answer. When there is one, it is something they would actually say
+to a neighbour, not a lesson.
+
+Three people, another town, another day - the form, not the content:
+
+  A cart went over on the river bend and the horse had to be put down.
+
+  Mira, who minds the neighbours' children. At her door, forty paces off.
+    {"trace": "its eye was open the whole time they were deciding",
+     "means": "", "feeling": "grief", "tags": ["horse", "river"], "weight": "stays"}
+
+  Oskar, a trader who counts everything. Behind the cart, holding his own horse.
+    {"trace": "two sacks of flour split open in the mud",
+     "means": "someone is paying for that, and it is not me",
+     "feeling": "unease", "tags": ["cart", "trade"], "weight": "faint"}
+
+  Pell, an old ferryman who has seen it before. On the far bank.
+    {"trace": "a cart on its side", "means": "", "feeling": "none",
+     "tags": ["river"], "weight": "nothing"}"""
+
+
+#: The example traces above, so the eval can tell a copied example from a memory.
+PERCEIVE_EXAMPLE_TRACES = (
+    "its eye was open the whole time they were deciding",
+    "two sacks of flour split open in the mud",
+    "a cart on its side",
+)
 
 
 def perceive_user(person: Person, what_happened: str, where: str, when: str,

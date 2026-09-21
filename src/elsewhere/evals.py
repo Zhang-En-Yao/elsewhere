@@ -41,11 +41,22 @@ def words(text: str) -> set:
 
 
 def copied(trace: str, vantage: str) -> bool:
-    """Did the mind hand back the engine's own description of where it stood?"""
-    t, v = words(trace), words(vantage)
-    if not t or not v:
+    """Did the mind hand back words it was given - the engine's description of
+    where it stood, or one of the worked examples in the prompt?"""
+    t = words(trace)
+    if not t:
         return False
-    return len(t & v) >= 2 or t <= v
+    sources = [vantage]
+    try:
+        from .prompts import PERCEIVE_EXAMPLE_TRACES
+        sources += list(PERCEIVE_EXAMPLE_TRACES)
+    except ImportError:
+        pass
+    for src in sources:
+        v = words(src)
+        if v and (len(t & v) >= 2 or t <= v):
+            return True
+    return False
 
 
 _CLICHE_STEMS = re.compile(r"\b(remind\w*|fragil\w*|impermanen\w*|inevitab\w*|"
@@ -83,23 +94,44 @@ class Sample:
                 and (self.answers[pid].get("trace") or "").strip()]
 
 
-def gate(sample: Sample, event_words: set) -> Dict[str, bool]:
-    """The acceptance test, as data. The live unittest asserts exactly this."""
-    kept = sample.kept()
-    focus = [words(sample.answers[p]["trace"]) - event_words for p in kept]
-    shared = set.intersection(*focus) if len(focus) > 1 else set()
-    heavy = [p for p in kept if sample.weight(p) in HEAVY]
-    return {
-        "someone kept something": len(kept) >= 2,
-        "no shared detail": not shared,
-        "not heavy on everyone": len(heavy) <= 3,
-    }
+def _focus(sample: Sample, event_words: set) -> List[set]:
+    """What each kept trace is about, beyond the event itself.
+
+    A trace that only hands the chronicle back has an empty focus. Those must
+    be left out of the intersection: one empty set makes any intersection empty,
+    and an earlier version of this gate passed 'no shared detail' precisely
+    because people had stopped perceiving anything at all.
+    """
+    focus = [words(sample.answers[p]["trace"]) - event_words for p in sample.kept()]
+    return [f for f in focus if f]
 
 
 def shared_detail(sample: Sample, event_words: set) -> set:
-    kept = sample.kept()
-    focus = [words(sample.answers[p]["trace"]) - event_words for p in kept]
+    focus = _focus(sample, event_words)
     return set.intersection(*focus) if len(focus) > 1 else set()
+
+
+def echoes(sample: Sample, event_what: str) -> List[str]:
+    return [p for p in sample.kept()
+            if echoes_chronicle(sample.answers[p].get("trace", ""), event_what)]
+
+
+def gate(sample: Sample, event_words: set, event_what: str = "") -> Dict[str, bool]:
+    """The acceptance test, as data. The live unittest asserts exactly this."""
+    kept = sample.kept()
+    heavy = [p for p in kept if sample.weight(p) in HEAVY]
+    return {
+        "someone kept something": len(kept) >= 2,
+        "no shared detail": not shared_detail(sample, event_words),
+        "not heavy on everyone": len(heavy) <= 3,
+        # One person handing back the history line may be who they are. Two
+        # means the model has stopped perceiving and started summarising.
+        "at most one echo": len(echoes(sample, event_what)) <= 1,
+    }
+
+
+GATE_CHECKS = ("someone kept something", "no shared detail",
+               "not heavy on everyone", "at most one echo")
 
 
 def run_fire(n: int, tape_dir: Path) -> tuple:
@@ -147,12 +179,22 @@ def report(samples: List[Sample], world, fire) -> str:
     out.append(f"\nGate (what the live test asserts), over {n} runs:")
     passes = Counter()
     for s in samples:
-        for check, ok in gate(s, event_words).items():
+        for check, ok in gate(s, event_words, fire.what).items():
             passes[check] += ok
-    all_pass = sum(all(gate(s, event_words).values()) for s in samples)
-    for check in ("someone kept something", "no shared detail", "not heavy on everyone"):
+    all_pass = sum(all(gate(s, event_words, fire.what).values()) for s in samples)
+    for check in GATE_CHECKS:
         out.append(f"  {check:<26} {passes[check]}/{n}")
-    out.append(f"  {'all three':<26} {all_pass}/{n}")
+    out.append(f"  {'all of them':<26} {all_pass}/{n}")
+
+    # 'means' is where a small model's own voice shows, so the same sentence
+    # from two different people in one run is the clearest one-narrator sign.
+    dup = 0
+    for s in samples:
+        seen = Counter((s.answers[p].get("means") or "").strip().lower().rstrip(".")
+                       for p in s.kept())
+        dup += sum(c for m, c in seen.items() if m and c > 1)
+    kept_total = sum(len(s.kept()) for s in samples)
+    out.append(f"  {'identical means, x-person':<26} {dup}/{kept_total}")
 
     shared = Counter()
     for s in samples:

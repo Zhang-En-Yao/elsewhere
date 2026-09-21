@@ -162,21 +162,16 @@ class TestTheFireForReal(unittest.TestCase):
                       f"  ({trace.feeling}, weight {trace.salience}) {trace.means}")
             if not made:
                 print("    nothing, for anyone")
-            self.assertGreaterEqual(len(made), 2, "somebody should keep something")
-
-            # Four different sentences about the same detail are still one
-            # narrator. What gives it away is a word every one of them
-            # reached for that is not in the event itself.
-            event_words = words(fire.what) | set(fire.tags)
-            focus = [words(t.trace) - event_words for t in made]
-            shared = set.intersection(*focus) if len(focus) > 1 else set()
-            self.assertFalse(
-                shared, f"every one of them kept the same detail: {sorted(shared)} - "
-                        f"that is one narrator, not {len(made)} people")
-
-            heavy = [t for t in made if t.salience >= 0.4]
-            self.assertLessEqual(len(heavy), 3,
-                                 "if it weighs on everyone, the weighting is broken")
+            from elsewhere import evals
+            sample = evals.Sample()
+            for line in tape.read_text(encoding="utf-8").splitlines():
+                row = json.loads(line)
+                if row.get("ok"):
+                    sample.answers[row["about"]] = json.loads(row["raw"])
+            verdict = evals.gate(sample, evals.words(fire.what) | set(fire.tags), fire.what)
+            print("\n  gate: " + ", ".join(f"{k} {'ok' if v else 'FAIL'}"
+                                           for k, v in verdict.items()))
+            self.assertTrue(all(verdict.values()), verdict)
 
 
 if __name__ == "__main__":

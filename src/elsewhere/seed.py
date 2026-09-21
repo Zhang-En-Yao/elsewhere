@@ -80,7 +80,7 @@ def build(root, name: str = "Wend") -> World:
         ),
         Person(
             id="p_bram",
-            voice="Plain and practical. You talk about what was done, never about how it felt.", name="Bram", age=41, occupation="carpenter",
+            voice="Plain and practical. You remember what your hands were doing, never how you felt.", name="Bram", age=41, occupation="carpenter",
             place="workshop", home="workshop", mood="even",
             card=("You make things that hold. You are steady to the point of "
                   "being dull about it, and you would rather repair something "
