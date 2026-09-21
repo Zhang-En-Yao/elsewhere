@@ -76,32 +76,32 @@ means: what they make of it, in a few words. Leave it empty if nothing.
 
 feeling, tags: one feeling; two to four short tags for what it was about.
 
-weight and stuck, last: now decide whether any of that survives the week.
-Most of what happens to a person leaves nothing - an ordinary market day, talk
-about the weather, someone walking past. Those are faint, and not stuck. Say
-stuck only if this person, with this history, would still be carrying it in
-a week. Something that happened to them, or that they were afraid of, or that
-changed what they want, usually does.
-
-Weight means how much of them it takes up:
-  faint    - they would not mention it unprompted
-  ordinary - they would bring it up this week and not next year
+weight, last: how much of that survives.
+  nothing  - it is gone by tomorrow; most things are this
+  faint    - it might come back if something pointed at it
+  ordinary - they will bring it up this week, and not next year
   stays    - they will still have it years from now
   marks    - it changes who they are
 
 Almost nothing is "marks". Be sparing, or this person ends up with a hundred
-unforgettable days and no life."""
+unforgettable days and no life.
+
+Other people were there too, and each of them kept something different: what
+someone like this person notices first, from where they were standing. Do not
+reach for the obvious detail everyone would name. Reach for theirs."""
 
 
 def perceive_user(person: Person, what_happened: str, where: str, when: str,
                   others: Sequence[Person], traces: Sequence[Trace],
-                  part_of_it: bool) -> str:
-    return "\n\n".join([
+                  part_of_it: bool, vantage: str = "") -> str:
+    parts = [
         person_block(person),
         traces_block(traces),
         ties_block(person, others),
-        f"It is {when}, at {where}.",
-        ("This happened to you: " if part_of_it else "You saw this happen: ")
+        f"It was {when}, at {where}.",
+        f"Where you were: {vantage}." if vantage else "",
+        ("What happened to you: " if part_of_it else "What happened: ")
         + what_happened,
-        "Does any of it stay with you?",
-    ])
+        f"What does {person.name} - not anyone else who was there - come away with?",
+    ]
+    return "\n\n".join(p for p in parts if p)

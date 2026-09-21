@@ -115,12 +115,12 @@ class TestAnswers(unittest.TestCase):
 
         def answer(call):
             attempts.append(call.user)
-            return {"stuck": "yes please"} if len(attempts) == 1 else {"stuck": True}
+            return {"weight": "a great deal"} if len(attempts) == 1 else {"weight": "stays"}
 
         backend = StubBackend({"perceive": answer})
         got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_alice"),
                   Settings(backend="stub", model="stub"))
-        self.assertEqual(got, {"stuck": True})
+        self.assertEqual(got, {"weight": "stays"})
         self.assertEqual(len(attempts), 2)
         self.assertIn("not usable", attempts[1])
 

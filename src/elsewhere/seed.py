@@ -111,24 +111,42 @@ def build(root, name: str = "Wend") -> World:
     tie("p_david", "p_carol", "The herb girl.", 0.26)
 
     # ---- the first page of the chronicle ---------------------------------
-    world.day = 18
+    # Where each of them stood is part of what happened, so it is written
+    # into the chronicle. What each of them made of it is not.
+    world.day, world.phase = 18, 2                              # evening
     world.record("gathering",
                  "Alice and Bram built the long table, and the town ate outside.",
                  where="square", who=["p_alice", "p_bram"],
                  present=["p_alice", "p_bram", "p_david"],
-                 tags=["gathering", "town", "building"])
-    world.day = 68
+                 tags=["gathering", "town", "building"],
+                 data={"vantage": {
+                     "p_alice": "at one end of the table, hands still sore from the planing",
+                     "p_bram": "at the other end, pressing on it to see if it rocked",
+                     "p_david": "at the far corner by the door, with a plate",
+                 }})
+    world.day, world.phase = 68, 3                              # night
     world.record("fire", "The old market burned down.",
                  where="market", who=[],
                  present=["p_alice", "p_bram", "p_carol", "p_david"],
-                 tags=["fire", "loss", "town"])
-    world.day = 92
+                 tags=["fire", "loss", "town"],
+                 data={"vantage": {
+                     "p_alice": "in the street across from it, close enough to feel the heat on your face",
+                     "p_bram": "on the workshop roof next door, throwing water at the sparks",
+                     "p_carol": "up on the hill road, too far to hear it, watching the glow",
+                     "p_david": "at the edge of the crowd, holding a bucket you never used",
+                 }})
+    world.day, world.phase = 92, 1                              # afternoon
     world.record("building",
                  "The market was rebuilt with green timber that never stopped "
                  "smelling.",
                  where="market", who=["p_bram"],
                  present=["p_bram", "p_david", "p_alice"],
-                 tags=["town", "work", "building"])
+                 tags=["town", "work", "building"],
+                 data={"vantage": {
+                     "p_bram": "up on the scaffold, fitting the new beams",
+                     "p_david": "hauling the timber up from the river, all afternoon",
+                     "p_alice": "walking past it on the way to the square",
+                 }})
 
     world.day, world.phase = START_DAY, 0
     return world

@@ -25,6 +25,16 @@ from elsewhere.backends import Settings, Transcript
 from elsewhere.backends import register
 from elsewhere.backends.stub import StubBackend
 
+STOP = {"the", "and", "that", "with", "from", "into", "still", "this", "there",
+        "their", "were", "was", "had", "have", "then", "they", "them", "about"}
+
+
+def words(text):
+    import re
+    return {w for w in re.findall(r"[a-z']+", text.lower())
+            if len(w) > 3 and w not in STOP}
+
+
 # What four people might plausibly come back with. The stub is not pretending
 # to be a mind; it is standing in for one so the plumbing can be checked.
 SCRIPT = {
@@ -160,10 +170,20 @@ class TestTheFireForReal(unittest.TestCase):
             if not made:
                 print("    nothing, for anyone")
             self.assertGreaterEqual(len(made), 2, "somebody should keep something")
-            self.assertEqual(len({t.trace for t in made}), len(made),
-                             "four people should not produce the same sentence")
-            self.assertLessEqual(len(made), 3,
-                                 "if everyone keeps everything, the weighting is broken")
+
+            # Four different sentences about the same detail are still one
+            # narrator. What gives it away is a word every one of them
+            # reached for that is not in the event itself.
+            event_words = words(fire.what) | set(fire.tags)
+            focus = [words(t.trace) - event_words for t in made]
+            shared = set.intersection(*focus) if len(focus) > 1 else set()
+            self.assertFalse(
+                shared, f"every one of them kept the same detail: {sorted(shared)} - "
+                        f"that is one narrator, not {len(made)} people")
+
+            heavy = [t for t in made if t.salience >= 0.4]
+            self.assertLessEqual(len(heavy), 3,
+                                 "if it weighs on everyone, the weighting is broken")
 
 
 if __name__ == "__main__":

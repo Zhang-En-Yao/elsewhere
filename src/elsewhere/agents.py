@@ -15,6 +15,7 @@ from .backends import Call, Settings, Transcript, ask, get as get_backend
 from .world.chronicle import Event
 from .world.entities import Person
 from .world.memories import Trace
+from .world.store import season_of
 
 #: How many memories a person may lay down in one day that they will still
 #: have years later. Models have no sense of scarcity; the engine supplies it.
@@ -36,6 +37,28 @@ def _heavy_today(world, person: Person) -> int:
                if t.day == world.day and t.salience >= HEAVY)
 
 
+def vantage(world, person: Person, event: Event) -> str:
+    """Where this person stood when it happened. World state, not interpretation.
+
+    Nobody perceives "the market burned down". They perceive what reaches them
+    from where they are - heat from across the street, a glow seen from a hill,
+    a story the next morning. The engine knows where people were; saying so is
+    its job. What they make of it is not.
+    """
+    told = (event.data.get("vantage") or {}).get(person.id)
+    if told:
+        return told
+    if person.id in event.who:
+        return "it happened to you"
+    place = world.places.get(event.where or "")
+    here = world.places.get(person.place)
+    if place and here and here.id == place.id:
+        return f"right there, at {place.name}"
+    if here:
+        return f"at {here.name}, and it reached you from there"
+    return "nearby"
+
+
 def perceive(world, person: Person, event: Event, config,
              transcript: Optional[Transcript] = None) -> Optional[Trace]:
     """Ask what this event leaves in this person. Usually the answer is nothing."""
@@ -52,8 +75,10 @@ def perceive(world, person: Person, event: Event, config,
             person=person,
             what_happened=event.what,
             where=place.name if place else "nowhere in particular",
-            when=f"{world.phase_name} in {world.season}",
-            others=_others_here(world, person),
+            when=f"{event.phase} in {season_of(event.day)}",
+            vantage=vantage(world, person, event),
+            others=[world.people[pid] for pid in event.present
+                    if pid != person.id and pid in world.people],
             traces=context,
             part_of_it=person.id in event.who,
         ),
@@ -61,14 +86,20 @@ def perceive(world, person: Person, event: Event, config,
         about=person.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
-    if answer is None or not answer.get("stuck"):
+    if answer is None:
+        return None
+
+    weight = answer.get("weight")
+    if weight is None:                              # an older tape, or a lenient backend
+        weight = "ordinary" if answer.get("stuck") else "nothing"
+    if weight == "nothing":
         return None
 
     text = (answer.get("trace") or "").strip()
     if not text:
         return None
 
-    salience = schemas.weight_to_salience(answer.get("weight"))
+    salience = schemas.weight_to_salience(weight)
     if salience >= HEAVY and _heavy_today(world, person) >= HEAVY_PER_DAY:
         # They have already had their day. This one keeps its words and loses
         # its claim on the rest of their life.

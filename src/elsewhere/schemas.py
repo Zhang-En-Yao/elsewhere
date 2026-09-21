@@ -21,7 +21,7 @@ FEELINGS = [
 
 # A small ladder instead of a float: a 4B model has no idea what 0.73 means,
 # and neither does a person. The engine maps these onto numbers itself.
-WEIGHTS = ["faint", "ordinary", "stays", "marks"]
+WEIGHTS = ["nothing", "faint", "ordinary", "stays", "marks"]
 
 ACTIONS = ["stay", "go", "talk", "work", "rest", "make", "tend", "walk"]
 
@@ -37,9 +37,10 @@ PERCEIVE = {
         "feeling": {"type": "string", "enum": FEELINGS},
         "tags": {"type": "array", "items": {"type": "string"}},
         "weight": {"type": "string", "enum": WEIGHTS},
-        "stuck": {"type": "boolean"},
     },
-    "required": ["stuck"],
+    # One decision in one field. An earlier version also asked for a boolean
+    # 'stuck', and a small model happily answered weight "stays", stuck false.
+    "required": [],
 }
 
 ACT = {
@@ -112,7 +113,8 @@ BY_NAME: Dict[str, dict] = {
 }
 
 # What the ladder is worth, once the engine has to sort things by it.
-WEIGHT_VALUE = {"faint": 0.15, "ordinary": 0.4, "stays": 0.7, "marks": 0.95}
+WEIGHT_VALUE = {"nothing": 0.0, "faint": 0.15, "ordinary": 0.4,
+                "stays": 0.7, "marks": 0.95}
 
 
 def weight_to_salience(weight: Optional[str]) -> float:

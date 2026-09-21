@@ -29,6 +29,10 @@ SEASONS = ("spring", "summer", "autumn", "winter")
 DAYS_PER_YEAR = DAYS_PER_SEASON * len(SEASONS)
 
 
+def season_of(day: int) -> str:
+    return SEASONS[((day - 1) // DAYS_PER_SEASON) % len(SEASONS)]
+
+
 class Locked(RuntimeError):
     """Another tick is already running in this world."""
 
