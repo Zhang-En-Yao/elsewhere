@@ -203,8 +203,11 @@ def cmd_eval(args) -> None:
     """Run a scenario N times against the configured minds and report."""
     from . import evals
 
+    if args.scenario == "day":
+        print(evals.day_stats(Path(args.world) / "transcript"))
+        return
     if args.scenario != "fire":
-        sys.exit("the only scenario so far is: fire")
+        sys.exit("scenarios: fire (runs the model), day (reads this world's tapes)")
     tape_dir = Path(".elsewhere") / "eval"
     print(f"Putting the fire to four people, {args.n} times. Tapes in {tape_dir}/")
     samples, world, fire = evals.run_fire(args.n, tape_dir)

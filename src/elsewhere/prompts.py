@@ -172,8 +172,13 @@ action: then one of
 target: the place or the person, exactly as written in the options; empty for
 stay, work and rest.
 
-People mostly do ordinary things. They work in the day, rest at night, go home,
-and talk when there is a reason to. Nobody seeks everyone out every few hours.
+People mostly do ordinary things. In the day they work. At night almost
+everyone is at home asleep - if you are not home, you go home; if you are, you
+rest.
+
+This town is small. When someone is right there with you, you usually say
+something, even if it is only about the weather - unless you have your own
+reason not to, and then that reason is your "because".
 
 Three people, another town, another day - the form, not the content:
 
@@ -191,11 +196,18 @@ Three people, another town, another day - the form, not the content:
 
 
 def act_user(person: Person, when: str, place, others: Sequence[Person],
-             reachable: Sequence[str], traces: Sequence[Trace]) -> str:
+             reachable: Sequence[str], traces: Sequence[Trace],
+             home_name: str = "") -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
+    if place and person.home == place.id:
+        where = f"You are at home, {place.name}. {place.description}".strip()
+    else:
+        where = f"You are at {place.name}. {place.description}".strip() if place else ""
+        if home_name:
+            where += f" You live at {home_name}."
     parts = [
         f"It is {when}.",
-        f"You are at {place.name}. {place.description}".strip() if place else "",
+        where,
         f"Here with you: {here}.",
         f"From here you can go to: {', '.join(reachable) if reachable else 'nowhere'}.",
         ties_block(person, others) if others else "",

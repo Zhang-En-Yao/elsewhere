@@ -231,3 +231,46 @@ def report(samples: List[Sample], world, fire) -> str:
         if a.get("means"):
             out.append(f"  {'':<7}   ~ {a['means']}")
     return "\n".join(out)
+
+
+# --------------------------------------------------------------------------
+# a day in the town, read back from a world's own transcripts
+
+def day_stats(transcript_dir: Path) -> str:
+    """How people spent their phases, from the act calls actually made.
+
+    The questions are the ones the first real day raised: when someone is right
+    there, does anyone say anything; and at night, does anyone go to sleep.
+    """
+    rows = []
+    for path in sorted(Path(transcript_dir).glob("day*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                if row.get("call") == "act" and row.get("ok"):
+                    rows.append(row)
+    if not rows:
+        return "no act calls recorded yet"
+
+    company = Counter(); alone = Counter(); night = Counter(); total = Counter()
+    for row in rows:
+        try:
+            action = json.loads(row["raw"]).get("action", "?")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        user = row.get("user", "")
+        total[action] += 1
+        (alone if "Here with you: nobody." in user else company)[action] += 1
+        if "It is night" in user:
+            night[action] += 1
+
+    def share(c: Counter, key: str) -> str:
+        n = sum(c.values())
+        return f"{c[key]}/{n}" if n else "-"
+
+    lines = [f"{len(rows)} decisions"]
+    lines.append(f"  with someone there, talked      {share(company, 'talk')}")
+    lines.append(f"  at night, rested                {share(night, 'rest')}")
+    lines.append(f"  went somewhere                  {share(total, 'go')}")
+    lines.append("  all: " + ", ".join(f"{k} {v}" for k, v in total.most_common()))
+    return "\n".join(lines)
