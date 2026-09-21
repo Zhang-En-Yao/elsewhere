@@ -21,11 +21,12 @@ PORT="${PORT:-8000}"
 MODEL="${MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}"
 VENV="${VENV:-.venv}"
 SERVER_PID=""
+LOG="${LOG:-/tmp/elsewhere-server.log}"
 
 say() { printf "\n\033[1m%s\033[0m\n" "$*"; }
 
 cleanup() {
-  if [ -n "${KEEP:-}" ] && [ -n "$SERVER_PID" ]; then
+  if [ -n "${KEEP:-}" ] && [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
     say "leaving the server up (pid $SERVER_PID) - KEEP was set"
     echo "  stop it with: kill $SERVER_PID"
     return 0
@@ -42,6 +43,9 @@ wait_for() {                      # wait_for <url> <seconds>
   local url="$1" limit="$2" waited=0
   while [ "$waited" -lt "$limit" ]; do
     if curl -fsS -o /dev/null "$url" 2>/dev/null; then return 0; fi
+    if [ -n "$SERVER_PID" ] && ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      return 2                    # it died; no point waiting out the clock
+    fi
     sleep 2; waited=$((waited + 2))
     if [ $((waited % 20)) -eq 0 ]; then printf " %ss" "$waited"; fi
   done
@@ -67,11 +71,11 @@ pip install -qe . >/dev/null
 case "$RUNTIME" in
   vllm-mlx)
     say "2/6  vllm-mlx"
-    python -c "import vllm_mlx" 2>/dev/null || pip install -q vllm-mlx
+    python -c "import vllm_mlx, mlx_lm" 2>/dev/null || pip install -q vllm-mlx mlx-lm
     python -c "import huggingface_hub" 2>/dev/null || pip install -q huggingface_hub
     fetch_model
     say "4/6  serving $MODEL on :$PORT"
-    vllm-mlx serve "$MODEL" --port "$PORT" >/tmp/elsewhere-server.log 2>&1 &
+    vllm-mlx serve "$MODEL" --port "$PORT" >"$LOG" 2>&1 &
     SERVER_PID=$!
     BASE="http://localhost:$PORT/v1"
     HEALTH="$BASE/models"
@@ -80,7 +84,7 @@ case "$RUNTIME" in
   ollama)
     say "2/6  ollama"
     command -v ollama >/dev/null || { echo "install it first: brew install ollama"; exit 1; }
-    pgrep -qx ollama || { ollama serve >/tmp/elsewhere-server.log 2>&1 & SERVER_PID=$!; }
+    pgrep -qx ollama || { ollama serve >"$LOG" 2>&1 & SERVER_PID=$!; }
     say "3/6  fetching $MODEL (cached afterwards)"
     ollama pull "$MODEL"
     say "4/6  serving $MODEL on :11434"
@@ -92,10 +96,14 @@ esac
 
 export ELSEWHERE_MODEL="$MODEL"
 printf "     waiting for it to load:"
-if ! wait_for "$HEALTH" 600; then
-  echo
-  echo "The server did not answer in ten minutes. The last lines of its log:"
-  tail -20 /tmp/elsewhere-server.log
+wait_for "$HEALTH" 600 && ready=0 || ready=$?
+if [ "${ready:-1}" -eq 2 ]; then
+  echo; echo "The server exited while starting up. The last lines of its log:"
+  tail -25 "$LOG"
+  exit 1
+elif [ "${ready:-1}" -ne 0 ]; then
+  echo; echo "The server did not answer in ten minutes. The last lines of its log:"
+  tail -20 "$LOG"
   exit 1
 fi
 echo " up"
@@ -107,6 +115,6 @@ say "6/6  the fire: four people, one street"
 ELSEWHERE_LIVE=1 python -m unittest tests.test_fire -v 2>&1 | tail -40
 
 say "done"
-echo "Server log: /tmp/elsewhere-server.log"
+echo "Server log: $LOG"
 echo "If the four accounts above read like four people, the model is good enough."
 echo "If they read like one narrator, try a different MODEL= and run this again."
