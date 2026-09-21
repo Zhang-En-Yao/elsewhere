@@ -43,7 +43,11 @@ def cmd_init(args) -> None:
     if store.exists(root) and not args.force:
         sys.exit(f"{root} already holds a world. Use --force to start over.")
     started = time.time()
-    world = seed.create(root, name=args.name, remember=not args.blank)
+    tape = Transcript(root / "transcript" / "init.jsonl")
+    world = seed.create(root, name=args.name, remember=not args.blank,
+                        transcript=tape)
+    world.last_tick_at = time.time()
+    store.save(world)
     remembered = sum(len(world.traces(p.id)) for p in world.people.values())
     print(f"{world.name} exists. {world.label()}")
     print(f"  {len(world.people)} people, {len(world.places)} places, "
@@ -208,6 +212,129 @@ def cmd_eval(args) -> None:
 
 
 # --------------------------------------------------------------------------
+# time passing
+
+def _name(world, pid: str) -> str:
+    person = world.people.get(pid)
+    return person.name if person else pid
+
+
+def print_report(world, report) -> None:
+    from .tick import LAST_ACTION
+
+    print(f"\n{report.label}")
+    talked = {t.speaker for t in report.talks} | {t.listener for t in report.talks}
+    for pid, d in sorted(report.decisions.items()):
+        person = world.people[pid]
+        if pid in talked:
+            continue
+        what = person.last_action or LAST_ACTION.get(d.action, d.action)
+        why = f'  - "{d.because}"' if d.because else ("  (no answer)" if not d.answered else "")
+        print(f"  {person.name:<7} {what:<34}{why}")
+    for t in report.talks:
+        print(f"  {_name(world, t.speaker):<7} to {_name(world, t.listener)}: \"{t.line}\"")
+        heard = {tr.owner for tr in t.kept}
+        for tr in t.kept:
+            print(f"  {'':<7}   {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
+        ev = world.chronicle.get(t.event_id)
+        for pid in (ev.present if ev else []):
+            if pid not in heard and pid != t.speaker:
+                print(f"  {'':<7}   {_name(world, pid)} kept nothing of it")
+    if report.silent:
+        print(f"  ({report.silent} mind(s) gave no usable answer and stayed put)")
+
+
+def _open_live(args):
+    world = open_world(args)
+    if world.closed:
+        sys.exit(f"{world.name} has ended. Nothing more happens here.")
+    return world
+
+
+def cmd_tick(args) -> None:
+    """Live N phases now, by hand."""
+    from .tick import tick
+
+    world = _open_live(args)
+    config = config_mod.load(world.root)
+    try:
+        with store.tick_lock(world.root):
+            for _ in range(args.n):
+                report = tick(world, config, transcript_for(world))
+                store.save(world)
+                print_report(world, report)
+            world.last_tick_at = time.time()
+            store.save(world)
+    except store.Locked as exc:
+        sys.exit(f"Not now: {exc}")
+
+
+def cmd_catchup(args) -> None:
+    """The scheduled entry point: live whatever phases the wall clock says are owed."""
+    from .tick import owed_phases, settle_clock, tick
+    from .backends import probe
+
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    world = _open_live(args)
+    try:
+        with store.tick_lock(world.root):
+            now = time.time()
+            if world.last_tick_at is None:
+                world.last_tick_at = now
+                store.save(world)
+                print(f"[{stamp}] clock started for {world.name}")
+                return
+            owed = owed_phases(world.last_tick_at, now, args.hours)
+            if owed == 0:
+                return
+            config = config_mod.load(world.root)
+            ok, message = probe(config["act"])
+            if not ok:
+                # The world waits rather than going on without minds.
+                print(f"[{stamp}] {owed} phase(s) owed, but the minds are {message}; "
+                      f"{world.name} waits")
+                return
+            ran = 0
+            for _ in range(min(owed, args.max)):
+                report = tick(world, config, transcript_for(world))
+                ran += 1
+                store.save(world)
+                print(f"[{stamp}]", end="")
+                print_report(world, report)
+            world.last_tick_at = settle_clock(world.last_tick_at, now, ran, owed, args.hours)
+            store.save(world)
+            if ran < owed:
+                print(f"[{stamp}] {owed - ran} more phase(s) were owed; "
+                      f"{world.name} slept through them")
+    except store.Locked as exc:
+        print(f"[{stamp}] skipped: {exc}")
+
+
+def cmd_news(args) -> None:
+    """What happened since you last looked."""
+    world = open_world(args)
+    events = world.chronicle.all()[world.news_seen:]
+    print(f"{world.name} - {world.label()}")
+    if not events:
+        print("  Nothing has happened since you last looked.")
+    for e in events:
+        place = world.places.get(e.where or "")
+        print(f"\n  day {e.day} {e.phase}, {place.name if place else '-'}")
+        print(f"    {e.what}")
+        for pid in e.present:
+            for t in world.traces(pid).about_event(e.id):
+                print(f"      {_name(world, pid)} kept [{t.feeling}] {t.trace}")
+    print("\n  Now:")
+    for person in sorted(world.people.values(), key=lambda p: p.name):
+        place = world.places.get(person.place)
+        print(f"    {person.name:<7} at {place.name if place else '-':<20} "
+              f"{person.last_action or ''}")
+    if not args.peek:
+        world.news_seen = len(world.chronicle)
+        store.save(world)
+
+
+# --------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="elsewhere",
@@ -244,6 +371,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("remember", help="put one event past everyone again")
     p.add_argument("event_id")
     p.set_defaults(func=cmd_remember)
+
+    p = sub.add_parser("tick", help="live N phases now")
+    p.add_argument("-n", type=int, default=1)
+    p.set_defaults(func=cmd_tick)
+
+    p = sub.add_parser("catchup", help="live the phases the wall clock says are owed")
+    p.add_argument("--max", type=int, default=4, help="most phases to live in one go")
+    p.add_argument("--hours", type=float, default=6.0, help="real hours per phase")
+    p.set_defaults(func=cmd_catchup)
+
+    p = sub.add_parser("news", help="what happened since you last looked")
+    p.add_argument("--peek", action="store_true", help="look without marking it read")
+    p.set_defaults(func=cmd_news)
 
     p = sub.add_parser("eval", help="measure the minds over N runs of a scenario")
     p.add_argument("scenario", nargs="?", default="fire")

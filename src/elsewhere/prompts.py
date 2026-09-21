@@ -151,3 +151,103 @@ def perceive_user(person: Person, what_happened: str, where: str, when: str,
         f"do you carry? For some people it is everything; for others, nothing at all.",
     ]
     return "\n\n".join(part for part in parts if part)
+
+
+# --------------------------------------------------------------------------
+# act: what someone does with the next few hours
+
+ACT_SYSTEM = """You are one person in a small town, deciding what to do with
+the next few hours. You are not narrating and not explaining yourself to anyone.
+
+because: first, in a few words and in your own voice, what is pulling at you
+right now - a want, a worry, tiredness, someone you have been meaning to see.
+
+action: then one of
+  stay  - remain where you are, doing nothing in particular
+  go    - walk to one of the places you can reach from here (target: the place)
+  talk  - speak with someone who is here right now (target: their name)
+  work  - get on with your trade
+  rest  - sleep, or sit and do nothing
+
+target: the place or the person, exactly as written in the options; empty for
+stay, work and rest.
+
+People mostly do ordinary things. They work in the day, rest at night, go home,
+and talk when there is a reason to. Nobody seeks everyone out every few hours.
+
+Three people, another town, another day - the form, not the content:
+
+  Morning. Mira is at her door. Here: nobody. Can go to: the ford, the well.
+    {"because": "the children arrive soon and the step needs scrubbing",
+     "action": "work", "target": ""}
+
+  Afternoon. Oskar is at the ford. Here: Mira. Can go to: the market.
+    {"because": "she saw the cart go over; I want to know what she told the reeve",
+     "action": "talk", "target": "Mira"}
+
+  Night. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
+    {"because": "tired",
+     "action": "rest", "target": ""}"""
+
+
+def act_user(person: Person, when: str, place, others: Sequence[Person],
+             reachable: Sequence[str], traces: Sequence[Trace]) -> str:
+    here = ", ".join(o.name for o in others) if others else "nobody"
+    parts = [
+        f"It is {when}.",
+        f"You are at {place.name}. {place.description}".strip() if place else "",
+        f"Here with you: {here}.",
+        f"From here you can go to: {', '.join(reachable) if reachable else 'nowhere'}.",
+        ties_block(person, others) if others else "",
+        traces_block(traces),
+        person_block(person),
+        f"Now decide as {person.name}: what do you do for the next few hours?",
+    ]
+    return "\n\n".join(part for part in parts if part)
+
+
+# --------------------------------------------------------------------------
+# speak: one thing said out loud to one person
+
+SPEAK_SYSTEM = """You are one person in a small town, and you have turned to
+someone to say something. Say one thing, the way this person actually talks.
+
+about: first, which of the numbered things on your mind you are bringing up -
+or "nothing in particular" for small talk.
+
+line: then what you say. One or two short sentences, spoken out loud to the
+person in front of you. No narration, no quotation marks, no name in front.
+If what you remember is vague, say it vaguely - people say "that night, you
+remember" far more often than they describe anything.
+
+Three people, another town - the form, not the content:
+
+  Mira, to Oskar, whom she barely knows. On her mind: 1. its eye was open the
+  whole time they were deciding.
+    {"about": "1", "line": "Did you see its eye? I keep seeing it."}
+
+  Oskar, to the reeve. On his mind: 1. two sacks of flour split in the mud.
+    {"about": "1", "line": "That flour was not mine. You will want to know whose it was."}
+
+  Pell, to a stranger at the ferry. On his mind: nothing in particular.
+    {"about": "nothing in particular", "line": "River's high. Mind your feet."}"""
+
+
+def speak_user(person: Person, listener: Person, when: str, place_name: str,
+               topics: Sequence[Trace]) -> str:
+    tie = person.ties.get(listener.id)
+    knows = f" {tie.note}" if tie and tie.note else ""
+    lines = [
+        f"It is {when}, at {place_name}.",
+        f"You are talking to {listener.name}.{knows}",
+    ]
+    if topics:
+        lines.append("On your mind:")
+        for i, t in enumerate(topics, 1):
+            extra = f" ({t.means})" if t.means else ""
+            lines.append(f"  {i}. {t.trace}{extra}")
+    else:
+        lines.append("On your mind: nothing in particular.")
+    lines.append(person_block(person))
+    lines.append(f"What does {person.name} say to {listener.name}?")
+    return "\n\n".join(lines)

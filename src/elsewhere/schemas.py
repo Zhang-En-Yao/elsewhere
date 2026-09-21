@@ -23,7 +23,9 @@ FEELINGS = [
 # and neither does a person. The engine maps these onto numbers itself.
 WEIGHTS = ["nothing", "faint", "ordinary", "stays", "marks"]
 
-ACTIONS = ["stay", "go", "talk", "work", "rest", "make", "tend", "walk"]
+# Kept small on purpose: every extra verb is another way for a 3.8B model to
+# pick something that means nothing. 'make' and 'tend' come back with art (P5).
+ACTIONS = ["stay", "go", "talk", "work", "rest"]
 
 # Order matters under a grammar: keys are generated in this order, so a model
 # that is asked "stuck?" first commits to an answer in one token, before it has
@@ -43,21 +45,24 @@ PERCEIVE = {
     "required": [],
 }
 
+# Reason first, verb second, object last - the same lesson as PERCEIVE: under a
+# grammar the first key is decided before anything else is written.
 ACT = {
     "type": "object",
     "properties": {
+        "because": {"type": "string"},
         "action": {"type": "string", "enum": ACTIONS},
         "target": {"type": "string"},
-        "because": {"type": "string"},
     },
     "required": ["action"],
 }
 
+# What they draw on is chosen before the words are, so the words are about it.
 SPEAK = {
     "type": "object",
     "properties": {
+        "about": {"type": "string"},
         "line": {"type": "string"},
-        "holding_back": {"type": "boolean"},
     },
     "required": ["line"],
 }
@@ -190,4 +195,25 @@ def grammar(name: str) -> dict:
 
     schema = copy.deepcopy(BY_NAME[name])
     schema["required"] = list(schema.get("properties", {}).keys())
+    return schema
+
+
+def act_grammar(places: List[str], people: List[str]) -> dict:
+    """ACT with its target narrowed to what is actually there.
+
+    A target the model can only choose from what exists cannot be a place that
+    is not adjacent or a person who is not in the room - the grammar makes the
+    wrong answer unwritable instead of the engine repairing it afterwards.
+    """
+    schema = grammar("act")
+    options = [""] + sorted(set(places) | set(people))
+    schema["properties"]["target"] = {"type": "string", "enum": options}
+    return schema
+
+
+def speak_grammar(topics: int) -> dict:
+    """SPEAK with 'about' narrowed to the numbered things they can bring to mind."""
+    schema = grammar("speak")
+    choices = ["nothing in particular"] + [str(i) for i in range(1, topics + 1)]
+    schema["properties"]["about"] = {"type": "string", "enum": choices}
     return schema

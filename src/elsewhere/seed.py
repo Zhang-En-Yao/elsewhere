@@ -201,5 +201,6 @@ def create(root, name: str = "Wend", remember: bool = True,
     config_mod.write_default(root)
     if remember:
         remember_backstory(world, config_mod.load(root), transcript)
+    world.news_seen = len(world.chronicle)     # the backstory is not news
     save(world)
     return world

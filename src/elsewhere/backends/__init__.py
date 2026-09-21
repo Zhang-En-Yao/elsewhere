@@ -160,6 +160,22 @@ def ask(backend: Backend, call: Call, settings: Settings,
     return None
 
 
+def probe(settings: Settings) -> tuple:
+    """Can this mind be reached at all? (ok, message). Never raises."""
+    call = Call(name="probe", system="Answer only with JSON.",
+                user='Reply exactly {"ok": true}.',
+                schema={"type": "object", "properties": {"ok": {"type": "boolean"}},
+                        "required": ["ok"]}, about="probe")
+    started = time.time()
+    try:
+        raw = get(settings.backend).complete(call, settings.model, 0.0, settings.extra)
+    except Exception as exc:
+        return False, f"unreachable: {type(exc).__name__}: {exc}"
+    if extract_json(raw) is None:
+        return False, f"answered, but not with JSON: {raw[:60]!r}"
+    return True, f"ok ({time.time() - started:.1f}s)"
+
+
 _REGISTRY: Dict[str, Backend] = {}
 
 

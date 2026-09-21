@@ -135,3 +135,109 @@ def perceive_all(world, event: Event, config,
         if trace is not None:
             out.append(trace)
     return out
+
+
+# --------------------------------------------------------------------------
+# act
+
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass
+class Decision:
+    person_id: str
+    action: str = "stay"
+    target: Optional[str] = None      # place id or person id, resolved
+    because: str = ""
+    answered: bool = True             # False when the mind gave nothing usable
+
+
+def when_label(world) -> str:
+    from .world.store import DAYS_PER_YEAR
+    doy = (world.day - 1) % DAYS_PER_YEAR + 1
+    return f"{world.phase_name} in {world.season}, day {doy}"
+
+
+def act(world, person: Person, config,
+        transcript: Optional[Transcript] = None) -> Decision:
+    """Ask what this person does next. The grammar only offers what exists."""
+    settings = _settings(config, "act")
+    place = world.places.get(person.place)
+    others = _others_here(world, person)
+    reachable = [world.places[n] for n in (place.neighbours if place else [])
+                 if n in world.places]
+    store = world.traces(person.id)
+    cues = retrieval.cues_from(place.tags if place else [], [person.place])
+    context = retrieval.recallable(store, world.day, cues, limit=4)
+
+    call = Call(
+        name="act",
+        system=prompts.ACT_SYSTEM,
+        user=prompts.act_user(person, when_label(world), place, others,
+                              [p.name for p in reachable], context),
+        schema=schemas.act_grammar([p.name for p in reachable],
+                                   [o.name for o in others]),
+        about=person.id,
+    )
+    answer = ask(get_backend(settings.backend), call, settings, transcript)
+    if answer is None:
+        return Decision(person.id, "stay", None, "", answered=False)
+
+    action = answer.get("action", "stay")
+    name = (answer.get("target") or "").strip()
+    because = (answer.get("because") or "").strip()
+    target = None
+    if action == "go":
+        match = next((p for p in reachable if p.name == name), None)
+        target = match.id if match else None
+    elif action == "talk":
+        match = next((o for o in others if o.name == name), None)
+        target = match.id if match else None
+    if action in ("go", "talk") and target is None:
+        # Only reachable with a lenient backend; the grammar forbids it.
+        action = "stay"
+    return Decision(person.id, action, target, because)
+
+
+# --------------------------------------------------------------------------
+# speak
+
+def speak(world, speaker: Person, listener: Person, config,
+          transcript: Optional[Transcript] = None):
+    """One thing said out loud. Returns (line, trace drawn on) or (None, None).
+
+    Bringing something up is rehearsal: the trace it came from is touched and
+    stays within reach longer. Rewriting it in the telling is recall's job (P3).
+    """
+    settings = _settings(config, "speak")
+    store = world.traces(speaker.id)
+    cues = retrieval.cues_from([listener.id], [speaker.place])
+    for t in store:
+        if listener.id in t.about:
+            cues |= set(t.tags)
+    topics = retrieval.recallable(store, world.day, cues, limit=3)
+    place = world.places.get(speaker.place)
+
+    call = Call(
+        name="speak",
+        system=prompts.SPEAK_SYSTEM,
+        user=prompts.speak_user(speaker, listener, when_label(world),
+                                place.name if place else "somewhere", topics),
+        schema=schemas.speak_grammar(len(topics)),
+        about=speaker.id,
+    )
+    answer = ask(get_backend(settings.backend), call, settings, transcript)
+    if answer is None:
+        return None, None
+    line = (answer.get("line") or "").strip().strip('"').strip()
+    if not line:
+        return None, None
+
+    drawn = None
+    about = answer.get("about", "")
+    if about.isdigit() and 1 <= int(about) <= len(topics):
+        drawn = topics[int(about) - 1]
+        drawn.last_touched = world.day
+        drawn.recalls += 1
+        store.touch()
+    return line, drawn

@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+# Let the world keep going while you are away.
+#
+#   scripts/schedule.sh install     # start: a launchd agent checks every 30 min
+#   scripts/schedule.sh status      # is it loaded, when did it last run, can it reach a mind
+#   scripts/schedule.sh log         # what it has been doing
+#   scripts/schedule.sh uninstall   # stop
+#
+# The agent runs `elsewhere catchup`, which does nothing unless the wall clock
+# says a phase is owed (one per PHASE_HOURS, default 6). Checking every half
+# hour rather than every six hours means a Mac that was asleep catches up soon
+# after it wakes; launchd folds the missed checks into one. At most MAX phases
+# are lived per run, so a week away does not become an hour of model calls.
+#
+# The model has to be running for any of this to happen - with Homebrew:
+#   brew services start ollama
+# If it is not, catchup logs that the world is waiting and lives nothing.
+#
+set -euo pipefail
+cd "$(dirname "$0")/.."
+REPO="$PWD"
+
+LABEL="com.elsewhere.catchup"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+WORLD="${WORLD:-$REPO/world}"
+MAX="${MAX:-4}"
+PHASE_HOURS="${PHASE_HOURS:-6}"
+CHECK_EVERY="${CHECK_EVERY:-1800}"
+LOG="$REPO/.elsewhere/catchup.log"
+
+find_cli() {
+  for candidate in "${VIRTUAL_ENV:-}/bin/elsewhere" "$REPO/.venv/bin/elsewhere" \
+                   "$REPO/venv/bin/elsewhere" "$(command -v elsewhere 2>/dev/null || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      (cd "$(dirname "$candidate")" && echo "$PWD/$(basename "$candidate")")
+      return 0
+    fi
+  done
+  echo "Could not find the elsewhere command. Activate your venv and run: pip install -e ." >&2
+  return 1
+}
+
+plist() {
+  local cli="$1"
+  cat <<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$cli</string>
+    <string>--world</string><string>$WORLD</string>
+    <string>catchup</string>
+    <string>--max</string><string>$MAX</string>
+    <string>--hours</string><string>$PHASE_HOURS</string>
+  </array>
+  <key>WorkingDirectory</key><string>$REPO</string>
+  <key>StartInterval</key><integer>$CHECK_EVERY</integer>
+  <key>RunAtLoad</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>$LOG</string>
+  <key>StandardErrorPath</key><string>$LOG</string>
+</dict>
+</plist>
+XML
+}
+
+case "${1:-status}" in
+  install)
+    [ -f "$WORLD/world.json" ] || { echo "No world at $WORLD - run: elsewhere init"; exit 1; }
+    cli="$(find_cli)"
+    mkdir -p "$(dirname "$PLIST")" "$REPO/.elsewhere"
+    plist "$cli" > "$PLIST"
+    launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$PLIST"
+    echo "Scheduled. $WORLD now lives one phase every $PHASE_HOURS hours,"
+    echo "at most $MAX phases per wake. Log: $LOG"
+    echo "The model must be running: brew services start ollama"
+    ;;
+  uninstall)
+    launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+    rm -f "$PLIST"
+    echo "Unscheduled. The world stays exactly where it is until you tick it again."
+    ;;
+  status)
+    if [ -f "$PLIST" ]; then
+      echo "installed: $PLIST"
+      launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null \
+        | grep -E "^\s*(state|runs|last exit code)" | sed 's/^\s*/  /' || echo "  (not loaded)"
+    else
+      echo "not installed - run: scripts/schedule.sh install"
+    fi
+    cli="$(find_cli)" && "$cli" --world "$WORLD" doctor 2>/dev/null | sed -n '/act /p'
+    [ -f "$LOG" ] && { echo "last lines of the log:"; tail -5 "$LOG" | sed 's/^/  /'; }
+    ;;
+  log)
+    tail -n "${LINES:-60}" "$LOG"
+    ;;
+  plist)
+    plist "$(find_cli)"
+    ;;
+  *)
+    echo "usage: $0 install | status | log | uninstall | plist"; exit 1 ;;
+esac

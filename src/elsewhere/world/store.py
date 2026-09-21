@@ -48,6 +48,8 @@ class World:
     counters: Dict[str, int] = field(default_factory=dict)
     closed: bool = False
     closed_on: Optional[int] = None
+    last_tick_at: Optional[float] = None  # wall clock of the last phase lived, epoch s
+    news_seen: int = 0                    # chronicle length the last time you looked
     chronicle: Chronicle = None          # type: ignore[assignment]
     _traces: Dict[str, TraceStore] = field(default_factory=dict)
 
@@ -137,6 +139,7 @@ def save(world: World) -> None:
         "schema": SCHEMA_VERSION, "name": world.name, "day": world.day,
         "phase": world.phase, "counters": world.counters,
         "closed": world.closed, "closed_on": world.closed_on,
+        "last_tick_at": world.last_tick_at, "news_seen": world.news_seen,
         "places": {k: v.to_dict() for k, v in world.places.items()},
     })
     for person in world.people.values():
@@ -157,6 +160,7 @@ def load(root) -> World:
         root=root, name=meta.get("name", "Elsewhere"), day=int(meta.get("day", 1)),
         phase=int(meta.get("phase", 0)), counters=dict(meta.get("counters", {})),
         closed=bool(meta.get("closed", False)), closed_on=meta.get("closed_on"),
+        last_tick_at=meta.get("last_tick_at"), news_seen=int(meta.get("news_seen", 0)),
         places={k: Place.from_dict(v) for k, v in meta.get("places", {}).items()},
     )
     world.chronicle = Chronicle(root / "chronicle.jsonl")

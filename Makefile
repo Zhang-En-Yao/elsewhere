@@ -12,6 +12,21 @@ world:           ## make a world in ./world (needs a reachable model)
 demo:            ## the whole pipeline, offline, with no model at all
 	ELSEWHERE_BACKEND=stub $(PY) -m unittest tests.test_fire -v
 
+tick:            ## live one phase now (N=3 for three)
+	elsewhere tick -n $(or $(TICKS),1)
+
+news:            ## what happened since you last looked
+	elsewhere news
+
+schedule:        ## keep the world going while you are away (launchd)
+	./scripts/schedule.sh install
+
+unschedule:      ## stop it
+	./scripts/schedule.sh uninstall
+
+schedule-status: ## is it running, and can it reach a mind
+	./scripts/schedule.sh status
+
 doctor:          ## can the configured minds be reached?
 	elsewhere doctor
 
@@ -28,4 +43,4 @@ help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
-.PHONY: test world demo doctor live eval diagnose help
+.PHONY: test world demo doctor live eval diagnose help tick news schedule unschedule schedule-status
