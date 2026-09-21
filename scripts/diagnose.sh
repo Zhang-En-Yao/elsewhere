@@ -34,6 +34,12 @@ MODEL="${MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}"
   echo; echo "== layer 2: can transformers build a tokenizer? =="
   "$PY" -c "from transformers import AutoTokenizer; print('transformers ok')" 2>&1 | tail -15
 
+  echo; echo "== layer 2b: the import transformers' lazy loader hides =="
+  # Going through AutoConfig turns any failure in here into "Could not import
+  # module 'LlamaConfig'". Importing the file directly shows what really broke.
+  "$PY" -X importtime -c "import transformers.models.llama.configuration_llama as m; print('llama config ok')" 2>.elsewhere/importtime.log | tail -1
+  "$PY" -c "import transformers.models.llama.configuration_llama" 2>&1 | tail -25
+
   echo; echo "== layer 3: can mlx-lm load the model by itself? =="
   "$PY" -c "from mlx_lm import load; load('$MODEL'); print('mlx-lm loaded $MODEL')" 2>&1 | tail -20
 
