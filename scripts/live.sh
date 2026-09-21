@@ -8,6 +8,10 @@
 #   scripts/live.sh                       # vllm-mlx, Llama 3.2 3B, 4-bit
 #   MODEL=mlx-community/Phi-4-mini-instruct-4bit scripts/live.sh
 #   RUNTIME=ollama MODEL=phi-4-mini scripts/live.sh
+#   KEEP=1 scripts/live.sh                # leave the server up between runs
+#
+# The first run downloads the weights, which on a slow line takes longer than
+# anything else here. They are cached, so every run after that is quick.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,6 +25,11 @@ SERVER_PID=""
 say() { printf "\n\033[1m%s\033[0m\n" "$*"; }
 
 cleanup() {
+  if [ -n "${KEEP:-}" ] && [ -n "$SERVER_PID" ]; then
+    say "leaving the server up (pid $SERVER_PID) - KEEP was set"
+    echo "  stop it with: kill $SERVER_PID"
+    return 0
+  fi
   if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
     say "stopping the server (pid $SERVER_PID)"
     kill "$SERVER_PID" 2>/dev/null || true
@@ -34,12 +43,22 @@ wait_for() {                      # wait_for <url> <seconds>
   while [ "$waited" -lt "$limit" ]; do
     if curl -fsS -o /dev/null "$url" 2>/dev/null; then return 0; fi
     sleep 2; waited=$((waited + 2))
-    printf "."
+    if [ $((waited % 20)) -eq 0 ]; then printf " %ss" "$waited"; fi
   done
   return 1
 }
 
-say "1/5  python environment"
+fetch_model() {                   # pull the weights before anything is timed
+  say "3/6  fetching $MODEL (this is the slow part; cached afterwards)"
+  MODEL="$MODEL" python - <<'PY'
+import os
+from huggingface_hub import snapshot_download
+
+print(f"     weights at {snapshot_download(os.environ['MODEL'])}")
+PY
+}
+
+say "1/6  python environment"
 if [ ! -d "$VENV" ]; then python3 -m venv "$VENV"; fi
 # shellcheck disable=SC1091
 . "$VENV/bin/activate"
@@ -47,9 +66,11 @@ pip install -qe . >/dev/null
 
 case "$RUNTIME" in
   vllm-mlx)
-    say "2/5  vllm-mlx"
+    say "2/6  vllm-mlx"
     python -c "import vllm_mlx" 2>/dev/null || pip install -q vllm-mlx
-    say "3/5  serving $MODEL on :$PORT"
+    python -c "import huggingface_hub" 2>/dev/null || pip install -q huggingface_hub
+    fetch_model
+    say "4/6  serving $MODEL on :$PORT"
     vllm-mlx serve "$MODEL" --port "$PORT" >/tmp/elsewhere-server.log 2>&1 &
     SERVER_PID=$!
     BASE="http://localhost:$PORT/v1"
@@ -57,11 +78,12 @@ case "$RUNTIME" in
     export ELSEWHERE_BACKEND=openai ELSEWHERE_OPENAI_BASE="$BASE"
     ;;
   ollama)
-    say "2/5  ollama"
+    say "2/6  ollama"
     command -v ollama >/dev/null || { echo "install it first: brew install ollama"; exit 1; }
     pgrep -qx ollama || { ollama serve >/tmp/elsewhere-server.log 2>&1 & SERVER_PID=$!; }
+    say "3/6  fetching $MODEL (cached afterwards)"
     ollama pull "$MODEL"
-    say "3/5  serving $MODEL on :11434"
+    say "4/6  serving $MODEL on :11434"
     HEALTH="http://localhost:11434/api/tags"
     export ELSEWHERE_BACKEND=ollama
     ;;
@@ -69,16 +91,19 @@ case "$RUNTIME" in
 esac
 
 export ELSEWHERE_MODEL="$MODEL"
-printf "     waiting for the model to load"
-if ! wait_for "$HEALTH" 300; then
-  echo; echo "the server never came up. last lines:"; tail -20 /tmp/elsewhere-server.log; exit 1
+printf "     waiting for it to load:"
+if ! wait_for "$HEALTH" 600; then
+  echo
+  echo "The server did not answer in ten minutes. The last lines of its log:"
+  tail -20 /tmp/elsewhere-server.log
+  exit 1
 fi
 echo " up"
 
-say "4/5  can every call site reach a mind?"
+say "5/6  can every call site reach a mind?"
 elsewhere doctor
 
-say "5/5  the fire: four people, one street"
+say "6/6  the fire: four people, one street"
 ELSEWHERE_LIVE=1 python -m unittest tests.test_fire -v 2>&1 | tail -40
 
 say "done"
