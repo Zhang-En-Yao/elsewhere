@@ -59,102 +59,101 @@ class TestTime(TownTest):
         self.assertEqual(asked, sorted(self.world.people))
 
     def test_a_mind_that_gives_nothing_stays_put(self):
-        self.acts(p_alice="I would rather not say")
-        before = self.world.people["p_alice"].place
+        self.acts(p_eve="I would rather not say")
+        before = self.world.people["p_eve"].place
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.people["p_alice"].place, before)
+        self.assertEqual(self.world.people["p_eve"].place, before)
         self.assertEqual(report.silent, 1)
 
 
 class TestChoices(TownTest):
     def test_the_grammar_only_offers_what_is_there(self):
         tick_mod.tick(self.world, config())
-        alice_call = next(c for c in self.calls_for("act") if c.about == "p_alice")
-        options = alice_call.schema["properties"]["target"]["enum"]
-        # Alice is at the weaver's house: next to the long table and the workshop,
-        # and alone.
-        self.assertEqual(sorted(options), ["", "Bram's Workshop", "The Long Table"])
+        eve_call = next(c for c in self.calls_for("act") if c.about == "p_eve")
+        options = eve_call.schema["properties"]["target"]["enum"]
+        # Eve is at the garden: next to the shelter and the waterline, and alone.
+        self.assertEqual(sorted(options), ["", "The Shelter", "The Waterline"])
 
     def test_going_somewhere(self):
-        self.acts(p_alice={"because": "the loom can wait", "action": "go",
-                           "target": "The Long Table"})
+        self.acts(p_eve={"because": "the seedbed can wait", "action": "go",
+                         "target": "The Shelter"})
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.people["p_alice"].place, "square")
-        self.assertIn(("p_alice", "house", "square"), report.moves)
-        self.assertEqual(report.decisions["p_alice"].because, "the loom can wait")
+        self.assertEqual(self.world.people["p_eve"].place, "shelter")
+        self.assertIn(("p_eve", "garden", "shelter"), report.moves)
+        self.assertEqual(report.decisions["p_eve"].because, "the seedbed can wait")
 
 
 class TestConversation(TownTest):
     def setUp(self):
         super().setUp()
-        for pid in ("p_alice", "p_bram"):
-            self.world.people[pid].place = "workshop"
-        self.fire = Trace(id="mem9001", owner="p_alice", day=68,
-                          trace="the heat on my face from across the street",
-                          means="", feeling="fear", salience=0.95,
-                          tags=["fire", "market"], last_touched=68)
-        self.world.traces("p_alice").add(self.fire)
+        for pid in ("p_eve", "p_adam"):
+            self.world.people[pid].place = "yard"
+        self.flood = Trace(id="mem9001", owner="p_eve", day=68,
+                           trace="the water in the doorway before I could move anything",
+                           means="", feeling="fear", salience=0.95,
+                           tags=["flood", "waterline"], last_touched=68)
+        self.world.traces("p_eve").add(self.flood)
 
     def test_something_said_is_something_someone_else_can_keep(self):
-        self.acts(p_alice={"because": "he was on the roof that night",
-                           "action": "talk", "target": "Bram"})
+        self.acts(p_eve={"because": "he was on the roof that night",
+                         "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "1", "line": "You were up there. Could you feel it?"})
-        self.stub.answers["perceive|p_bram"] = {
+        self.stub.answers["perceive|p_adam"] = {
             "trace": "she asked if I could feel it", "means": "", "feeling": "unease",
-            "tags": ["fire"], "weight": "ordinary"}
+            "tags": ["flood"], "weight": "ordinary"}
 
         report = tick_mod.tick(self.world, config())
 
         self.assertEqual(len(report.talks), 1)
         talk = report.talks[0]
-        self.assertEqual((talk.speaker, talk.listener), ("p_alice", "p_bram"))
+        self.assertEqual((talk.speaker, talk.listener), ("p_eve", "p_adam"))
         event = self.world.chronicle.get(talk.event_id)
         self.assertIn("Could you feel it?", event.what)
 
-        kept = self.world.traces("p_bram").about_event(event.id)
-        self.assertEqual(len(kept), 1, "Bram kept his own version of it")
+        kept = self.world.traces("p_adam").about_event(event.id)
+        self.assertEqual(len(kept), 1, "Adam kept his own version of it")
         self.assertEqual(kept[0].trace, "she asked if I could feel it")
-        self.assertEqual(self.world.traces("p_alice").about_event(event.id), [],
+        self.assertEqual(self.world.traces("p_eve").about_event(event.id), [],
                          "the speaker is not asked to perceive her own sentence")
 
     def test_saying_it_keeps_it_in_reach(self):
-        self.acts(p_alice={"because": "", "action": "talk", "target": "Bram"})
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "1", "line": "That night."})
         tick_mod.tick(self.world, config())
-        self.assertEqual(self.fire.recalls, 1)
-        self.assertEqual(self.fire.last_touched, self.world.day)
+        self.assertEqual(self.flood.recalls, 1)
+        self.assertEqual(self.flood.last_touched, self.world.day)
 
     def test_the_speaker_is_offered_what_they_can_reach(self):
-        self.acts(p_alice={"because": "", "action": "talk", "target": "Bram"})
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "nothing in particular", "line": "Cold."})
         tick_mod.tick(self.world, config())
         call = self.calls_for("speak")[0]
-        self.assertIn("the heat on my face", call.user)
+        self.assertIn("the water in the doorway", call.user)
         self.assertEqual(call.schema["properties"]["about"]["enum"],
                          ["nothing in particular", "1"])
 
     def test_you_cannot_talk_to_someone_who_just_left(self):
-        self.acts(p_alice={"because": "", "action": "talk", "target": "Bram"},
-                  p_bram={"because": "the roof", "action": "go",
-                          "target": "The Old Market"})
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"},
+                  p_adam={"because": "the roof", "action": "go",
+                          "target": "The Shelter"})
         report = tick_mod.tick(self.world, config())
         self.assertEqual(report.talks, [])
-        self.assertIn(("p_alice", "p_bram"), report.missed)
-        self.assertIn("who had gone", self.world.people["p_alice"].last_action)
+        self.assertIn(("p_eve", "p_adam"), report.missed)
+        self.assertIn("who had gone", self.world.people["p_eve"].last_action)
 
     def test_two_people_reaching_for_each_other_have_one_conversation(self):
-        self.acts(p_alice={"because": "", "action": "talk", "target": "Bram"},
-                  p_bram={"because": "", "action": "talk", "target": "Alice"})
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"},
+                  p_adam={"because": "", "action": "talk", "target": "Eve"})
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
         report = tick_mod.tick(self.world, config())
         self.assertEqual(len(report.talks), 1)
 
     def test_meeting_is_written_into_both_ties(self):
-        self.acts(p_alice={"because": "", "action": "talk", "target": "Bram"})
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
-        before = self.world.people["p_bram"].ties["p_alice"].closeness
+        before = self.world.people["p_adam"].ties["p_eve"].closeness
         tick_mod.tick(self.world, config())
-        tie = self.world.people["p_bram"].ties["p_alice"]
+        tie = self.world.people["p_adam"].ties["p_eve"]
         self.assertEqual(tie.last_seen_day, self.world.day)
         self.assertGreater(tie.closeness, before)
 

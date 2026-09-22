@@ -1,10 +1,10 @@
 """The one judgement the engine keeps: what can be reached right now.
 
 Everything else in Elsewhere v2 is decided by a mind. This is not, and it
-cannot be. A model asked "do you still remember the fire?" while the fire is
-sitting in its context will always say yes; a model that is not given the fire
-cannot say anything about it at all. Forgetting is therefore not an opinion -
-it is what the engine declines to hand over.
+cannot be. A model asked "do you still remember the flood?" while the flood is
+sitting in its context will always say yes; a model that is not given the
+flood cannot say anything about it at all. Forgetting is therefore not an
+opinion - it is what the engine declines to hand over.
 
 So this file does three things and no more:
 

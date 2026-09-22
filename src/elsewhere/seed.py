@@ -1,9 +1,9 @@
-"""A small beginning: four people, one town, and a fire they were all near.
+"""A small beginning: three people, one town, and a flood they were all near.
 
 The town's history is authored - somebody has to write the first page. What
 nobody authors is what any of it meant: the opening memories are produced by
 running the backstory past each person the same way every later event will be.
-A world created with no mind available simply starts with four people who
+A world created with no mind available simply starts with three people who
 remember nothing, which is an honest state to start from.
 """
 
@@ -47,66 +47,56 @@ def build(root, name: str = "Wend") -> World:
     world = World(root=root, name=name, day=1, phase=0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
 
-    _place(world, "market", "The Old Market",
-           "Rebuilt once. The new beams are still a different colour.",
-           ["public", "trade", "town"], ["square", "river", "workshop"])
-    _place(world, "square", "The Long Table",
-           "A table too big for any one household, under a roof that leaks.",
-           ["public", "gathering", "music"], ["market", "river", "hill", "house"])
-    _place(world, "river", "The River Path",
-           "Where the water took the low road, once.",
-           ["public", "water", "quiet"], ["market", "square", "hill"])
-    _place(world, "workshop", "Bram's Workshop",
-           "Sawdust, and everything in its place.",
-           ["carpenter", "work"], ["market", "house"])
-    _place(world, "house", "The Weaver's House",
-           "Two rooms and a loom by the window.",
-           ["home", "quiet"], ["square", "workshop"])
-    _place(world, "hill", "The Hill Road",
-           "The last place you can see the town from.",
-           ["quiet", "view", "leaving"], ["square", "river"])
+    _place(world, "garden", "The Garden",
+           "What survived on the higher ground, replanted twice since the water came.",
+           ["home", "quiet"], ["shelter", "waterline"])
+    _place(world, "shelter", "The Shelter",
+           "Raised on posts now, so the next flood has somewhere to leave them alone.",
+           ["public", "gathering", "town"], ["garden", "waterline", "yard", "ridge"])
+    _place(world, "waterline", "The Waterline",
+           "Where the water reached, and where it stopped. The mark is still on the rock.",
+           ["public", "water", "quiet"], ["garden", "shelter", "ridge"])
+    _place(world, "yard", "Adam's Yard",
+           "Timber stacked higher than it needs to be. He says that is the point.",
+           ["builder", "work"], ["shelter", "garden"])
+    _place(world, "ridge", "The Ridge Path",
+           "The last dry ground you can see the valley from.",
+           ["quiet", "view", "leaving"], ["shelter", "waterline", "grove"])
+    _place(world, "grove", "The Far Grove",
+           "Apart from everything else. She likes it that way.",
+           ["quiet", "wild"], ["ridge", "waterline"])
 
     people = [
         Person(
-            id="p_alice",
-            voice="Short, careful sentences. You leave the important part unsaid.", name="Alice", age=34, occupation="weaver",
-            place="house", home="house", mood="watchful",
-            card=("You weave, and you are good at it, and you do not much like "
-                  "being looked at while you work. You startle easily and you "
-                  "know it. You were near the market the night it burned and you "
-                  "have never been able to put that down. You are warmer with "
-                  "people than you let them see."),
-            wants=["finish the piece on the loom", "not be asked about the fire"],
-        ),
-        Person(
-            id="p_bram",
-            voice="Plain and practical. You remember what your hands were doing, never how you felt.", name="Bram", age=41, occupation="carpenter",
-            place="workshop", home="workshop", mood="even",
-            card=("You make things that hold. You are steady to the point of "
-                  "being dull about it, and you would rather repair something "
-                  "than discuss it. You rebuilt the market after the fire and "
+            id="p_adam",
+            voice="Plain and practical. You remember what your hands were doing, never how you felt.", name="Adam", age=38, occupation="builder",
+            place="yard", home="yard", mood="even",
+            card=("You build what holds, and you would rather fix a thing than "
+                  "discuss it. You are steady to the point of being dull about "
+                  "it. You rebuilt the shelter after the water went down and "
                   "that is, to you, the end of the story."),
-            wants=["get the roof at the long table sorted before winter"],
+            wants=["get the shelter's roof finished before the rains come back"],
         ),
         Person(
-            id="p_carol",
-            voice="Quick and a little sharp. You talk about what things mean for later.", name="Carol", age=27, occupation="herbalist",
-            place="hill", home="square", mood="restless",
-            card=("You know the plants on the hill better than anyone and you "
+            id="p_eve",
+            voice="Short, careful sentences. You leave the important part unsaid.", name="Eve", age=33, occupation="gardener",
+            place="garden", home="garden", mood="watchful",
+            card=("You tend the garden, and you are good at it, and you do not "
+                  "much like being watched while you work. You startle easily "
+                  "and you know it. You were standing at the garden's edge the "
+                  "night the water came and you have never been able to put "
+                  "that down. You are warmer with people than you let them see."),
+            wants=["get the new seedbed through one more season", "not be asked about the water"],
+        ),
+        Person(
+            id="p_lilith",
+            voice="Quick and a little sharp. You talk about what things mean for later.", name="Lilith", age=29, occupation="herbalist",
+            place="ridge", home="grove", mood="restless",
+            card=("You know the plants on the ridge better than anyone and you "
                   "are not sure you will be here next year. You notice change "
                   "before other people do and it makes you impatient with them. "
-                  "The fire is when you first understood you could leave."),
-            wants=["walk the hill road as far as it goes, one day"],
-        ),
-        Person(
-            id="p_david",
-            voice="As few words as possible. Most things are not worth mentioning, and you do not.", name="David", age=63, occupation="miller",
-            place="market", home="market", mood="flat",
-            card=("You mill grain, you have milled grain for forty years, and "
-                  "you will mill grain tomorrow. You do not keep much. People "
-                  "assume you are hiding something behind the silence and there "
-                  "is nothing behind it at all."),
-            wants=["nothing out of the ordinary"],
+                  "The flood is when you first understood you could leave."),
+            wants=["walk the ridge path as far as it goes, one day"],
         ),
     ]
     for person in people:
@@ -118,57 +108,53 @@ def build(root, name: str = "Wend") -> World:
         world.people[a].tie(b).closeness = closeness
         world.people[a].tie(b).last_seen_day = 1
 
-    tie("p_alice", "p_bram", "We built the long table together. He is easy to be quiet with.", 0.7)
-    tie("p_bram", "p_alice", "She works too late. Good hands.", 0.68)
-    tie("p_alice", "p_carol", "Young. Always about to go somewhere.", 0.45)
-    tie("p_carol", "p_alice", "She is kind and she will never leave this town.", 0.44)
-    tie("p_alice", "p_david", "He was there the night of the fire and never speaks of it.", 0.35)
-    tie("p_david", "p_alice", "The weaver. Keeps herself to herself.", 0.38)
-    tie("p_bram", "p_carol", "Restless. Not unkind.", 0.35)
-    tie("p_carol", "p_bram", "He would rebuild this town brick by brick and never ask why.", 0.33)
-    tie("p_bram", "p_david", "Forty years at the mill. Reliable.", 0.55)
-    tie("p_david", "p_bram", "Good with a saw. Talks when there is something to say.", 0.58)
-    tie("p_carol", "p_david", "He has been here forever and has nothing to show for it.", 0.25)
-    tie("p_david", "p_carol", "The herb girl.", 0.26)
+    tie("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 0.7)
+    tie("p_eve", "p_adam", "He works too late. Good hands.", 0.68)
+    tie("p_eve", "p_lilith", "Young. Always about to go somewhere.", 0.45)
+    tie("p_lilith", "p_eve", "She is kind and she will never leave this place.", 0.44)
+    tie("p_adam", "p_lilith", "Restless. Not unkind.", 0.35)
+    tie("p_lilith", "p_adam", "He would rebuild this whole place plank by plank and never ask why.", 0.33)
 
     # ---- the first page of the chronicle ---------------------------------
     # Where each of them stood is part of what happened, so it is written into
     # the chronicle - as a position and nothing more. "Close enough to feel the
-    # heat" is already a perception, and a small model will copy it straight
+    # spray" is already a perception, and a small model will copy it straight
     # into the memory it is supposed to be forming for itself.
     world.day, world.phase = 18, 2                              # evening
     world.record("gathering",
-                 "Alice and Bram built the long table, and the town ate outside.",
-                 where="square", who=["p_alice", "p_bram"],
-                 present=["p_alice", "p_bram", "p_david"],
-                 tags=["gathering", "town", "building"],
+                 "Adam and Eve raised the shelter's first frame, and the three "
+                 "of them ate under it before the roof was even on.",
+                 where="shelter", who=["p_adam", "p_eve"],
+                 present=["p_adam", "p_eve", "p_lilith"],
+                 tags=["gathering", "building"],
                  data={"vantage": {
-                     "p_alice": "at one end of the table",
-                     "p_bram": "at the other end of the table",
-                     "p_david": "at the far corner, near the door",
+                     "p_adam": "up on the frame, tying the crossbeams",
+                     "p_eve": "on the ground, passing the rope up",
+                     "p_lilith": "sitting apart, watching them work",
                  }})
     world.day, world.phase = 68, 3                              # night
-    world.record("fire", "The old market burned down.",
-                 where="market", who=[],
-                 present=["p_alice", "p_bram", "p_carol", "p_david"],
-                 tags=["fire", "loss", "town"],
+    world.record("flood",
+                 "The water came up over the waterline in the night and did "
+                 "not go down for three days.",
+                 where="waterline", who=[],
+                 present=["p_adam", "p_eve", "p_lilith"],
+                 tags=["flood", "loss"],
                  data={"vantage": {
-                     "p_alice": "across the street from the market",
-                     "p_bram": "on the roof of the workshop next door",
-                     "p_carol": "on the hill road above the town",
-                     "p_david": "at the edge of the crowd in the square",
+                     "p_adam": "on the roof of his own yard, watching the water take the floor below him",
+                     "p_eve": "in the garden, on the last dry rise, holding what she could carry",
+                     "p_lilith": "on the ridge path, above all of it, watching the valley disappear",
                  }})
     world.day, world.phase = 92, 1                              # afternoon
     world.record("building",
-                 "The market was rebuilt with green timber that never stopped "
-                 "smelling.",
-                 where="market", who=["p_bram"],
-                 present=["p_bram", "p_david", "p_alice"],
-                 tags=["town", "work", "building"],
+                 "The shelter was raised again, this time on posts, out of "
+                 "timber that had not finished drying.",
+                 where="shelter", who=["p_adam"],
+                 present=["p_adam", "p_lilith", "p_eve"],
+                 tags=["building", "work"],
                  data={"vantage": {
-                     "p_bram": "on the scaffold at the market",
-                     "p_david": "on the road between the river and the market",
-                     "p_alice": "in the street outside the market",
+                     "p_adam": "on the new posts, driving them deeper than anyone asked him to",
+                     "p_lilith": "on the path down from the ridge, back for the day",
+                     "p_eve": "in the garden, close enough to hear the hammering",
                  }})
 
     world.day, world.phase = START_DAY, 0

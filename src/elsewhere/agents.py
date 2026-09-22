@@ -40,10 +40,10 @@ def _heavy_today(world, person: Person) -> int:
 def vantage(world, person: Person, event: Event) -> str:
     """Where this person stood when it happened. World state, not interpretation.
 
-    Nobody perceives "the market burned down". They perceive what reaches them
-    from where they are - heat from across the street, a glow seen from a hill,
-    a story the next morning. The engine knows where people were; saying so is
-    its job. What they make of it is not.
+    Nobody perceives "the water reached the waterline". They perceive what
+    reaches them from where they are - the sound of it in the night, a light
+    seen from the ridge, a story the next morning. The engine knows where
+    people were; saying so is its job. What they make of it is not.
     """
     told = (event.data.get("vantage") or {}).get(person.id)
     if told:
@@ -523,10 +523,20 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 
 MAX_BELIEFS = 6
 
+_STOP_WORDS = {"the", "and", "that", "with", "from", "into", "still", "this",
+              "there", "their", "were", "was", "had", "have", "then", "they",
+              "them", "about", "your", "you", "what", "when", "just", "like",
+              "been", "over", "only"}
+
+
+def _words(text: str) -> set:
+    import re
+    return {w for w in re.findall(r"[a-z']+", (text or "").lower())
+           if len(w) > 3 and w not in _STOP_WORDS}
+
 
 def _same_belief(a: str, b: str) -> bool:
-    from .evals import words
-    wa, wb = words(a), words(b)
+    wa, wb = _words(a), _words(b)
     return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.5
 
 

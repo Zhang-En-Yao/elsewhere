@@ -14,9 +14,9 @@ from elsewhere.world.memories import Trace
 
 
 def trace(**kw):
-    base = dict(id="m1", owner="p", day=100, trace="the market burned",
+    base = dict(id="m1", owner="p", day=100, trace="the water rose over the fields",
                 means="I was frightened", feeling="fear", salience=0.7,
-                tags=["fire", "town"], place="market", last_touched=100)
+                tags=["flood", "town"], place="waterline", last_touched=100)
     base.update(kw)
     return Trace(**base)
 
@@ -31,21 +31,21 @@ class TestWorldStore(unittest.TestCase):
 
     def test_a_world_survives_being_written_and_read(self):
         world = seed.build(self.root)
-        world.traces("p_alice").add(trace(owner="p_alice", day=world.day))
+        world.traces("p_eve").add(trace(owner="p_eve", day=world.day))
         store.save(world)
 
         back = store.load(self.root)
         self.assertEqual(back.name, world.name)
         self.assertEqual(back.day, world.day)
         self.assertEqual(len(back.people), len(world.people))
-        self.assertEqual(back.people["p_alice"].card, world.people["p_alice"].card)
-        self.assertEqual(len(back.traces("p_alice")), 1)
+        self.assertEqual(back.people["p_eve"].card, world.people["p_eve"].card)
+        self.assertEqual(len(back.traces("p_eve")), 1)
         self.assertEqual(len(back.chronicle), len(world.chronicle))
 
     def test_the_chronicle_only_ever_grows(self):
         world = seed.build(self.root)
         before = len(world.chronicle)
-        world.record("test", "something happened", where="market")
+        world.record("test", "something happened", where="shelter")
         store.save(world)
         lines = (self.root / "chronicle.jsonl").read_text().strip().splitlines()
         self.assertEqual(len(lines), before + 1)
@@ -78,23 +78,23 @@ class TestRetrieval(unittest.TestCase):
         self.assertEqual(got[0].id, "m0")          # freshest first, all else equal
 
     def test_a_cue_pulls_its_own_subject_forward(self):
-        plain = trace(id="a", salience=0.5, tags=["market"])
-        cued = trace(id="b", salience=0.4, tags=["fire"])
-        got = retrieval.recallable([plain, cued], 110, cues={"fire"}, limit=2)
+        plain = trace(id="a", salience=0.5, tags=["garden"])
+        cued = trace(id="b", salience=0.4, tags=["flood"])
+        got = retrieval.recallable([plain, cued], 110, cues={"flood"}, limit=2)
         self.assertEqual(got[0].id, "b")
 
     def test_something_out_of_reach_can_still_be_pointed_at(self):
-        t = trace(salience=0.9, tags=["fire"])
+        t = trace(salience=0.9, tags=["flood"])
         day = 100 + 900
         self.assertTrue(retrieval.dormant(t, day))
         self.assertIsNone(retrieval.cued_return([t], day, {"harvest"}))
-        self.assertIs(retrieval.cued_return([t], day, {"fire", "town", "market"}), t)
+        self.assertIs(retrieval.cued_return([t], day, {"flood", "town", "waterline"}), t)
 
     def test_rewriting_keeps_the_older_wording(self):
         t = trace()
-        t.rewrite("something about a fire", day=200, feeling="fear")
-        self.assertEqual(t.trace, "something about a fire")
-        self.assertEqual(t.history, ["the market burned"])
+        t.rewrite("something about a flood", day=200, feeling="fear")
+        self.assertEqual(t.trace, "something about a flood")
+        self.assertEqual(t.history, ["the water rose over the fields"])
         self.assertEqual(t.recalls, 1)
         self.assertEqual(t.last_touched, 200)
 
@@ -118,7 +118,7 @@ class TestAnswers(unittest.TestCase):
             return {"weight": "a great deal"} if len(attempts) == 1 else {"weight": "stays"}
 
         backend = StubBackend({"perceive": answer})
-        got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_alice"),
+        got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_eve"),
                   Settings(backend="stub", model="stub"))
         self.assertEqual(got, {"weight": "stays"})
         self.assertEqual(len(attempts), 2)
@@ -134,12 +134,12 @@ class TestAnswers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tape = Path(tmp) / "t.jsonl"
             backend = StubBackend({"perceive": {"stuck": True}})
-            ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_alice"),
+            ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_eve"),
                 Settings(backend="stub", model="stub"), Transcript(tape))
             rows = [json.loads(l) for l in tape.read_text().splitlines()]
             self.assertEqual(len(rows), 1)
             self.assertTrue(rows[0]["ok"])
-            self.assertEqual(rows[0]["about"], "p_alice")
+            self.assertEqual(rows[0]["about"], "p_eve")
 
     def test_the_weight_ladder_is_what_the_engine_sorts_by(self):
         self.assertGreater(schemas.weight_to_salience("marks"),

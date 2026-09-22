@@ -3,7 +3,7 @@
 Everyone decides at once, then the world resolves what they decided: people
 move, and anyone who went to speak to someone still standing in the same place
 does. A conversation is an event; everyone who heard it gets their own version
-of it through perceive, exactly like the fire.
+of it through perceive, exactly like the flood.
 
 Nothing here judges anything. The engine only settles what is physically so -
 who is where, who could hear whom.

@@ -559,8 +559,10 @@ The goal is to build a world that feels worth returning to.
 > only what can be *reached*; a language model decides what any of it meant.
 > The town now lives on its own and remembers. It does not yet make anything,
 > and you cannot yet live in it. See [Roadmap](#-roadmap) for the honest state
-> of each piece, and [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md) for
-> the engine that came before this one.
+> of each piece, [docs/v2-ARCHITECTURE.md](docs/v2-ARCHITECTURE.md) for how
+> this engine is put together, and
+> [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md) for the engine that
+> came before this one.
 
 The engine is Python 3.10+ with no dependencies. Everything that thinks needs a
 model it can reach — by default one running on the same machine.
@@ -624,7 +626,7 @@ pip install -e .
 ### Commands
 
 ```bash
-elsewhere init                  # 4 people, 1 town, a fire nobody agrees about
+elsewhere init                  # 3 people, 1 town, a flood nobody agrees about
 elsewhere init --blank          # the same town, but nobody has been asked to remember it
 
 elsewhere tick -n 4             # live four phases now (morning, afternoon, evening, night)
@@ -632,44 +634,34 @@ elsewhere catchup               # live whatever phases the wall clock says are o
 elsewhere news                  # what happened since you last looked
 
 elsewhere status                # where everyone is, and how much they still hold
-elsewhere person Alice          # who she has become: beliefs, ties, what is in reach
+elsewhere person Eve            # who she has become: beliefs, ties, what is in reach
 elsewhere timeline              # history: what happened
 elsewhere event ev0002          # one event, and every version of it
 
 elsewhere remember ev0002       # put an event past everyone again
 elsewhere doctor                # can the configured minds be reached?
-elsewhere eval fire -n 5        # measure the minds against a scenario
 ```
 
 Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`
-wraps the common ones — `make test`, `make demo`, `make tick`, `make news`,
-`make doctor`, `make eval`.
+wraps the common ones — `make test`, `make tick`, `make news`, `make doctor`.
 
-Two things that are worth doing first:
-
-```bash
-make demo
-```
-
-A scripted day with no model at all: the roof of the market comes down, four
-people see it from where they happen to be standing, and each of them keeps
-something different.
+One thing that is worth doing first:
 
 ```bash
 elsewhere event ev0002
 ```
 
-The old market burned down. Alice was frightened. Bram remembers the town
-putting itself back together. Carol remembers deciding to leave. David was
-there and has nothing at all.
+The water came up over the waterline in the night. Eve was frightened. Adam
+remembers putting the shelter back up. Lilith remembers deciding she could
+leave.
 
 People also say things out loud, and what the other person walks away with is a
 shorter, flatter version of it — sometimes the wrong one:
 
 ```
-Alice said:   "It was not as bad as people say now. A storm came down over
-               The Old Market. It got put back together."
-Carol kept:   "What I took from it was a storm came down over The Old Market
+Eve said:     "It was not as bad as people say now. The river came up over
+               The Waterline. It went down again."
+Lilith kept:  "What I took from it was the river came up over The Waterline
                - though it may have been the opposite."
 ```
 
@@ -737,14 +729,13 @@ which is where it stops being a town, or rise above eight, which is where it
 stops being one where everybody knows everybody — and between those it is the
 minds, not the engine, that decide.
 
-Every exchange is appended to a transcript, which is how a run is reproduced —
-there is no random seed to hold on to any more. A saved transcript can be
-replayed as a backend, which is how the suite runs: `make test` is 53 tests and
-no model.
+Every exchange is appended to a transcript, which is how a run is explained
+after the fact — there is no random seed to hold on to any more. The test
+suite's own reproducibility comes from a stub backend instead: `make test` is
+80 tests and no model.
 
-A v2 architecture document has not been written yet. The commit messages for
-`v2 P0`, `P1` and `P3/P4` are the closest thing, and the module docstrings are
-the rest. What has not been built is written down in
+[docs/v2-ARCHITECTURE.md](docs/v2-ARCHITECTURE.md) has how this engine is put
+together. What has not been built is written down in
 [docs/v2-ROADMAP.md](docs/v2-ROADMAP.md).
 
 ---
@@ -881,9 +872,8 @@ A few memories.
 
 Enough time to see what happens.
 
-That world now runs. It has four people rather than three, a fire in its past
-that each of them remembers differently, and one of them who does not remember
-it at all.
+That world now runs. It has three people and a flood in its past that each of
+them remembers differently.
 
 On `v2` it also keeps going without being watched: the town decides for itself
 whether anything happens each morning, everyone decides what to do from where

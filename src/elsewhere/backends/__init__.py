@@ -5,9 +5,11 @@ prompt, a user prompt and the schema the answer must fit - and hands it to a
 backend. Which backend answers which call is configuration, so ``act`` can run
 on a 4B model at home while ``reflect`` goes to something larger.
 
-Every exchange is appended to a transcript. That tape is this world's
-replacement for a random seed: a run can be replayed exactly, offline, with no
-key and no model, which is how the tests work.
+Every exchange is appended to a transcript - a durable record of what was
+asked, what came back, and whether it was usable. It is this world's
+replacement for a random seed, in the sense that it is the thing that
+explains a run after the fact; the tests themselves run offline against a
+stub backend instead, with no model and no tape to replay.
 """
 
 from __future__ import annotations

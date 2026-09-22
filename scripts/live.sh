@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Serve a model on this machine, check it can be reached, and put the fire to
-# it. Everything here has to run on macOS itself: MLX does not exist anywhere
+# Serve a model on this machine and check that every call site can reach it.
+# Everything here has to run on macOS itself: MLX does not exist anywhere
 # else, and a server bound to this machine's localhost is not reachable from
 # anywhere but this machine.
 #
 #   scripts/live.sh                       # ollama, phi4-mini
 #   MODEL=llama3.2:3b scripts/live.sh
-#   RUNTIME=vllm-mlx scripts/live.sh      # MLX server; see scripts/diagnose.sh if it will not start
+#   RUNTIME=vllm-mlx scripts/live.sh      # MLX server
 #   KEEP=1 scripts/live.sh                # leave the server up between runs
 #
 # The first run downloads the weights, which on a slow line takes longer than
@@ -58,7 +58,7 @@ wait_for() {                      # wait_for <url> <seconds>
 }
 
 fetch_model() {                   # pull the weights before anything is timed
-  say "3/6  fetching $MODEL (this is the slow part; cached afterwards)"
+  say "3/5  fetching $MODEL (this is the slow part; cached afterwards)"
   MODEL="$MODEL" python - <<'PY'
 import os
 from huggingface_hub import snapshot_download
@@ -67,7 +67,7 @@ print(f"     weights at {snapshot_download(os.environ['MODEL'])}")
 PY
 }
 
-say "1/6  python environment"
+say "1/5  python environment"
 if [ ! -d "$VENV" ]; then python3 -m venv "$VENV"; fi
 # shellcheck disable=SC1091
 . "$VENV/bin/activate"
@@ -75,11 +75,11 @@ pip install -qe . >/dev/null
 
 case "$RUNTIME" in
   vllm-mlx)
-    say "2/6  vllm-mlx"
+    say "2/5  vllm-mlx"
     python -c "import vllm_mlx, mlx_lm" 2>/dev/null || pip install -q vllm-mlx mlx-lm
     python -c "import huggingface_hub" 2>/dev/null || pip install -q huggingface_hub
     fetch_model
-    say "4/6  serving $MODEL on :$PORT"
+    say "4/5  serving $MODEL on :$PORT"
     vllm-mlx serve "$MODEL" --port "$PORT" >"$LOG" 2>&1 &
     SERVER_PID=$!
     BASE="http://localhost:$PORT/v1"
@@ -87,12 +87,12 @@ case "$RUNTIME" in
     export ELSEWHERE_BACKEND=openai ELSEWHERE_OPENAI_BASE="$BASE"
     ;;
   ollama)
-    say "2/6  ollama"
+    say "2/5  ollama"
     command -v ollama >/dev/null || { echo "install it first: brew install ollama"; exit 1; }
     pgrep -qx ollama || { ollama serve >"$LOG" 2>&1 & SERVER_PID=$!; }
-    say "3/6  fetching $MODEL (cached afterwards)"
+    say "3/5  fetching $MODEL (cached afterwards)"
     ollama pull "$MODEL"
-    say "4/6  serving $MODEL on :11434"
+    say "4/5  serving $MODEL on :11434"
     HEALTH="http://localhost:11434/api/tags"
     export ELSEWHERE_BACKEND=ollama
     ;;
@@ -113,13 +113,8 @@ elif [ "${ready:-1}" -ne 0 ]; then
 fi
 echo " up"
 
-say "5/6  can every call site reach a mind?"
+say "5/5  can every call site reach a mind?"
 elsewhere doctor
-
-say "6/6  the fire: four people, one street"
-ELSEWHERE_LIVE=1 python -m unittest tests.test_fire -v 2>&1 | tail -40
 
 say "done"
 echo "Server log: $LOG"
-echo "If the four accounts above read like four people, the model is good enough."
-echo "If they read like one narrator, try a different MODEL= and run this again."

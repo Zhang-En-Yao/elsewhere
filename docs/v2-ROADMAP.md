@@ -67,7 +67,7 @@ has become an administrator.
   like any other. Nothing to add.
 
 **Acceptance.** Play three phases, leave for a week of wall clock, come back and
-run `elsewhere person Alice` — she should have a note about you, and it should
+run `elsewhere person Eve` — she should have a note about you, and it should
 be wrong in some specific way.
 
 ## P5 — Making things
@@ -144,12 +144,11 @@ once the world is long enough for the summary to say something.
 
 ## Documentation
 
-`docs/ARCHITECTURE.md` was linked from the README and has never existed; the
-link now points at the v0.1 document. A v2 architecture note should exist
-before any of the above makes the engine harder to hold in one head. The
-division it has to explain is the one the rewrite is for: the engine keeps the
-ledger and decides reachability, a mind decides meaning, and the two never
-cross.
+[`v2-ARCHITECTURE.md`](v2-ARCHITECTURE.md) now exists and explains the
+division the rewrite is for: the engine keeps the ledger and decides
+reachability, a mind decides meaning, and the two never cross. Keep it
+current as each item below lands, rather than letting it drift the way the
+old link to a nonexistent `docs/ARCHITECTURE.md` did.
 
 ---
 
@@ -158,7 +157,7 @@ cross.
 Two things it deliberately does not do, and one to watch:
 
 - **Nobody comes back.** A name the town has used is refused, which is the
-  right guard against the road inventing a second Carol, and also means the
+  right guard against the road inventing a second Lilith, and also means the
   one thing the README asks for by name — meeting again years later, both
   changed — cannot happen. Returning is a different call site: the person
   already exists, with everything they left holding.

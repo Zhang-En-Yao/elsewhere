@@ -19,14 +19,14 @@ from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "action": "stay", "target": ""}
-QUIET = {"why_now": "", "what": "", "where": "The Old Market", "who": "",
+QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
          "reach": "the people there", "tags": [], "happens": False}
-GOING = {"because": "I said I would go before winter", "action": "leave",
+GOING = {"because": "I said I would go before the rains", "action": "leave",
          "target": ""}
 NOBODY = {"comes": False}
-SOMEBODY = {"why_now": "nobody has ground grain since the miller went",
-            "name": "Tam", "from_where": "the coast road", "trade": "miller",
-            "age": 30, "card": "You came for the mill and you keep to it.",
+SOMEBODY = {"why_now": "nobody has tended the ridge plants since she went",
+            "name": "Tam", "from_where": "beyond the ridge", "trade": "herbalist",
+            "age": 30, "card": "You came for the plants and you keep to them.",
             "voice": "Dry, and not much of it.", "comes": True}
 
 
@@ -41,8 +41,8 @@ class Road(unittest.TestCase):
         self.stub = StubBackend({"act": STAY, "perceive": {"weight": "nothing"},
                                  "direct": QUIET, "reflect": {}, "arrive": NOBODY})
         register(self.stub)
-        # Carol begins on the hill road, which is the way out of Wend.
-        self.carol = self.world.people["p_carol"]
+        # Lilith begins on the ridge path, which is the way out of Wend.
+        self.lilith = self.world.people["p_lilith"]
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -57,128 +57,130 @@ class Road(unittest.TestCase):
     def present(self):
         return sorted(p.id for p in self.world.people.values() if p.present)
 
-    def send_carol_away(self):
-        """Put Carol on the road and let her take it."""
-        self.carol.place = "hill"
-        self.stub.answers["act|p_carol"] = GOING
+    def send_lilith_away(self):
+        """Put Lilith on the road and let her take it."""
+        self.lilith.place = "ridge"
+        self.stub.answers["act|p_lilith"] = GOING
         report = tick_mod.tick(self.world, config())
-        self.stub.answers["act|p_carol"] = STAY
+        self.stub.answers["act|p_lilith"] = STAY
         return report
 
 
 class TestWhetherAnyoneCanGoAtAll(Road):
     def test_only_from_where_the_road_goes_out(self):
-        self.assertEqual(agents.leaving_place(self.world).id, "hill")
-        self.assertTrue(agents.may_leave(self.world, self.carol))
-        self.carol.place = "market"
-        self.assertFalse(agents.may_leave(self.world, self.carol),
-                         "the market is not a way out of anywhere")
+        self.assertEqual(agents.leaving_place(self.world).id, "ridge")
+        self.assertTrue(agents.may_leave(self.world, self.lilith))
+        self.lilith.place = "yard"
+        self.assertFalse(agents.may_leave(self.world, self.lilith),
+                         "the yard is not a way out of anywhere")
 
     def test_not_at_night(self):
         self.world.phase = 3
         self.assertEqual(self.world.phase_name, "night")
-        self.assertFalse(agents.may_leave(self.world, self.carol))
+        self.assertFalse(agents.may_leave(self.world, self.lilith))
 
     def test_not_if_it_would_stop_being_a_town(self):
-        for pid in ("p_alice", "p_bram"):
-            self.world.people[pid].present = False
+        self.world.people["p_adam"].present = False
         self.assertEqual(len(self.present()), 2)
-        self.assertFalse(agents.may_leave(self.world, self.carol),
+        self.assertFalse(agents.may_leave(self.world, self.lilith),
                          "two people are not a town anybody can leave")
 
     def test_not_twice_in_the_same_season(self):
-        self.send_carol_away()
-        alice = self.world.people["p_alice"]
-        alice.place = "hill"
-        self.assertFalse(agents.may_leave(self.world, alice))
+        # A filler person keeps the town above the floor after Lilith goes, so
+        # the day-gap gate is what is actually being tested here, not the floor.
+        self.world.people["p_x0"] = type(self.lilith)(id="p_x0", name="X0", place="shelter")
+        self.send_lilith_away()
+        eve = self.world.people["p_eve"]
+        eve.place = "ridge"
+        self.assertFalse(agents.may_leave(self.world, eve))
         self.world.day += agents.DEPARTURE_MIN_GAP_DAYS
-        self.assertTrue(agents.may_leave(self.world, alice))
+        self.assertTrue(agents.may_leave(self.world, eve))
 
     def test_the_verb_is_not_in_the_vocabulary_anywhere_else(self):
-        self.carol.place = "market"
+        self.lilith.place = "yard"
         tick_mod.tick(self.world, config())
-        schema = next(c for c in self.calls("act") if c.about == "p_carol").schema
+        schema = next(c for c in self.calls("act") if c.about == "p_lilith").schema
         self.assertNotIn("leave", schema["properties"]["action"]["enum"])
 
     def test_and_is_where_it_is(self):
         tick_mod.tick(self.world, config())
-        schema = next(c for c in self.calls("act") if c.about == "p_carol").schema
+        schema = next(c for c in self.calls("act") if c.about == "p_lilith").schema
         self.assertIn("leave", schema["properties"]["action"]["enum"])
-        user = next(c for c in self.calls("act") if c.about == "p_carol").user
+        user = next(c for c in self.calls("act") if c.about == "p_lilith").user
         self.assertIn("road also goes out", user)
 
     def test_a_lenient_backend_still_cannot_walk_someone_out(self):
-        self.carol.place = "market"           # no road out of the market
-        self.stub.answers["act|p_carol"] = GOING
+        self.lilith.place = "yard"           # no road out of the yard
+        self.stub.answers["act|p_lilith"] = GOING
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(report.decisions["p_carol"].action, "stay")
-        self.assertIn("p_carol", self.present())
+        self.assertEqual(report.decisions["p_lilith"].action, "stay")
+        self.assertIn("p_lilith", self.present())
 
 
 class TestGoing(Road):
     def test_she_is_gone(self):
-        report = self.send_carol_away()
+        report = self.send_lilith_away()
         self.assertEqual(len(report.departures), 1)
-        self.assertFalse(self.carol.present)
-        self.assertEqual(self.carol.left_on, self.world.day)
-        self.assertNotIn("p_carol", self.present())
-        self.assertNotIn(self.carol, self.world.people_at("hill"))
+        self.assertFalse(self.lilith.present)
+        self.assertEqual(self.lilith.left_on, self.world.day)
+        self.assertNotIn("p_lilith", self.present())
+        self.assertNotIn(self.lilith, self.world.people_at("ridge"))
 
     def test_the_whole_town_hears_it(self):
-        report = self.send_carol_away()
+        report = self.send_lilith_away()
         event = self.world.chronicle.get(report.departures[0].event_id)
         self.assertEqual(event.kind, "departure")
         self.assertEqual(sorted(event.present), sorted(self.world.people))
-        david = next(c for c in self.calls("perceive") if c.about == "p_david")
-        self.assertIn("word of it reached you", david.user)
+        eve = next(c for c in self.calls("perceive") if c.about == "p_eve")
+        self.assertIn("word of it reached you", eve.user)
 
     def test_she_gets_one_last_look_at_it(self):
-        self.send_carol_away()
-        hers = next(c for c in self.calls("perceive") if c.about == "p_carol")
+        self.send_lilith_away()
+        hers = next(c for c in self.calls("perceive") if c.about == "p_lilith")
         self.assertIn("looking back", hers.user)
 
     def test_what_she_had_stays_where_it_is(self):
-        self.world.traces("p_carol").add(Trace(
-            id="mem9001", owner="p_carol", day=self.world.day,
-            trace="the glow over the roofs", salience=0.9, tags=["fire"],
-            last_touched=self.world.day))
-        self.send_carol_away()
-        kept = list(self.world.traces("p_carol"))
+        self.world.traces("p_lilith").add(Trace(
+            id="mem9001", owner="p_lilith", day=self.world.day,
+            trace="the valley disappearing under the water", salience=0.9,
+            tags=["flood"], last_touched=self.world.day))
+        self.send_lilith_away()
+        kept = list(self.world.traces("p_lilith"))
         self.assertIn("mem9001", [t.id for t in kept])
 
     def test_and_so_does_what_everyone_wrote_about_her(self):
-        self.send_carol_away()
-        alice = self.world.people["p_alice"]
-        self.assertEqual(alice.ties["p_carol"].note,
+        self.send_lilith_away()
+        eve = self.world.people["p_eve"]
+        self.assertEqual(eve.ties["p_lilith"].note,
                          "Young. Always about to go somewhere.")
 
     def test_whoever_went_to_find_her_finds_the_road(self):
-        alice = self.world.people["p_alice"]
-        alice.place = "hill"
-        self.stub.answers["act|p_alice"] = {"because": "", "action": "talk",
-                                            "target": "Carol"}
-        report = self.send_carol_away()
-        self.assertIn(("p_alice", "p_carol"), report.missed)
-        self.assertIn("who had gone", alice.last_action)
+        adam = self.world.people["p_adam"]
+        adam.place = "ridge"
+        self.stub.answers["act|p_adam"] = {"because": "", "action": "talk",
+                                           "target": "Lilith"}
+        report = self.send_lilith_away()
+        self.assertIn(("p_adam", "p_lilith"), report.missed)
+        self.assertIn("who had gone", adam.last_action)
         self.assertEqual(report.talks, [])
 
     def test_the_town_stops_asking_her_anything(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         before = len(self.calls("act"))
         tick_mod.tick(self.world, config())
         asked = [c.about for c in self.calls("act")[before:]]
-        self.assertNotIn("p_carol", asked)
+        self.assertNotIn("p_lilith", asked)
 
     def test_and_stops_offering_her_to_the_director(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.to_phase("morning")
         tick_mod.tick(self.world, config())
         call = self.calls("direct")[-1]
-        self.assertNotIn("Carol", call.schema["properties"]["who"]["enum"])
+        self.assertNotIn("Lilith", call.schema["properties"]["who"]["enum"])
         listed = call.user.split("People:")[1].split("Lately")[0]
-        self.assertNotIn("Carol", listed,
-                         "nor standing on the hill road among the people it is shown")
-        self.assertIn("Carol took the road", call.user,
+        self.assertNotIn("Lilith", listed,
+                         "nor standing on the ridge path among the people it is shown")
+        self.assertIn("Lilith took the road", call.user,
                       "but the record still says she went - that is why_now material")
 
 
@@ -195,25 +197,25 @@ class TestComing(Road):
                          "nobody is missing; the road is not even asked")
 
     def test_a_town_short_of_somebody_waits_first(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.to_phase("morning")
         tick_mod.tick(self.world, config())
         self.assertEqual(self.calls("arrive"), [],
                          "the morning after she went is too soon")
 
     def test_then_it_asks(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.morning_after_a_gap()
         self.assertEqual(len(self.calls("arrive")), 1)
 
     def test_usually_nobody_comes(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         report = self.morning_after_a_gap()
         self.assertIsNone(report.arrival)
-        self.assertEqual(len(self.present()), 3)
+        self.assertEqual(len(self.present()), 2)
 
     def test_somebody_comes_up_the_road(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         report = self.morning_after_a_gap()
 
@@ -221,8 +223,8 @@ class TestComing(Road):
         tam = self.world.person_by_name("Tam")
         self.assertIsNotNone(tam)
         self.assertEqual(tam.id, "p_tam")
-        self.assertEqual(tam.place, "hill", "they come in the way she went out")
-        self.assertEqual(tam.occupation, "miller")
+        self.assertEqual(tam.place, "ridge", "they come in the way she went out")
+        self.assertEqual(tam.occupation, "herbalist")
         self.assertEqual(tam.arrived_on, self.world.day)
         self.assertTrue(tam.present)
         self.assertEqual(tam.home, "", "a newcomer has nowhere of their own")
@@ -230,10 +232,10 @@ class TestComing(Road):
         event = self.world.chronicle.get(report.arrival.event_id)
         self.assertEqual(event.kind, "arrival")
         self.assertEqual(event.who, ["p_tam"])
-        self.assertIn("the coast road", event.what)
+        self.assertIn("beyond the ridge", event.what)
 
     def test_the_newcomer_gets_their_first_day(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         before = len(self.calls("act"))
         self.morning_after_a_gap()
@@ -242,7 +244,7 @@ class TestComing(Road):
                       "they arrive in the morning and live the day they arrived")
 
     def test_they_see_the_place_for_the_first_time(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         before = len(self.calls("perceive"))
         self.morning_after_a_gap()
@@ -250,23 +252,23 @@ class TestComing(Road):
         self.assertIn("for the first time", theirs.user)
 
     def test_nobody_here_knows_them(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         self.morning_after_a_gap()
         tam = self.world.person_by_name("Tam")
         self.assertEqual(tam.ties, {})
-        self.assertEqual(self.world.people["p_alice"].ties.get("p_tam"), None)
+        self.assertEqual(self.world.people["p_eve"].ties.get("p_tam"), None)
 
     def test_the_road_is_told_who_is_missing(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         self.morning_after_a_gap()
         user = self.calls("arrive")[0].user
         self.assertIn("Who has gone", user)
-        self.assertIn("Carol", user)
+        self.assertIn("Lilith", user)
 
     def test_asking_counts_even_when_nobody_comes(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.morning_after_a_gap()                   # asked; nobody came
         self.assertEqual(len(self.calls("arrive")), 1)
         self.to_phase("morning")
@@ -276,10 +278,10 @@ class TestComing(Road):
         self.assertEqual(self.world.road_asked_on, self.world.day - 1)
 
     def test_a_town_that_is_whole_waits_a_year(self):
-        self.send_carol_away()
+        self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         self.morning_after_a_gap()
-        self.assertEqual(len(self.present()), 4, "back to the size it began at")
+        self.assertEqual(len(self.present()), 3, "back to the size it began at")
         self.assertFalse(agents.may_arrive(self.world))
         self.world.day += agents.ARRIVAL_MIN_GAP_DAYS
         self.assertFalse(agents.may_arrive(self.world), "a month is not enough now")
@@ -289,48 +291,52 @@ class TestComing(Road):
     def test_and_can_then_be_more_than_it_ever_was(self):
         self.stub.set("arrive", {**SOMEBODY, "name": "Edda"})
         self.morning_after_a_gap(agents.ARRIVAL_SETTLED_GAP_DAYS)
-        self.assertEqual(len(self.present()), 5,
+        self.assertEqual(len(self.present()), 4,
                          "nobody left, and the town is bigger than it started")
 
     def test_but_not_more_than_a_town_anybody_knows(self):
         for n in range(agents.TOWN_CEILING - len(self.present())):
-            self.world.people[f"p_x{n}"] = type(self.carol)(
-                id=f"p_x{n}", name=f"X{n}", place="square")
+            self.world.people[f"p_x{n}"] = type(self.lilith)(
+                id=f"p_x{n}", name=f"X{n}", place="shelter")
         self.assertEqual(len(self.present()), agents.TOWN_CEILING)
         self.world.day += agents.ARRIVAL_SETTLED_GAP_DAYS * 2
         self.assertFalse(agents.may_arrive(self.world))
 
     def test_and_can_shrink_until_it_stops_being_one(self):
-        self.send_carol_away()
-        alice = self.world.people["p_alice"]
-        alice.place = "hill"
+        # A filler person is added first, so the floor is reached one departure
+        # later than it would be from the seed's three alone, and both the
+        # allowed and the blocked departure can be seen in one test.
+        filler = type(self.lilith)(id="p_x0", name="X0", place="shelter")
+        self.world.people["p_x0"] = filler
+        self.send_lilith_away()                    # 3 present: adam, eve, x0
+        filler.place = "ridge"
         self.world.day += agents.DEPARTURE_MIN_GAP_DAYS
-        self.assertTrue(agents.may_leave(self.world, alice))
-        alice.present = False
-        bram = self.world.people["p_bram"]
-        bram.place = "hill"
+        self.assertTrue(agents.may_leave(self.world, filler))
+        filler.present = False
+        adam = self.world.people["p_adam"]
+        adam.place = "ridge"
         self.world.day += agents.DEPARTURE_MIN_GAP_DAYS
         self.assertEqual(len(self.present()), 2)
-        self.assertFalse(agents.may_leave(self.world, bram),
+        self.assertFalse(agents.may_leave(self.world, adam),
                          "the last two cannot both walk out")
 
     def test_a_name_the_town_already_uses_is_refused(self):
-        self.send_carol_away()
-        self.stub.set("arrive", {**SOMEBODY, "name": "Alice"})
+        self.send_lilith_away()
+        self.stub.set("arrive", {**SOMEBODY, "name": "Eve"})
         report = self.morning_after_a_gap()
         self.assertIsNone(report.arrival)
-        self.assertEqual(len(self.present()), 3)
+        self.assertEqual(len(self.present()), 2)
 
     def test_so_is_coming_back_under_the_same_name(self):
-        self.send_carol_away()
-        self.stub.set("arrive", {**SOMEBODY, "name": "Carol"})
+        self.send_lilith_away()
+        self.stub.set("arrive", {**SOMEBODY, "name": "Lilith"})
         report = self.morning_after_a_gap()
-        self.assertIsNone(report.arrival, "Carol is gone, and her name went with her")
+        self.assertIsNone(report.arrival, "Lilith is gone, and her name went with her")
 
 
 class TestReading(Road):
     def test_the_report_survives_both(self):
-        report = self.send_carol_away()
+        report = self.send_lilith_away()
         cli.print_report(self.world, report)          # must not raise
         self.stub.set("arrive", SOMEBODY)
         self.world.day += agents.ARRIVAL_MIN_GAP_DAYS
@@ -338,15 +344,15 @@ class TestReading(Road):
         cli.print_report(self.world, tick_mod.tick(self.world, config()))
 
     def test_somebody_who_left_is_read_as_they_were(self):
-        self.world.traces("p_carol").add(Trace(
-            id="mem9001", owner="p_carol", day=self.world.day,
-            trace="the glow over the roofs", salience=0.5, tags=["fire"],
-            last_touched=self.world.day))
-        self.send_carol_away()
-        left_on = self.carol.left_on
+        self.world.traces("p_lilith").add(Trace(
+            id="mem9001", owner="p_lilith", day=self.world.day,
+            trace="the valley disappearing under the water", salience=0.5,
+            tags=["flood"], last_touched=self.world.day))
+        self.send_lilith_away()
+        left_on = self.lilith.left_on
         self.world.day += 4000                 # long enough to lose anything
         from elsewhere import retrieval
-        trace = list(self.world.traces("p_carol"))[0]
+        trace = list(self.world.traces("p_lilith"))[0]
         self.assertTrue(retrieval.dormant(trace, self.world.day))
         self.assertFalse(retrieval.dormant(trace, left_on),
                          "as of the day she went, she still had it")
