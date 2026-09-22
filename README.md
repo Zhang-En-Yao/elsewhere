@@ -553,13 +553,18 @@ The goal is to build a world that feels worth returning to.
 
 ## ▶ Running It
 
-> **Branch `v2` is a rewrite in progress.** In v0.1 (tagged `v0.1`) every
-> judgement — what stuck, what it meant, what got said — was made by a formula.
-> In v2 the engine keeps the ledger and decides only what can be *reached*;
-> a language model decides what any of it meant. The commands below still
-> describe v0.1. See [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md).
+> **Branch `v2` is a rewrite in progress, and what follows is what it does
+> today.** In v0.1 (tagged `v0.1`) every judgement — what stuck, what it meant,
+> what got said — was made by a formula. In v2 the engine keeps the ledger and
+> decides only what can be *reached*; a language model decides what any of it
+> meant. The town now lives on its own and remembers. It does not yet make
+> anything, and you cannot yet live in it. See [Roadmap](#-roadmap) for the
+> honest state of each piece, and
+> [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md) for the engine that
+> came before this one.
 
-The first world runs on Python 3.10+ with no dependencies.
+The engine is Python 3.10+ with no dependencies. Everything that thinks needs a
+model it can reach — by default one running on the same machine.
 
 ### Setup (first time)
 
@@ -573,17 +578,33 @@ pyenv install 3.12.0        # install Python 3.12
 pyenv local 3.12.0          # use 3.12 in this directory
 python3 --version           # verify: Python 3.12.0
 
-python3 -m venv venv        # create the virtual environment
-source venv/bin/activate    # activate it
+python3 -m venv .venv       # create the virtual environment
+source .venv/bin/activate   # activate it
 pip install -e .            # install Elsewhere (editable mode)
 ```
+
+Then a mind for the town to think with. The default config expects
+[Ollama](https://ollama.com) on this machine:
+
+```bash
+ollama pull phi4-mini       # ~2.5GB at Q4; the default for every call site
+elsewhere doctor            # can each of the six call sites be reached?
+```
+
+`world/config.json` names a model per call site, so the cheap decisions can run
+at home while the ones that need judgement go somewhere larger. Anything with
+an OpenAI-compatible `/v1` works (vLLM, llama-server, LM Studio), as does
+Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`. The notes at the
+top of that file say how; `elsewhere doctor` says whether it worked.
+
+Nothing above is needed to run the tests or the demo — both use a stub.
 
 ### Every time you come back
 
 ```bash
 cd ~/Documents/elsewhere
-source venv/bin/activate
-elsewhere status
+source .venv/bin/activate
+elsewhere news              # what happened while you were gone
 ```
 
 Leave the environment with `deactivate`.
@@ -595,39 +616,45 @@ If the environment breaks, or you want a clean one:
 ```bash
 cd ~/Documents/elsewhere
 deactivate                  # if a venv is active
-rm -rf venv
-python3 --version           # should still say 3.12.0
-python3 -m venv venv
-source venv/bin/activate
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
 ### Commands
 
 ```bash
-pip install -e .
+elsewhere init                  # 4 people, 1 town, a fire nobody agrees about
+elsewhere init --blank          # the same town, but nobody has been asked to remember it
 
-elsewhere init --player "Your name"      # 4 people, 1 town, a fire nobody agrees about
-elsewhere advance --days 30 --away       # leave. the world keeps going
-elsewhere status                         # who is where, and what they just did
-elsewhere timeline                       # history: what happened
-elsewhere event ev0002                   # one event, and every version of it
-elsewhere person Alice                   # who she has become
-elsewhere memories Alice --all           # including what she has lost
-elsewhere art                            # what people made out of what happened
-elsewhere culture                        # what has hardened into practice
-elsewhere play                           # live in it for a while
-elsewhere end                            # close it, from outside
+elsewhere tick -n 4             # live four phases now (morning, afternoon, evening, night)
+elsewhere catchup               # live whatever phases the wall clock says are owed
+elsewhere news                  # what happened since you last looked
+
+elsewhere status                # where everyone is, and how much they still hold
+elsewhere person Alice          # who she has become: beliefs, ties, what is in reach
+elsewhere timeline              # history: what happened
+elsewhere event ev0002          # one event, and every version of it
+
+elsewhere remember ev0002       # put an event past everyone again
+elsewhere doctor                # can the configured minds be reached?
+elsewhere eval fire -n 5        # measure the minds against a scenario
 ```
 
-Nothing inside the world can end it. `elsewhere end` is the only way, and it
-is a command you run on the file rather than an action any resident can take:
-it prints what the town amounted to — who they turned out to be, what they
-lost, what outlived the reason for it, whether anyone still remembers you —
-writes a last line into the chronicle, and archives the world to `worlds/`.
-An ended world can still be read; no more time passes in it.
+Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`
+wraps the common ones — `make test`, `make demo`, `make tick`, `make news`,
+`make doctor`, `make eval`.
 
 Two things that are worth doing first:
+
+```bash
+make demo
+```
+
+A scripted day with no model at all: the roof of the market comes down, four
+people see it from where they happen to be standing, and each of them keeps
+something different.
 
 ```bash
 elsewhere event ev0002
@@ -637,25 +664,8 @@ The old market burned down. Alice was frightened. Bram remembers the town
 putting itself back together. Carol remembers deciding to leave. David was
 there and has nothing at all.
 
-```bash
-elsewhere remember "the night bus back from Hualien, and the rain" --themes travel,rain
-```
-
-A memory from a real life enters the world as an event. Whoever was there gets
-their own version of it. What they do with it afterwards is not yours to
-decide.
-
-Something that mattered can be given somewhere to continue:
-
-```bash
-elsewhere invite "Momo" --note "A grey cat who slept on the windowsill for eleven years."
-```
-
-It does not come back as what it was. It enters as a presence, meets people,
-and starts accumulating a life of its own.
-
-People say things out loud. What the other person walks away with is a shorter,
-flatter version of it, and sometimes the wrong one:
+People also say things out loud, and what the other person walks away with is a
+shorter, flatter version of it — sometimes the wrong one:
 
 ```
 Alice said:   "It was not as bad as people say now. A storm came down over
@@ -666,83 +676,127 @@ Carol kept:   "What I took from it was a storm came down over The Old Market
 
 `elsewhere event <id>` shows both, for every conversation.
 
-### The inhabitants' minds are pluggable
+### A world that keeps going while you are away
 
-By default everyone runs on a rule engine: needs, disposition, time of day,
-and a softmax. It is fast (about two seconds per simulated year), free, and
-exactly reproducible from the world seed. A language model can be dropped in
-for the same interface:
+One phase of the world takes six real hours, so a day here is a day there.
+`elsewhere catchup` lives whatever the wall clock says is owed, at most four
+phases in one go; a longer backlog is slept through rather than carried, so a
+laptop that was shut for a week does not wake up and spend an hour on it. If
+the model cannot be reached, the world waits rather than inventing a day.
 
 ```bash
-pip install -e ".[llm]"
-export ANTHROPIC_API_KEY=...
-elsewhere advance --days 3 --mind llm
+make schedule           # a launchd agent that checks every 30 minutes
+make schedule-status    # is it running, and can it reach a mind
+make unschedule         # stop it
 ```
 
-A mind only ever sees what its person could see, and can only return actions
-the world already understands. If the model is unreachable, that person falls
-back to the rule engine rather than standing still.
+### What is asked of a mind
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how memory, perception,
-minds and culture fit together, and `python -m unittest discover -s tests` to
-check that a saved world continues exactly as it would have.
+Six questions, and nothing else:
+
+| | |
+|---|---|
+| `perceive` | something happened in front of you — what, if anything, stays? |
+| `act` | it is this hour and you are standing here — what do you do? |
+| `speak` | you are talking to this person — what do you say, and what do you draw on? |
+| `recall` | you are bringing this up years later — how does it come back now? |
+| `reflect` | the day is over — what did it leave you holding? |
+| `direct` | does anything happen to the town today? |
+
+Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed
+to the model as a decoding grammar and checked again on the way in, so an
+answer the world cannot use is not representable. A mind only ever sees what
+its person could see. The engine never writes a memory and never edits one —
+it only records when a trace was last touched, and decides whether it can be
+reached at all. **Forgetting is the engine declining to hand something over**,
+because a model asked "do you still remember this?" with the memory sitting in
+its context will always say yes.
+
+Every exchange is appended to a transcript, which is how a run is reproduced —
+there is no random seed to hold on to any more. A saved transcript can be
+replayed as a backend, which is how the suite runs: `make test` is 53 tests and
+no model.
+
+A v2 architecture document has not been written yet. The commit messages for
+`v2 P0`, `P1` and `P3/P4` are the closest thing, and the module docstrings are
+the rest. What has not been built is written down in
+[docs/v2-ROADMAP.md](docs/v2-ROADMAP.md).
 
 ---
 
 ## ⛯ Roadmap
 
+A checked box means it works on `v2` today. Several of these were checked in
+v0.1 and have not been carried across the rewrite yet; those say so.
+[docs/v2-ROADMAP.md](docs/v2-ROADMAP.md) has what is left, in the order it
+would get built.
+
 ### The World
 
 - [x] A persistent world
-- [x] Passage of time
-- [ ] Places and communities
-- [x] Events
+- [x] Passage of time — four phases a day, six real hours each
+- [x] Places
+- [ ] Communities — there is no structure above the individual yet
+- [x] Events — each morning the town is asked whether anything happens to it
 - [x] A living timeline
 
 ### People
 
-- [x] Distinct personalities
-- [x] Relationships
-- [x] Goals and desires
-- [x] Autonomous behavior
-- [x] Conversations
+- [x] Distinct personalities — a paragraph and a voice, not five floats
+- [x] Relationships — one-sided by construction: each person's own note on the other
+- [x] Goals and desires — wants, rewritten in the night
+- [x] Autonomous behavior — everyone decides at once, then the world settles what is physically so
+- [x] Conversations — what was said is an event, and everyone in earshot keeps their own version
 - [x] Changing perspectives
 
 ### Memory
 
 - [x] Experiences
-- [x] Selective memories
-- [x] Forgetting
-- [x] Memory reinforcement
-- [x] Reflection
-- [x] Changing beliefs
+- [x] Selective memories — the mind decides what stuck; the engine only records that it did
+- [x] Forgetting — a dormant trace is simply not handed over
+- [x] Memory reinforcement — bringing something up in conversation keeps it in reach
+- [x] Reflection — at night, for whoever's day left something
+- [x] Changing beliefs — a belief can outlive every memory that produced it
 - [x] Long-term influence
 
 ### Art
 
-- [x] Paintings
-- [x] Stories
-- [x] Poetry
-- [x] Music
-- [x] Personal styles
-- [x] Cultural artifacts
+Nothing here is in v2 yet. v0.1 had all of it. The action vocabulary is
+deliberately five verbs wide (`stay`, `go`, `talk`, `work`, `rest`) until
+making something can be a real answer.
+
+- [ ] Paintings
+- [ ] Stories
+- [ ] Poetry
+- [ ] Music
+- [ ] Personal styles
+- [ ] Cultural artifacts
+
+### You
+
+- [x] Watching — `status`, `person`, `timeline`, `event`, `news`
+- [ ] Living in it — `mind: player` exists in the data model; the tick only moves minds marked `model`
+- [ ] Ending it — nothing can close a world from outside yet
 
 ### Real Life
 
-- [x] Personal memories
+- [ ] Personal memories — v2's `remember` re-runs an event the world already has; it cannot yet admit a new one
 - [ ] Travel experiences
 - [ ] Real-world places
 - [ ] Photographs as sources of memory
-- [x] Real experiences becoming art
-- [x] A personal presence within the world
+- [ ] Real experiences becoming art
+- [ ] A personal presence within the world — `kind: companion | presence` is in the model; nothing writes it
 
 ### Culture
 
+Traditions and festivals were in v0.1 and are not in v2. The rest has never
+existed.
+
 - [ ] Communities
 - [ ] Organizations
-- [x] Traditions
+- [ ] Traditions
 - [ ] Religion
-- [x] Festivals
+- [ ] Festivals
 - [ ] Artistic movements
 - [ ] Generational memory
 - [ ] Cultural evolution
@@ -803,7 +857,15 @@ Enough time to see what happens.
 
 That world now runs. It has four people rather than three, a fire in its past
 that each of them remembers differently, and one of them who does not remember
-it at all. See [Running It](#-running-it).
+it at all.
+
+On `v2` it also keeps going without being watched: the town decides for itself
+whether anything happens each morning, everyone decides what to do from where
+they stand, what gets said is heard imperfectly, and the night changes what
+people hold. A launchd agent can be left to run it at a day per day.
+
+What it does not do yet: let you live in it, let anyone make anything, or grow
+anything above the individual. See [Roadmap](#-roadmap).
 
 ---
 
