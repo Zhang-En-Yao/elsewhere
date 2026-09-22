@@ -195,7 +195,7 @@ def _bootstrap() -> None:
     from .openai_compat import (OllamaBackend, OpenAICompatBackend,
                                 VLLMBackend)
     from .stub import StubBackend
-    for backend in (StubBackend(), OllamaBackend(), OpenAICompatBackend(),
+    for backend in (StubBackend(script_from_env=True), OllamaBackend(), OpenAICompatBackend(),
                     VLLMBackend()):
         register(backend)
     try:

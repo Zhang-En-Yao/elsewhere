@@ -32,6 +32,14 @@ class Talk:
     event_id: str
     drawn_on: Optional[str] = None
     kept: List[Trace] = field(default_factory=list)
+    reshaped: Optional[Tuple[str, str]] = None      # (was, now) if the telling changed it
+
+
+@dataclass
+class Happening:
+    event_id: str
+    what: str
+    kept: List[Trace] = field(default_factory=list)
 
 
 @dataclass
@@ -42,6 +50,8 @@ class TickReport:
     talks: List[Talk] = field(default_factory=list)
     missed: List[Tuple[str, str]] = field(default_factory=list)       # who, sought
     silent: int = 0                                                    # minds that gave nothing
+    happening: Optional[Happening] = None
+    reflections: Dict[str, dict] = field(default_factory=dict)
 
 
 def _meet(world, a: Person, b: Person) -> None:
@@ -79,6 +89,13 @@ def converse(world, speaker: Person, listener: Person, config,
     speaker.last_action = f"talked with {listener.name}"
     listener.last_action = f"listened to {speaker.name}"
 
+    # Telling it changes it. The speaker's own memory comes back reshaped.
+    reshaped = None
+    if drawn is not None:
+        before = drawn.trace
+        if agents.recall(world, speaker, drawn, config, transcript):
+            reshaped = (before, drawn.trace)
+
     # The speaker already has what they said; the people who heard it do not.
     kept = []
     for pid in here:
@@ -88,7 +105,7 @@ def converse(world, speaker: Person, listener: Person, config,
         if trace is not None:
             kept.append(trace)
     return Talk(speaker.id, listener.id, line, event.id,
-                drawn.id if drawn else None, kept)
+                drawn.id if drawn else None, kept, reshaped)
 
 
 LAST_ACTION = {"stay": "stayed where they were", "work": "worked",
@@ -101,6 +118,14 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
     report = TickReport(label=world.label())
     minds = sorted((p for p in world.people.values()
                     if p.present and p.mind == "model"), key=lambda p: p.id)
+
+    # 0. Morning: the town decides whether anything happens to it today,
+    #    before anyone decides what to do - so they can respond to it.
+    if world.phase_name == "morning":
+        event = agents.direct(world, config, transcript)
+        if event is not None:
+            kept = agents.perceive_all(world, event, config, transcript)
+            report.happening = Happening(event.id, event.what, kept)
 
     # 1. Everyone decides, from where they stand, before anyone moves.
     for person in minds:
@@ -140,6 +165,15 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
         engaged |= {person.id, other.id}
         if talk is not None:
             report.talks.append(talk)
+
+    # 4. Night: whoever's day left something goes over it.
+    if world.phase_name == "night":
+        for person in minds:
+            answer = agents.reflect(world, person, config, transcript)
+            if answer is not None:
+                report.reflections[person.id] = answer
+            else:
+                agents.refresh_origins(world, person)
 
     return report
 

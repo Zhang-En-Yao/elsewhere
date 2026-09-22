@@ -226,6 +226,11 @@ def print_report(world, report) -> None:
     from .tick import LAST_ACTION
 
     print(f"\n{report.label}")
+    if report.happening is not None:
+        h = report.happening
+        print(f"  * {h.what}")
+        for tr in h.kept:
+            print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     talked = {t.speaker for t in report.talks} | {t.listener for t in report.talks}
     for pid, d in sorted(report.decisions.items()):
         person = world.people[pid]
@@ -236,6 +241,9 @@ def print_report(world, report) -> None:
         print(f"  {person.name:<7} {what:<34}{why}")
     for t in report.talks:
         print(f"  {_name(world, t.speaker):<7} to {_name(world, t.listener)}: \"{t.line}\"")
+        if t.reshaped:
+            print(f"  {'':<7}   ({_name(world, t.speaker)}'s memory was \"{t.reshaped[0]}\"; "
+                  f"now \"{t.reshaped[1]}\")")
         heard = {tr.owner for tr in t.kept}
         for tr in t.kept:
             print(f"  {'':<7}   {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
@@ -243,6 +251,10 @@ def print_report(world, report) -> None:
         for pid in (ev.present if ev else []):
             if pid not in heard and pid != t.speaker:
                 print(f"  {'':<7}   {_name(world, pid)} kept nothing of it")
+    for pid, r in report.reflections.items():
+        line = r.get("thought") or ""
+        extra = f' -> now believes "{r["belief"]}"' if r.get("belief") else ""
+        print(f"  {_name(world, pid):<7} lies awake: \"{line}\"{extra}")
     if report.silent:
         print(f"  ({report.silent} mind(s) gave no usable answer and stayed put)")
 
@@ -327,7 +339,7 @@ def cmd_news(args) -> None:
     for e in events:
         place = world.places.get(e.where or "")
         print(f"\n  day {e.day} {e.phase}, {place.name if place else '-'}")
-        print(f"    {e.what}")
+        print(f"    {'* ' if e.kind == 'happening' else ''}{e.what}")
         for pid in e.present:
             for t in world.traces(pid).about_event(e.id):
                 print(f"      {_name(world, pid)} kept [{t.feeling}] {t.trace}")

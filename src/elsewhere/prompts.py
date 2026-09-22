@@ -263,3 +263,162 @@ def speak_user(person: Person, listener: Person, when: str, place_name: str,
     lines.append(person_block(person))
     lines.append(f"What does {person.name} say to {listener.name}?")
     return "\n\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# direct: what the world does to the people in it
+
+DIRECT_SYSTEM = """You are not a person. You are the town itself - its weather,
+its roads, its strangers, its accidents - deciding whether anything happens to
+it today that nobody in it chose.
+
+You see what anyone could see: where people are, what they do for a living,
+what they have been after lately, and what has happened here recently. You do
+not see inside anyone.
+
+why_now: first, what about this town, today, makes something likely - a season,
+a want someone has been circling, something left unfinished, a long quiet.
+
+what: then the thing itself, in one plain sentence, in the voice of a record,
+not a story. Something that happens TO people, not something they decide to
+do - they will decide what to do about it themselves.
+
+where: the place it happens. who: the one person it happens to directly, or
+empty if it is not about anyone in particular. reach: whether only the people
+there notice, or the whole town does - a storm, a fire, a death reach everyone.
+
+happens: last. Most days, nothing does. Say true only when this day really
+would bring something, and never twice in a row for the same kind of thing.
+Small things are better than large ones: a letter, a stranger, a leak, a lost
+goat. A town that has a disaster every week is not a town anyone lives in.
+
+Three mornings, another town - the form, not the content:
+
+  Late summer, no rain for weeks. Mira minds children; Oskar trades; Pell runs
+  the ferry and has wanted to retire for a year. Lately: the cart went over.
+    {"why_now": "weeks without rain and the river is low",
+     "what": "The ferry ran aground in the shallows and would not come free.",
+     "where": "the ferry house", "who": "Pell", "reach": "the people there",
+     "tags": ["river", "ferry", "drought"], "happens": true}
+
+  Autumn. Oskar has been owed money since the cart went over.
+    {"why_now": "a debt nobody has settled",
+     "what": "A man from upriver came to the ford asking for Oskar by name.",
+     "where": "the ford", "who": "Oskar", "reach": "the people there",
+     "tags": ["stranger", "debt"], "happens": true}
+
+  Autumn, the next day. Yesterday a stranger came.
+    {"why_now": "yesterday was already enough",
+     "what": "", "where": "the ford", "who": "", "reach": "the people there",
+     "tags": [], "happens": false}"""
+
+
+def direct_user(world, recent) -> str:
+    places = "Places: " + "; ".join(
+        f"{p.name} ({p.description})" if p.description else p.name
+        for p in world.places.values())
+    people = ["People:"]
+    for person in sorted(world.people.values(), key=lambda p: p.name):
+        place = world.places.get(person.place)
+        wants = f" Lately after: {'; '.join(person.wants)}." if person.wants else ""
+        people.append(f"  - {person.name}, {person.occupation or 'no trade'}, "
+                      f"at {place.name if place else 'nowhere'}.{wants}")
+    record = ["Lately, in the record:"]
+    record += [f"  - day {e.day}, {e.phase}: {e.what}" for e in recent] or ["  nothing."]
+    return "\n\n".join([
+        f"{world.name}. {world.label()}.",
+        places,
+        "\n".join(people),
+        "\n".join(record),
+        "Does anything happen to this town today?",
+    ])
+
+
+# --------------------------------------------------------------------------
+# reflect: what someone makes of their day, at night
+
+REFLECT_SYSTEM = """It is night and this person is alone with the day they had.
+Most nights people do not arrive at anything; they just go over it.
+
+thought: first, the one thing from today that keeps coming back, in their own
+voice, as they would think it - not a summary of the day.
+
+belief: then, only if today changed what they hold to be true, the new belief
+in one plain sentence they would say out loud. Usually empty.
+belief_from: the number of the memory it came from, or empty.
+
+want: what they want now, in a few words - the same as before if nothing moved.
+mood: one word for how they go to sleep.
+
+Two people, another town - the form, not the content:
+
+  Mira. Today: 1. its eye was open the whole time they were deciding.
+    {"thought": "Why did nobody close its eye", "belief": "",
+     "belief_from": "", "want": "keep the children away from the river bend",
+     "mood": "heavy"}
+
+  Oskar. Today: 1. a man from upriver asked for me by name.
+    {"thought": "He knew my name before he knew my face",
+     "belief": "Somebody upriver has been talking about me",
+     "belief_from": "1", "want": "find out who sent him", "mood": "wary"}"""
+
+
+def reflect_user(person: Person, today: Sequence[Trace],
+                 older: Sequence[Trace]) -> str:
+    lines = []
+    if today:
+        lines.append("Today, what stayed with you:")
+        for i, t in enumerate(today, 1):
+            extra = f" ({t.means})" if t.means else ""
+            lines.append(f"  {i}. {t.trace}{extra}")
+    lines.append(traces_block(older, "Older things you can still bring to mind"))
+    lines.append(person_block(person))
+    lines.append(f"It is night. What is {person.name} left with?")
+    return "\n\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# recall: remembering something again changes it
+
+RECALL_SYSTEM = """This person has just brought up something they remember, and
+in the telling it has come back to them. Write it as it now exists in their
+head - which is not the same as last time.
+
+A memory that is old or hazy comes back with fewer details, sometimes the wrong
+ones, sometimes blurred into a feeling. A memory that has just been said out
+loud can come back sharper in one detail and quietly lose another. What they
+believe now can bend what it means. It is still their memory: same voice, same
+person, never more detail than they had.
+
+trace: the memory as it now stands, in their own words, one sentence or less.
+means: what it means to them now, or empty.
+feeling: the feeling that comes with it now.
+
+Two memories, another town - the form, not the content:
+
+  Mira, eight months on, hazy. Was: "its eye was open the whole time they were
+  deciding". She has told it often.
+    {"trace": "the horse looking at me while the men argued",
+     "means": "", "feeling": "grief"}
+
+  Oskar, a year on, barely there. Was: "two sacks of flour split open in the mud".
+    {"trace": "flour everywhere, and someone else's loss",
+     "means": "not my loss", "feeling": "none"}"""
+
+
+def clarity(reach_value: float) -> str:
+    if reach_value > 0.5:
+        return "still clear"
+    if reach_value > 0.25:
+        return "hazy"
+    return "barely there"
+
+
+def recall_user(person: Person, trace: Trace, age_days: int, reach_value: float) -> str:
+    was = f'"{trace.trace}"' + (f" (what it meant: {trace.means})" if trace.means else "")
+    told = {0: "never told", 1: "told once"}.get(trace.recalls, f"told {trace.recalls} times")
+    return "\n\n".join([
+        f"The memory, {age_days} days old, {clarity(reach_value)}, {told}. It was: {was}",
+        person_block(person),
+        f"How does it come back to {person.name} now?",
+    ])

@@ -1,0 +1,120 @@
+{
+  "direct": {
+    "why_now": "the roof at the long table has leaked all spring",
+    "what": "Part of the roof over the long table came down in the night.",
+    "where": "The Long Table",
+    "who": "",
+    "reach": "the whole town",
+    "tags": [
+      "roof",
+      "long table"
+    ],
+    "happens": true
+  },
+  "perceive|p_bram": {
+    "trace": "my roof, the one I kept putting off",
+    "means": "that was mine to do",
+    "feeling": "shame",
+    "tags": [
+      "roof",
+      "long table"
+    ],
+    "weight": "stays"
+  },
+  "perceive|p_alice": {
+    "trace": "the table we built, open to the sky",
+    "means": "",
+    "feeling": "grief",
+    "tags": [
+      "long table"
+    ],
+    "weight": "ordinary"
+  },
+  "perceive|p_carol": {
+    "weight": "nothing"
+  },
+  "perceive|p_david": {
+    "weight": "nothing"
+  },
+  "act|p_bram": [
+    {
+      "because": "she built it with me; she should hear it from me",
+      "action": "go",
+      "target": "The Weaver's House"
+    },
+    {
+      "because": "I had the timber cut",
+      "action": "talk",
+      "target": "Alice"
+    },
+    {
+      "because": "tired",
+      "action": "rest",
+      "target": ""
+    },
+    {
+      "because": "tired",
+      "action": "rest",
+      "target": ""
+    }
+  ],
+  "act|p_alice": [
+    {
+      "because": "I do not want to see it",
+      "action": "stay",
+      "target": ""
+    },
+    {
+      "because": "",
+      "action": "stay",
+      "target": ""
+    },
+    {
+      "because": "tired",
+      "action": "rest",
+      "target": ""
+    },
+    {
+      "because": "tired",
+      "action": "rest",
+      "target": ""
+    }
+  ],
+  "speak|p_bram": {
+    "about": "1",
+    "line": "I had the timber cut for it. I just never went up."
+  },
+  "recall|p_bram": {
+    "trace": "the roof I said I would do, every week, all spring",
+    "means": "that was mine to do",
+    "feeling": "shame"
+  },
+  "reflect|p_bram": {
+    "thought": "I had the timber cut",
+    "belief": "If I put a thing off, it falls on everyone",
+    "belief_from": "1",
+    "want": "put the roof back before the rain",
+    "mood": "ashamed"
+  },
+  "reflect|p_alice": {
+    "thought": "he said he never went up",
+    "belief": "",
+    "belief_from": "",
+    "want": "help him with the roof",
+    "mood": "tender"
+  },
+  "act|p_carol": [
+    {
+      "because": "the herbs",
+      "action": "work",
+      "target": ""
+    }
+  ],
+  "act|p_david": [
+    {
+      "because": "sacks",
+      "action": "work",
+      "target": ""
+    }
+  ]
+}

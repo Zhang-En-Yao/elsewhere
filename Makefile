@@ -9,8 +9,11 @@ test:            ## run everything that needs no model
 world:           ## make a world in ./world (needs a reachable model)
 	elsewhere init --world world
 
-demo:            ## the whole pipeline, offline, with no model at all
-	ELSEWHERE_BACKEND=stub $(PY) -m unittest tests.test_fire -v
+demo:            ## a scripted day - the roof comes down - with no model at all
+	rm -rf /tmp/elsewhere-demo
+	ELSEWHERE_BACKEND=stub ELSEWHERE_STUB=scripts/demo-life.json elsewhere --world /tmp/elsewhere-demo init --blank >/dev/null
+	$(PY) -c "import json; p='/tmp/elsewhere-demo/world.json'; m=json.load(open(p)); m['phase']=3; json.dump(m, open(p, 'w'))"
+	ELSEWHERE_BACKEND=stub ELSEWHERE_STUB=scripts/demo-life.json elsewhere --world /tmp/elsewhere-demo tick -n 4
 
 tick:            ## live one phase now (TICKS=3 for three)
 	elsewhere tick -n $(or $(TICKS),1)

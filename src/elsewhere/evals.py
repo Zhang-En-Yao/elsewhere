@@ -242,13 +242,28 @@ def day_stats(transcript_dir: Path) -> str:
     The questions are the ones the first real day raised: when someone is right
     there, does anyone say anything; and at night, does anyone go to sleep.
     """
-    rows = []
+    rows, calls = [], Counter()
+    happened = reshaped = beliefs = 0
     for path in sorted(Path(transcript_dir).glob("day*.jsonl")):
         for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                row = json.loads(line)
-                if row.get("call") == "act" and row.get("ok"):
-                    rows.append(row)
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if not row.get("ok"):
+                continue
+            calls[row.get("call")] += 1
+            try:
+                answer = json.loads(row["raw"])
+            except (json.JSONDecodeError, TypeError, KeyError):
+                answer = {}
+            if row.get("call") == "act":
+                rows.append(row)
+            elif row.get("call") == "direct" and answer.get("happens") and answer.get("what"):
+                happened += 1
+            elif row.get("call") == "recall" and answer.get("trace"):
+                reshaped += 1
+            elif row.get("call") == "reflect" and (answer.get("belief") or "").strip():
+                beliefs += 1
     if not rows:
         return "no act calls recorded yet"
 
@@ -273,4 +288,10 @@ def day_stats(transcript_dir: Path) -> str:
     lines.append(f"  at night, rested                {share(night, 'rest')}")
     lines.append(f"  went somewhere                  {share(total, 'go')}")
     lines.append("  all: " + ", ".join(f"{k} {v}" for k, v in total.most_common()))
+    if calls["direct"]:
+        lines.append(f"  mornings something happened     {happened}/{calls['direct']}")
+    if calls["recall"]:
+        lines.append(f"  tellings that changed a memory  {reshaped}/{calls['recall']}")
+    if calls["reflect"]:
+        lines.append(f"  nights that ended in a belief   {beliefs}/{calls['reflect']}")
     return "\n".join(lines)

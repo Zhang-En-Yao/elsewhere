@@ -67,47 +67,45 @@ SPEAK = {
     "required": ["line"],
 }
 
+# Remembering again: the words come back first, and may come back changed.
 RECALL = {
     "type": "object",
     "properties": {
         "trace": {"type": "string"},
         "means": {"type": "string"},
         "feeling": {"type": "string", "enum": FEELINGS},
-        "changed": {"type": "boolean"},
-        "what_changed": {"type": "string"},
     },
     "required": ["trace"],
 }
 
+# Flat on purpose. A nested list of belief objects is more than a 3.8B model
+# can reliably fill under a grammar; one thought, at most one belief, one want.
 REFLECT = {
     "type": "object",
     "properties": {
-        "beliefs": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string"},
-                    "confidence": {"type": "number"},
-                    "from": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["text"],
-            },
-        },
-        "card": {"type": "string"},
-        "wants": {"type": "array", "items": {"type": "string"}},
+        "thought": {"type": "string"},
+        "belief": {"type": "string"},
+        "belief_from": {"type": "string"},
+        "want": {"type": "string"},
+        "mood": {"type": "string"},
     },
     "required": [],
 }
 
+# What the town does to its people. The verdict comes last, after the director
+# has said why now and what - and 'nothing' is always allowed.
+REACH = ["the people there", "the whole town"]
+
 DIRECT = {
     "type": "object",
     "properties": {
-        "happens": {"type": "boolean"},
+        "why_now": {"type": "string"},
         "what": {"type": "string"},
         "where": {"type": "string"},
+        "who": {"type": "string"},
+        "reach": {"type": "string", "enum": REACH},
         "tags": {"type": "array", "items": {"type": "string"}},
-        "why_now": {"type": "string"},
+        "happens": {"type": "boolean"},
     },
     "required": ["happens"],
 }
@@ -216,4 +214,20 @@ def speak_grammar(topics: int) -> dict:
     schema = grammar("speak")
     choices = ["nothing in particular"] + [str(i) for i in range(1, topics + 1)]
     schema["properties"]["about"] = {"type": "string", "enum": choices}
+    return schema
+
+
+def direct_grammar(places: List[str], people: List[str]) -> dict:
+    """DIRECT with where/who narrowed to what exists in this town."""
+    schema = grammar("direct")
+    schema["properties"]["where"] = {"type": "string", "enum": sorted(places)}
+    schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(people)}
+    return schema
+
+
+def reflect_grammar(sources: int) -> dict:
+    """REFLECT with belief_from narrowed to today's numbered memories."""
+    schema = grammar("reflect")
+    schema["properties"]["belief_from"] = {
+        "type": "string", "enum": [""] + [str(i) for i in range(1, sources + 1)]}
     return schema

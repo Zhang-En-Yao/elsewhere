@@ -18,7 +18,7 @@ from . import Call
 
 DEFAULTS: Dict[str, dict] = {
     "perceive": {"stuck": False},
-    "act": {"action": "stay", "because": "stub"},
+    "act": {"because": "", "action": "stay", "target": ""},
     "speak": {"line": "..."},
     "recall": {"trace": "", "changed": False},
     "reflect": {},
@@ -29,14 +29,17 @@ DEFAULTS: Dict[str, dict] = {
 class StubBackend:
     name = "stub"
 
-    def __init__(self, answers: Optional[Dict[str, object]] = None):
+    def __init__(self, answers: Optional[Dict[str, object]] = None,
+                 script_from_env: bool = False):
         #: keyed by "<call>|<person id>" or just "<call>". The value may be a
         #: dict, a raw string (to send back something unusable on purpose), a
         #: callable taking the Call, or a list that is worked through in order.
         self.answers: Dict[str, object] = dict(answers or {})
         self.calls: list = []
         self._taken: Dict[str, int] = defaultdict(int)
-        script = os.environ.get("ELSEWHERE_STUB")
+        # Only the registered default reads the environment. A stub a test
+        # builds for itself stays exactly what the test said it was.
+        script = os.environ.get("ELSEWHERE_STUB") if script_from_env else None
         if script:
             self.answers.update(json.loads(Path(script).read_text(encoding="utf-8")))
 
