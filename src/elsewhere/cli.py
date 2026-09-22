@@ -289,6 +289,10 @@ def cmd_catchup(args) -> None:
                 return
             owed = owed_phases(world.last_tick_at, now, args.hours)
             if owed == 0:
+                # A heartbeat, so "is the schedule running at all?" can be
+                # answered from the log instead of by waiting six hours.
+                due = world.last_tick_at + args.hours * 3600 - now
+                print(f"[{stamp}] checked; next phase in {due / 3600:.1f}h")
                 return
             config = config_mod.load(world.root)
             ok, message = probe(config["act"])
