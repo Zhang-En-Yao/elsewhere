@@ -41,6 +41,41 @@ find_cli() {
   return 1
 }
 
+interpreter_of() {                # the real python behind the elsewhere script
+  local shebang
+  shebang="$(head -1 "$1" | sed 's/^#!//; s/ .*//')"
+  python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$shebang" 2>/dev/null || echo "$shebang"
+}
+
+protected_path() {                # macOS keeps these from background jobs
+  case "$1" in
+    "$HOME/Documents"*|"$HOME/Desktop"*|"$HOME/Downloads"*|"$HOME/Library/Mobile Documents"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+tcc_warning() {
+  local cli="$1" py
+  py="$(interpreter_of "$cli")"
+  cat <<TXT
+
+  !! $REPO is inside a folder macOS protects (Documents / Desktop / Downloads).
+     A launchd job cannot show a permission prompt, so macOS silently refuses it
+     access - the job never runs and the log stays empty. Either:
+
+     1. Give this interpreter Full Disk Access:
+          $py
+        System Settings -> Privacy & Security -> Full Disk Access -> + ,
+        press Cmd-Shift-G and paste the path above. Then:
+          scripts/schedule.sh install
+
+     2. Or keep the project outside those folders, e.g. ~/elsewhere, and
+        install from there.
+
+     Check with: scripts/schedule.sh status   (look for 'last exit code')
+TXT
+}
+
 plist() {
   local cli="$1"
   cat <<XML
@@ -79,6 +114,7 @@ case "${1:-status}" in
     echo "Scheduled. $WORLD now lives one phase every $PHASE_HOURS hours,"
     echo "at most $MAX phases per wake. Log: $LOG"
     echo "The model must be running: brew services start ollama"
+    if protected_path "$REPO"; then tcc_warning "$cli"; fi
     ;;
   uninstall)
     launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
@@ -94,7 +130,12 @@ case "${1:-status}" in
       echo "not installed - run: scripts/schedule.sh install"
     fi
     cli="$(find_cli)" && "$cli" --world "$WORLD" doctor 2>/dev/null | sed -n '/act /p'
-    [ -f "$LOG" ] && { echo "last lines of the log:"; tail -5 "$LOG" | sed 's/^/  /'; }
+    if [ -s "$LOG" ]; then
+      echo "last lines of the log:"; tail -5 "$LOG" | sed 's/^/  /'
+    else
+      echo "the log is empty: the job has never written anything."
+      if [ -f "$PLIST" ] && protected_path "$REPO"; then tcc_warning "$cli"; fi
+    fi
     ;;
   log)
     tail -n "${LINES:-60}" "$LOG"
