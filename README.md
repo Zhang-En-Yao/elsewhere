@@ -553,15 +553,14 @@ The goal is to build a world that feels worth returning to.
 
 ## ▶ Running It
 
-> **Branch `v2` is a rewrite in progress, and what follows is what it does
-> today.** In v0.1 (tagged `v0.1`) every judgement — what stuck, what it meant,
-> what got said — was made by a formula. In v2 the engine keeps the ledger and
-> decides only what can be *reached*; a language model decides what any of it
-> meant. The town now lives on its own and remembers. It does not yet make
-> anything, and you cannot yet live in it. See [Roadmap](#-roadmap) for the
-> honest state of each piece, and
-> [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md) for the engine that
-> came before this one.
+> **v2 is a rewrite in progress, and what follows is what it does today.**
+> In v0.1 (tagged `v0.1`) every judgement — what stuck, what it meant, what got
+> said — was made by a formula. In v2 the engine keeps the ledger and decides
+> only what can be *reached*; a language model decides what any of it meant.
+> The town now lives on its own and remembers. It does not yet make anything,
+> and you cannot yet live in it. See [Roadmap](#-roadmap) for the honest state
+> of each piece, and [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md) for
+> the engine that came before this one.
 
 The engine is Python 3.10+ with no dependencies. Everything that thinks needs a
 model it can reach — by default one running on the same machine.
@@ -726,7 +725,7 @@ the rest. What has not been built is written down in
 
 ## ⛯ Roadmap
 
-A checked box means it works on `v2` today. Several of these were checked in
+A checked box means it works today. Several of these were checked in
 v0.1 and have not been carried across the rewrite yet; those say so.
 [docs/v2-ROADMAP.md](docs/v2-ROADMAP.md) has what is left, in the order it
 would get built.
