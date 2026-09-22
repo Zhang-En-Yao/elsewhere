@@ -69,13 +69,23 @@ def cmd_status(args) -> None:
             continue
         print(f"  {place.name}: " +
               ", ".join(f"{p.name} ({p.last_action or 'just here'})" for p in here))
+    gone = [p for p in world.people.values() if not p.present]
+    if gone:
+        print("  gone: " + ", ".join(
+            f"{p.name} (day {p.left_on})" if p.left_on else p.name
+            for p in sorted(gone, key=lambda p: p.left_on or 0)))
     total = 0
     for person in world.people.values():
         store_ = world.traces(person.id)
-        live = [t for t in store_ if not retrieval.dormant(t, world.day)]
+        # Somebody who left is counted as they were on the day they went. The
+        # world has no idea what has happened to them since and will not
+        # pretend to by going on fading things nobody here can see.
+        day = world.day if person.present else (person.left_on or world.day)
+        live = [t for t in store_ if not retrieval.dormant(t, day)]
         total += len(store_)
+        mark = "" if person.present else "  (left)"
         print(f"  {person.name:<8} {len(live)} within reach, "
-              f"{len(store_) - len(live)} out of reach")
+              f"{len(store_) - len(live)} out of reach{mark}")
     print(f"  {total} traces in total")
 
 
@@ -86,8 +96,15 @@ def cmd_person(args) -> None:
         sys.exit(f"Nobody here is called {args.name!r}")
     print(heading(f"{person.name}, {person.age}, {person.occupation}"))
     print(f"  {person.card}")
-    print(f"\n  mood: {person.mood}   at: "
-          f"{world.places[person.place].name if person.place in world.places else '-'}")
+    day = world.day if person.present else (person.left_on or world.day)
+    if not person.present:
+        print(f"\n  Left on day {person.left_on}. What follows is how they stood "
+              f"that day; nothing here has touched it since.")
+    else:
+        print(f"\n  mood: {person.mood}   at: "
+              f"{world.places[person.place].name if person.place in world.places else '-'}")
+    if person.arrived_on:
+        print(f"  came up the road on day {person.arrived_on}")
     if person.wants:
         print("  wants: " + "; ".join(person.wants))
     if person.beliefs:
@@ -95,22 +112,23 @@ def cmd_person(args) -> None:
         for b in sorted(person.beliefs, key=lambda b: -b.confidence):
             lost = "  (cannot say why any more)" if b.origin_lost else ""
             print(f"    [{b.confidence:.2f}] {b.text}{lost}")
-    print("\n  who they know")
-    for other_id, tie in sorted(person.ties.items(), key=lambda kv: -kv[1].closeness):
-        other = world.people.get(other_id)
-        if other is None:
-            continue
-        print(f"    {other.name:<8} {tie.note or '-'}")
+    known = [(world.people[i], t) for i, t in
+             sorted(person.ties.items(), key=lambda kv: -kv[1].closeness)
+             if i in world.people]
+    print("\n  who they know" if known else "\n  they know nobody here yet")
+    for other, tie in known:
+        gone = "  (gone)" if not other.present else ""
+        print(f"    {other.name:<8} {tie.note or '-'}{gone}")
     traces = list(world.traces(person.id))
-    within = retrieval.recallable(traces, world.day, limit=args.limit)
+    within = retrieval.recallable(traces, day, limit=args.limit)
     print(f"\n  memory: {len(traces)} traces, "
-          f"{sum(1 for t in traces if retrieval.dormant(t, world.day))} out of reach")
+          f"{sum(1 for t in traces if retrieval.dormant(t, day))} out of reach")
     for t in within:
         print(f"    day {t.day:<5} [{t.feeling}] {t.trace}")
         if t.means:
             print(f"          ~ {t.means}")
         print(f"          weight {t.salience:.2f}  reach "
-              f"{retrieval.reach(t, world.day):.2f}  "
+              f"{retrieval.reach(t, day):.2f}  "
               f"tags {', '.join(t.tags) or '-'}")
 
 
@@ -231,7 +249,20 @@ def print_report(world, report) -> None:
         print(f"  * {h.what}")
         for tr in h.kept:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
+    if report.arrival is not None:
+        a = report.arrival
+        print(f"  + {a.what}")
+        for tr in a.kept:
+            print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
+    for d in report.departures:
+        event = world.chronicle.get(d.event_id)
+        print(f"  - {event.what if event else _name(world, d.person_id) + ' left.'}")
+        if d.because:
+            print(f'      "{d.because}"')
+        for tr in d.kept:
+            print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     talked = {t.speaker for t in report.talks} | {t.listener for t in report.talks}
+    talked |= {d.person_id for d in report.departures}
     for pid, d in sorted(report.decisions.items()):
         person = world.people[pid]
         if pid in talked:
@@ -339,12 +370,15 @@ def cmd_news(args) -> None:
     for e in events:
         place = world.places.get(e.where or "")
         print(f"\n  day {e.day} {e.phase}, {place.name if place else '-'}")
-        print(f"    {'* ' if e.kind == 'happening' else ''}{e.what}")
+        mark = {"happening": "* ", "arrival": "+ ", "departure": "- "}
+        print(f"    {mark.get(e.kind, '')}{e.what}")
         for pid in e.present:
             for t in world.traces(pid).about_event(e.id):
                 print(f"      {_name(world, pid)} kept [{t.feeling}] {t.trace}")
     print("\n  Now:")
     for person in sorted(world.people.values(), key=lambda p: p.name):
+        if not person.present:
+            continue
         place = world.places.get(person.place)
         print(f"    {person.name:<7} at {place.name if place else '-':<20} "
               f"{person.last_action or ''}")

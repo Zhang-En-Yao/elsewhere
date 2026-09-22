@@ -1,6 +1,6 @@
 [project]
 name = "elsewhere"
-version = "0.2.0"
+version = "2.0"
 description = "A persistent world that remembers."
 readme = "README.md"
 requires-python = ">=3.10"

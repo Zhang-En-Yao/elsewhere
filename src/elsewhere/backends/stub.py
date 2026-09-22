@@ -23,6 +23,7 @@ DEFAULTS: Dict[str, dict] = {
     "recall": {"trace": "", "changed": False},
     "reflect": {},
     "direct": {"happens": False},
+    "arrive": {"comes": False},
 }
 
 

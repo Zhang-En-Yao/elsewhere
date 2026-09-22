@@ -35,6 +35,7 @@ DEFAULTS: Dict[str, dict] = {
     "recall":   {**LOCAL, "temperature": 1.0},
     "reflect":  {**LOCAL, "temperature": 0.8},
     "direct":   {**LOCAL, "temperature": 1.0},
+    "arrive":   {**LOCAL, "temperature": 1.0},
 }
 
 NOTES = [

@@ -64,6 +64,8 @@ class Person:
     note: str = ""                 # why this being is in the world at all
     mind: str = "model"            # model | player
     present: bool = True
+    arrived_on: Optional[int] = None   # None: they were here when it started
+    left_on: Optional[int] = None      # the day they took the road; None: still here
     last_action: str = ""
     last_created_day: int = 0
 
@@ -92,6 +94,7 @@ class Person:
             beliefs=[Belief.from_dict(b) for b in d.get("beliefs", [])],
             kind=d.get("kind", "person"), note=d.get("note", ""),
             mind=d.get("mind", "model"), present=bool(d.get("present", True)),
+            arrived_on=d.get("arrived_on"), left_on=d.get("left_on"),
             last_action=d.get("last_action", ""),
             last_created_day=int(d.get("last_created_day", 0)),
         )

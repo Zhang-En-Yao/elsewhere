@@ -61,7 +61,7 @@ class TestTheFire(unittest.TestCase):
         register(self.backend)
         self.config = {name: Settings(backend="stub", model="stub")
                        for name in ("perceive", "act", "speak", "recall",
-                                    "reflect", "direct")}
+                                    "reflect", "direct", "arrive")}
 
     def tearDown(self):
         self.tmp.cleanup()

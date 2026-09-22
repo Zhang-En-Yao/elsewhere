@@ -243,7 +243,7 @@ def day_stats(transcript_dir: Path) -> str:
     there, does anyone say anything; and at night, does anyone go to sleep.
     """
     rows, calls = [], Counter()
-    happened = reshaped = beliefs = 0
+    happened = reshaped = beliefs = came = 0
     for path in sorted(Path(transcript_dir).glob("day*.jsonl")):
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -264,6 +264,8 @@ def day_stats(transcript_dir: Path) -> str:
                 reshaped += 1
             elif row.get("call") == "reflect" and (answer.get("belief") or "").strip():
                 beliefs += 1
+            elif row.get("call") == "arrive" and answer.get("comes") and answer.get("name"):
+                came += 1
     if not rows:
         return "no act calls recorded yet"
 
@@ -294,4 +296,8 @@ def day_stats(transcript_dir: Path) -> str:
         lines.append(f"  tellings that changed a memory  {reshaped}/{calls['recall']}")
     if calls["reflect"]:
         lines.append(f"  nights that ended in a belief   {beliefs}/{calls['reflect']}")
+    if calls["arrive"]:
+        lines.append(f"  roads that brought somebody     {came}/{calls['arrive']}")
+    if total["leave"]:
+        lines.append(f"  people who took the road out    {total['leave']}")
     return "\n".join(lines)

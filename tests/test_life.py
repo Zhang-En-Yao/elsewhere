@@ -12,7 +12,7 @@ from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world.memories import Trace
 
-CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct")
+CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "action": "stay", "target": ""}
 QUIET = {"why_now": "", "what": "", "where": "The Old Market", "who": "",
          "reach": "the people there", "tags": [], "happens": False}

@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from . import agents
+from . import agents, schemas
 from .backends import Transcript
 from .world.entities import Person
 from .world.memories import Trace
@@ -43,6 +43,22 @@ class Happening:
 
 
 @dataclass
+class Arrival:
+    person_id: str
+    event_id: str
+    what: str
+    kept: List[Trace] = field(default_factory=list)
+
+
+@dataclass
+class Departure:
+    person_id: str
+    event_id: str
+    because: str = ""
+    kept: List[Trace] = field(default_factory=list)
+
+
+@dataclass
 class TickReport:
     label: str
     decisions: Dict[str, agents.Decision] = field(default_factory=dict)
@@ -51,6 +67,8 @@ class TickReport:
     missed: List[Tuple[str, str]] = field(default_factory=list)       # who, sought
     silent: int = 0                                                    # minds that gave nothing
     happening: Optional[Happening] = None
+    arrival: Optional[Arrival] = None
+    departures: List[Departure] = field(default_factory=list)
     reflections: Dict[str, dict] = field(default_factory=dict)
 
 
@@ -116,16 +134,24 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
     """Live one phase."""
     world.advance_clock()
     report = TickReport(label=world.label())
-    minds = sorted((p for p in world.people.values()
-                    if p.present and p.mind == "model"), key=lambda p: p.id)
 
-    # 0. Morning: the town decides whether anything happens to it today,
-    #    before anyone decides what to do - so they can respond to it.
+    # 0. Morning: the town decides whether anything happens to it today, and
+    #    whether anybody comes up the road - both before anyone decides what
+    #    to do, so they can respond to it, and so a newcomer has their first
+    #    day rather than standing at the top of the road until tomorrow.
     if world.phase_name == "morning":
         event = agents.direct(world, config, transcript)
         if event is not None:
             kept = agents.perceive_all(world, event, config, transcript)
             report.happening = Happening(event.id, event.what, kept)
+        if agents.may_arrive(world):
+            event = agents.arrive(world, config, transcript)
+            if event is not None:
+                kept = agents.perceive_all(world, event, config, transcript)
+                report.arrival = Arrival(event.who[0], event.id, event.what, kept)
+
+    minds = sorted((p for p in world.people.values()
+                    if p.present and p.mind == "model"), key=lambda p: p.id)
 
     # 1. Everyone decides, from where they stand, before anyone moves.
     for person in minds:
@@ -134,10 +160,15 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
         if not decision.answered:
             report.silent += 1
 
-    # 2. Movement.
+    # 2. Movement, and whoever is not coming back. Someone who leaves is gone
+    #    before the conversations, so a person who went to find them finds the
+    #    road instead.
     for person in minds:
         d = report.decisions[person.id]
-        if d.action == "go" and d.target in world.places:
+        if d.action == schemas.LEAVE:
+            event, kept = agents.depart(world, person, d.because, config, transcript)
+            report.departures.append(Departure(person.id, event.id, d.because, kept))
+        elif d.action == "go" and d.target in world.places:
             before = person.place
             person.place = d.target
             person.last_action = f"walked to {world.places[d.target].name}"
@@ -146,6 +177,7 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
             person.last_action = LAST_ACTION[d.action]
 
     # 3. Conversations, among people still in the same place.
+    minds = [p for p in minds if p.present]
     engaged = set()
     for person in minds:
         d = report.decisions[person.id]
@@ -154,7 +186,7 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
         other = world.people.get(d.target or "")
         if other is None:
             continue
-        if other.place != person.place:
+        if not other.present or other.place != person.place:
             person.last_action = f"went looking for {other.name}, who had gone"
             report.missed.append((person.id, other.id))
             continue

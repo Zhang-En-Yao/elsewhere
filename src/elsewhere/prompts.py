@@ -172,6 +172,12 @@ action: then one of
 target: the place or the person, exactly as written in the options; empty for
 stay, work and rest.
 
+Some days one more verb is there: leave. It only ever appears when this person
+is standing where the road goes out of the town, and it is not a walk to the
+next place - it is the end of their life here. Almost nobody takes it. Take it
+only when their own wants, and what they hold to be true, have been pointing
+down that road for a while, and say so plainly in "because".
+
 People mostly do ordinary things. In the day they work. At night almost
 everyone is at home asleep - if you are not home, you go home; if you are, you
 rest.
@@ -192,12 +198,17 @@ Three people, another town, another day - the form, not the content:
 
   Night. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
     {"because": "tired",
-     "action": "rest", "target": ""}"""
+     "action": "rest", "target": ""}
+
+  Afternoon. Carin is on the ridge, where the road goes out. Here: nobody.
+  Can go to: the well. Leaving is possible today.
+    {"because": "I said I would go before winter and I have not",
+     "action": "go", "target": "the well"}"""
 
 
 def act_user(person: Person, when: str, place, others: Sequence[Person],
              reachable: Sequence[str], traces: Sequence[Trace],
-             home_name: str = "") -> str:
+             home_name: str = "", may_leave: bool = False) -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
     if place and person.home == place.id:
         where = f"You are at home, {place.name}. {place.description}".strip()
@@ -210,6 +221,8 @@ def act_user(person: Person, when: str, place, others: Sequence[Person],
         where,
         f"Here with you: {here}.",
         f"From here you can go to: {', '.join(reachable) if reachable else 'nowhere'}.",
+        ("From here the road also goes out of the town. You could take it "
+         "today and not come back.") if may_leave else "",
         ties_block(person, others) if others else "",
         traces_block(traces),
         person_block(person),
@@ -331,6 +344,71 @@ def direct_user(world, recent) -> str:
         "\n".join(people),
         "\n".join(record),
         "Does anything happen to this town today?",
+    ])
+
+
+# --------------------------------------------------------------------------
+# arrive: who comes up the road
+
+ARRIVE_SYSTEM = """You are not a person. You are the road into a small town,
+deciding whether anybody comes up it today, and who that would be.
+
+Most days nobody does. A town this size might take somebody in once in a year,
+and half of those turn out to be somebody's cousin.
+
+why_now: first, what about this town right now would bring a person to it -
+work nobody has done since somebody left, a trade it has been short of, a
+season, a road that goes somewhere else as well.
+
+name, from_where, trade, age: then who they are, plainly. A name that belongs
+in the same world as the names already here. Somewhere they came from that is
+not this town.
+
+card: who they are, written to them as "you", two or three sentences - what
+they do, what they are like to be near, and the thing they have brought with
+them that they would not bring up themselves. A person, not a mystery and not
+a plot.
+
+voice: how they talk, in one line.
+
+comes: last. Say false unless this town, today, really would take somebody in.
+Nobody is the usual answer.
+
+Two mornings, another town - the form, not the content:
+
+  A ferry town. Pell ran the ferry and went downriver in the spring; nobody
+  has run it since. Late summer.
+    {"why_now": "the ferry has sat on the bank since Pell went",
+     "name": "Hesper", "from_where": "downriver, past the weir",
+     "trade": "boatman", "age": 38,
+     "card": "You came for the ferry and you are good on water. You do not ask for much and you do not explain yourself.",
+     "voice": "Few words, and none of them about yourself.",
+     "comes": true}
+
+  The same town, a week later. Hesper has the ferry.
+    {"why_now": "nothing here is short of anybody", "name": "", "from_where": "",
+     "trade": "", "age": 0, "card": "", "voice": "", "comes": false}"""
+
+
+def arrive_user(world, recent) -> str:
+    here = [p for p in world.people.values() if p.present]
+    gone = [p for p in world.people.values() if not p.present]
+    places = "Places: " + "; ".join(p.name for p in world.places.values())
+    people = [f"Who lives here ({len(here)}):"]
+    for person in sorted(here, key=lambda p: p.name):
+        people.append(f"  - {person.name}, {person.occupation or 'no trade'}.")
+    if gone:
+        people.append("Who has gone, and what went with them: " + "; ".join(
+            f"{p.name}, {p.occupation}" if p.occupation else p.name
+            for p in sorted(gone, key=lambda p: p.name)) + ".")
+    record = ["Lately, in the record:"]
+    record += [f"  - day {e.day}: {e.what}" for e in recent] or ["  nothing."]
+    return "\n\n".join([
+        f"{world.name}. {world.label()}.",
+        places,
+        "\n".join(people),
+        "\n".join(record),
+        "Does anybody come up the road into this town today?",
     ])
 
 

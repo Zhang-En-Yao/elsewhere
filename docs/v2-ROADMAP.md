@@ -20,13 +20,16 @@ Landed:
   telling changes what is told (`recall`, when a trace is brought up).
 - **P4** — nights change what is held (`reflect`): a thought, at most one
   belief pointing at the memory it came from, a want, a mood.
+- **The road** — people leave and are not got back, and a town that is short
+  of somebody is eventually asked who comes up the road. A seventh call site,
+  `arrive`, and a sixth verb for `act` that only exists where the road does.
 
 There is no P2 in the history. It went P1 → P3/P4.
 
 What the world therefore does today: it lives, it perceives, it talks, it
-misremembers, it decides for itself whether anything happens, and it changes
-what people believe. What it does not do: admit you, make anything, or grow
-anything larger than one person.
+misremembers, it decides for itself whether anything happens, it changes what
+people believe, and it survives losing somebody. What it does not do: admit
+you, make anything, or grow anything larger than one person.
 
 ---
 
@@ -110,8 +113,9 @@ not to offer a `Tradition` class for a model to fill in.
 - Once named, it becomes visible in the world the way a place is: something
   `act` can see and choose, which is how a tradition becomes self-sustaining.
 - `elsewhere culture` to read what has hardened.
-- Generational memory needs people to arrive and leave first, and nothing in v2
-  does either. That is its own piece of work, probably before this one.
+- Generational memory is no longer blocked: people arrive and leave now. What
+  it still needs is for somebody to have been here long enough that what they
+  hold came from a town that no longer exists in anyone else's memory.
 
 ## Real life, back in
 
@@ -147,14 +151,33 @@ cross.
 
 ---
 
+## What the road left undone
+
+Three things it deliberately does not do, in the order they would bite:
+
+- **A town cannot grow.** Arrival is counted off departures, so a town refills
+  to the size it began at and stops. That is honest scarcity rather than a
+  design, and "a new family arrived" in the README still has nowhere to come
+  from. It needs a reason for a town to get bigger that is not just a number.
+- **Nobody comes back.** A name the town has used is refused, which is the
+  right guard against the road inventing a second Carol, and also means the
+  one thing the README asks for by name — meeting again years later, both
+  changed — cannot happen. Returning is a different call site: the person
+  already exists, with everything they left holding.
+- **A newcomer has no home.** `home` is empty and nothing gives them one, so
+  at night they do whatever a mind does with nowhere to go. Watch what that
+  turns into before deciding whether it is a bug.
+
 ## Order
 
 1. **P2, you** — the project's stated point, and nothing else is blocked on it.
 2. **Real life back in** (`remember`, `invite`) — small, and it finishes the
-   entrance the README promises.
+   entrance the README promises. `invite` is close to `arrive` now: a presence
+   is somebody who comes up the road with a card you wrote.
 3. **P5, making** — needs nothing new from the engine, and produces the first
    things worth returning for.
-4. **Arrival and departure** — the prerequisite for anything generational.
+4. **Coming back** — the return case above, once there is a town old enough
+   for it to mean anything.
 5. **P6, culture** — only once there is enough ledger for a detector to find
    something real in it.
 6. **Ending a world** — whenever; it is a read-only pass and an archive.

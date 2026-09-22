@@ -170,15 +170,17 @@ def act(world, person: Person, config,
     cues = retrieval.cues_from(place.tags if place else [], [person.place])
     context = retrieval.recallable(store, world.day, cues, limit=4)
 
+    going = may_leave(world, person)
     call = Call(
         name="act",
         system=prompts.ACT_SYSTEM,
         user=prompts.act_user(person, when_label(world), place, others,
                               [p.name for p in reachable], context,
                               home_name=(world.places[person.home].name
-                                         if person.home in world.places else "")),
+                                         if person.home in world.places else ""),
+                              may_leave=going),
         schema=schemas.act_grammar([p.name for p in reachable],
-                                   [o.name for o in others]),
+                                   [o.name for o in others], may_leave=going),
         about=person.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -197,6 +199,10 @@ def act(world, person: Person, config,
         target = match.id if match else None
     if action in ("go", "talk") and target is None:
         # Only reachable with a lenient backend; the grammar forbids it.
+        action = "stay"
+    if action == schemas.LEAVE and not going:
+        # Likewise: nobody walks out of the world from somewhere the road
+        # does not go, however the answer got here.
         action = "stay"
     return Decision(person.id, action, target, because)
 
@@ -309,6 +315,178 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         tags=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:5],
         data={"why_now": (answer.get("why_now") or "").strip(),
               "reach": answer.get("reach"), "vantage": vantage},
+    )
+
+
+# --------------------------------------------------------------------------
+# the road, which runs both ways
+
+#: Scarcity the road cannot supply for itself. A model asked "would she go?"
+#: with her wants in front of it will eventually say yes; whether going is even
+#: possible from here today is the engine's to answer, and it answers with
+#: facts - where she is standing, what hour it is, how many are left, how long
+#: since the last one went.
+TOWN_FLOOR = 2                  # below this it stops being a town
+DEPARTURE_MIN_GAP_DAYS = 45
+ARRIVAL_MIN_GAP_DAYS = 30
+
+
+def _last_day_of(world, kinds: Sequence[str]) -> Optional[int]:
+    for event in reversed(world.chronicle.all()):
+        if event.kind in kinds:
+            return event.day
+    return None
+
+
+def leaving_place(world):
+    """Where the road goes out. A fact about the map, not about anybody."""
+    for place in world.places.values():
+        if "leaving" in place.tags:
+            return place
+    return None
+
+
+def may_leave(world, person: Person) -> bool:
+    """Whether this person could walk out of the world today.
+
+    Four facts, none of them about what they want. Wanting to go is the mind's
+    business and it is asked for in the usual way; this only decides whether
+    the verb is in the vocabulary at all.
+    """
+    place = world.places.get(person.place)
+    if place is None or "leaving" not in place.tags:
+        return False
+    if world.phase_name == "night":
+        return False
+    if sum(1 for p in world.people.values() if p.present) <= TOWN_FLOOR:
+        return False
+    last = _last_day_of(world, ("departure",))
+    return last is None or world.day - last >= DEPARTURE_MIN_GAP_DAYS
+
+
+def depart(world, person: Person, because: str, config,
+           transcript: Optional[Transcript] = None):
+    """Somebody takes the road. Returns (event, what it left in people).
+
+    They are still present while it is happening, so the last thing in their
+    file is the town from the top of the road. After that nobody asks them
+    anything again - but what they have stays where it is, and so does every
+    note the people they left behind wrote about them.
+    """
+    place = world.places.get(person.place)
+    where = place.name if place else "the road"
+    present = [p.id for p in world.people.values() if p.present]
+    vantage = {}
+    for pid in present:
+        if pid == person.id:
+            vantage[pid] = f"on the road out of {world.name}, looking back"
+        elif world.people[pid].place == person.place:
+            vantage[pid] = f"right there, at {where}"
+        else:
+            other = world.places.get(world.people[pid].place)
+            vantage[pid] = (f"at {other.name}, and word of it reached you there"
+                            if other else "and word of it reached you")
+    event = world.record(
+        "departure",
+        f"{person.name} took the road out of {world.name} and did not come back.",
+        where=person.place, who=[person.id], present=present,
+        tags=["leaving", "road"],
+        data={"because": because, "person": person.id, "vantage": vantage},
+    )
+    kept = perceive_all(world, event, config, transcript)
+    person.present = False
+    person.left_on = world.day
+    person.last_action = "took the road out of town"
+    return event, kept
+
+
+def may_arrive(world) -> bool:
+    """Whether the road is worth asking this morning.
+
+    Counted off the ledger rather than a constant: the town draws somebody in
+    only when it is short of somebody, so it refills to what it was and no
+    further. Growing past that is not something this world does yet.
+    """
+    lost = sum(1 for p in world.people.values() if not p.present)
+    taken = sum(1 for e in world.chronicle.all() if e.kind == "arrival")
+    if lost <= taken:
+        return False
+    last = _last_day_of(world, ("arrival", "departure"))
+    return last is None or world.day - last >= ARRIVAL_MIN_GAP_DAYS
+
+
+def _free_person_id(world, name: str) -> str:
+    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
+    candidate, n = f"p_{slug}", 2
+    while candidate in world.people:
+        candidate, n = f"p_{slug}{n}", n + 1
+    return candidate
+
+
+def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
+    """Ask the road whether anybody comes up it today. Usually nobody does."""
+    settings = _settings(config, "arrive")
+    recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
+    call = Call(
+        name="arrive",
+        system=prompts.ARRIVE_SYSTEM,
+        user=prompts.arrive_user(world, recent),
+        schema=schemas.grammar("arrive"),
+        about="road",
+    )
+    answer = ask(get_backend(settings.backend), call, settings, transcript)
+    if not answer or not answer.get("comes"):
+        return None
+
+    name = (answer.get("name") or "").strip()
+    if not name or any(p.name.lower() == name.lower() for p in world.people.values()):
+        return None
+    place = leaving_place(world) or next(iter(world.places.values()), None)
+    if place is None:
+        return None
+
+    age = answer.get("age")
+    trade = (answer.get("trade") or "").strip()
+    came_from = (answer.get("from_where") or "").strip()
+    person = Person(
+        id=_free_person_id(world, name),
+        name=name,
+        card=(answer.get("card") or "").strip(),
+        voice=(answer.get("voice") or "").strip(),
+        age=int(age) if isinstance(age, (int, float)) and 0 < age < 120 else None,
+        occupation=trade,
+        place=place.id,
+        # Nowhere of their own yet. Somewhere to sleep is a thing they will
+        # have to come by here, like anyone else.
+        home="",
+        mood="unsettled",
+        arrived_on=world.day,
+    )
+    world.people[person.id] = person
+
+    said = f"{person.name}"
+    if trade:
+        said += f", a {trade}"
+    if came_from:
+        said += f" from {came_from}"
+    said += f", came up the road into {world.name}."
+
+    present = [p.id for p in world.people.values() if p.present]
+    vantage = {}
+    for pid in present:
+        if pid == person.id:
+            vantage[pid] = f"at the top of the road, seeing {world.name} for the first time"
+        elif world.people[pid].place == place.id:
+            vantage[pid] = f"right there, at {place.name}"
+        else:
+            other = world.places.get(world.people[pid].place)
+            vantage[pid] = (f"at {other.name}, and word of it reached you there"
+                            if other else "and word of it reached you")
+    return world.record(
+        "arrival", said, where=place.id, who=[person.id], present=present,
+        tags=["arrival", "road", "stranger"],
+        data={"why_now": (answer.get("why_now") or "").strip(),
+              "from_where": came_from, "person": person.id, "vantage": vantage},
     )
 
 

@@ -1,4 +1,4 @@
-"""The six places where a mind is asked something, and the shape of the answer.
+"""The places where a mind is asked something, and the shape of the answer.
 
 These schemas are the contract between the engine and whatever is thinking.
 They are handed to the model as a grammar (Ollama's ``format``, vLLM guided
@@ -27,6 +27,11 @@ WEIGHTS = ["nothing", "faint", "ordinary", "stays", "marks"]
 # pick something that means nothing. 'make' and 'tend' come back with art (P5).
 ACTIONS = ["stay", "go", "talk", "work", "rest"]
 
+# Not a sixth everyday verb. Leaving is added to the grammar only where the
+# road actually goes out and only when the town can spare somebody, so a model
+# that picks it has been standing somewhere that means it. See agents.may_leave.
+LEAVE = "leave"
+
 # Order matters under a grammar: keys are generated in this order, so a model
 # that is asked "stuck?" first commits to an answer in one token, before it has
 # written a word about what happened. Asking for the fragment first and the
@@ -51,7 +56,11 @@ ACT = {
     "type": "object",
     "properties": {
         "because": {"type": "string"},
-        "action": {"type": "string", "enum": ACTIONS},
+        # Leaving is in the vocabulary here and taken out again by act_grammar
+        # wherever the road does not go. The inbound check stays lenient, the
+        # way it is for every other field; the engine's own gate is what
+        # actually stops somebody walking out of their kitchen.
+        "action": {"type": "string", "enum": ACTIONS + [LEAVE]},
         "target": {"type": "string"},
     },
     "required": ["action"],
@@ -110,9 +119,28 @@ DIRECT = {
     "required": ["happens"],
 }
 
+# Who comes up the road. Reason first and the verdict last, like DIRECT: the
+# road says who this person would be before it says whether they are coming, so
+# "nobody" is a decision about somebody rather than the cheapest token.
+ARRIVE = {
+    "type": "object",
+    "properties": {
+        "why_now": {"type": "string"},
+        "name": {"type": "string"},
+        "from_where": {"type": "string"},
+        "trade": {"type": "string"},
+        "age": {"type": "number"},
+        "card": {"type": "string"},
+        "voice": {"type": "string"},
+        "comes": {"type": "boolean"},
+    },
+    "required": ["comes"],
+}
+
 BY_NAME: Dict[str, dict] = {
     "perceive": PERCEIVE, "act": ACT, "speak": SPEAK,
     "recall": RECALL, "reflect": REFLECT, "direct": DIRECT,
+    "arrive": ARRIVE,
 }
 
 # What the ladder is worth, once the engine has to sort things by it.
@@ -196,16 +224,23 @@ def grammar(name: str) -> dict:
     return schema
 
 
-def act_grammar(places: List[str], people: List[str]) -> dict:
+def act_grammar(places: List[str], people: List[str],
+                may_leave: bool = False) -> dict:
     """ACT with its target narrowed to what is actually there.
 
     A target the model can only choose from what exists cannot be a place that
     is not adjacent or a person who is not in the room - the grammar makes the
     wrong answer unwritable instead of the engine repairing it afterwards.
+
+    The same applies to the verb. Leaving for good is in the vocabulary only
+    when the engine has already decided it is possible from here today, so a
+    model cannot walk somebody out of the world from their own kitchen.
     """
     schema = grammar("act")
     options = [""] + sorted(set(places) | set(people))
     schema["properties"]["target"] = {"type": "string", "enum": options}
+    schema["properties"]["action"] = {
+        "type": "string", "enum": ACTIONS + ([LEAVE] if may_leave else [])}
     return schema
 
 

@@ -17,7 +17,7 @@ from elsewhere.backends.stub import StubBackend
 from elsewhere.world import store
 from elsewhere.world.memories import Trace
 
-CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct")
+CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "action": "stay", "target": ""}
 
 

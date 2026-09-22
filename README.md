@@ -587,7 +587,7 @@ Then a mind for the town to think with. The default config expects
 
 ```bash
 ollama pull phi4-mini       # ~2.5GB at Q4; the default for every call site
-elsewhere doctor            # can each of the six call sites be reached?
+elsewhere doctor            # can each of the seven call sites be reached?
 ```
 
 `world/config.json` names a model per call site, so the cheap decisions can run
@@ -691,7 +691,7 @@ make unschedule         # stop it
 
 ### What is asked of a mind
 
-Six questions, and nothing else:
+Seven questions, and nothing else:
 
 | | |
 |---|---|
@@ -701,6 +701,7 @@ Six questions, and nothing else:
 | `recall` | you are bringing this up years later — how does it come back now? |
 | `reflect` | the day is over — what did it leave you holding? |
 | `direct` | does anything happen to the town today? |
+| `arrive` | does anybody come up the road, and who would they be? |
 
 Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed
 to the model as a decoding grammar and checked again on the way in, so an
@@ -710,6 +711,25 @@ it only records when a trace was last touched, and decides whether it can be
 reached at all. **Forgetting is the engine declining to hand something over**,
 because a model asked "do you still remember this?" with the memory sitting in
 its context will always say yes.
+
+### The road runs both ways
+
+People can leave, and the town does not get them back. Leaving is a sixth verb
+that `act` is only offered where the road actually goes out of the town,
+in daylight, in a town that can spare somebody, and not in the same season as
+the last one who went — four facts the engine checks before the word is even
+in the vocabulary. Wanting to go is nobody's business but the person's.
+
+When somebody goes, the whole town hears it and each of them keeps their own
+version. What they took with them stays exactly as it was on the day they
+walked out: `elsewhere person <name>` still reads them, frozen, and the notes
+everyone wrote about them stay in their heads, wrong now and not updated.
+
+A town that is short of somebody is asked, a month or so later, whether anybody
+comes up the road. Usually nobody does. When they do, the road says who they
+would be, and they arrive knowing nobody, with nowhere of their own to sleep,
+and live the day they arrived. A town refills to the size it was and no
+further.
 
 Every exchange is appended to a transcript, which is how a run is reproduced —
 there is no random seed to hold on to any more. A saved transcript can be
@@ -738,6 +758,7 @@ would get built.
 - [ ] Communities — there is no structure above the individual yet
 - [x] Events — each morning the town is asked whether anything happens to it
 - [x] A living timeline
+- [x] People arriving and leaving — and a town that outlasts both
 
 ### People
 
@@ -797,7 +818,7 @@ existed.
 - [ ] Religion
 - [ ] Festivals
 - [ ] Artistic movements
-- [ ] Generational memory
+- [ ] Generational memory — no longer blocked: people come and go now
 - [ ] Cultural evolution
 
 ---

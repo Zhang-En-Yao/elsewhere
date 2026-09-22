@@ -26,7 +26,7 @@ REPAIR = ("That was not usable: {complaint}. "
 
 @dataclass
 class Call:
-    name: str                       # perceive | act | speak | recall | reflect | direct
+    name: str        # perceive | act | speak | recall | reflect | direct | arrive
     system: str
     user: str
     schema: dict
