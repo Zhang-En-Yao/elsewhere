@@ -327,8 +327,10 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 #: facts - where she is standing, what hour it is, how many are left, how long
 #: since the last one went.
 TOWN_FLOOR = 2                  # below this it stops being a town
+TOWN_CEILING = 8                # above this it stops being one anybody knows
 DEPARTURE_MIN_GAP_DAYS = 45
-ARRIVAL_MIN_GAP_DAYS = 30
+ARRIVAL_MIN_GAP_DAYS = 30       # while the town is short of somebody
+ARRIVAL_SETTLED_GAP_DAYS = 120  # a year, when it is not
 
 
 def _last_day_of(world, kinds: Sequence[str]) -> Optional[int]:
@@ -400,19 +402,44 @@ def depart(world, person: Person, because: str, config,
     return event, kept
 
 
+def _road_anchor(world) -> int:
+    """The last time the road was either asked or answered.
+
+    Asking has to count, or a town that is owed somebody would put the question
+    every morning until it got one, which is a model call a day for an answer
+    that is almost always no.
+    """
+    days = [d for d in (world.road_asked_on,
+                        _last_day_of(world, ("arrival", "departure")))
+            if d is not None]
+    if days:
+        return max(days)
+    events = world.chronicle.all()             # a world written before this
+    return events[0].day if events else world.day
+
+
+def short_of_somebody(world) -> bool:
+    """Has this town lost more people than it has taken in?"""
+    lost = sum(1 for p in world.people.values() if not p.present)
+    taken = sum(1 for e in world.chronicle.all() if e.kind == "arrival")
+    return lost > taken
+
+
 def may_arrive(world) -> bool:
     """Whether the road is worth asking this morning.
 
-    Counted off the ledger rather than a constant: the town draws somebody in
-    only when it is short of somebody, so it refills to what it was and no
-    further. Growing past that is not something this world does yet.
+    A town that is down somebody notices strangers; one that is not takes
+    somebody in about as often as the prompt says it would, which is once in a
+    year. Either way the road can say no, and usually does - the engine is only
+    deciding how often the question is worth the asking, and the two bounds
+    within which a town is still a town.
     """
-    lost = sum(1 for p in world.people.values() if not p.present)
-    taken = sum(1 for e in world.chronicle.all() if e.kind == "arrival")
-    if lost <= taken:
+    here = sum(1 for p in world.people.values() if p.present)
+    if here >= TOWN_CEILING:
         return False
-    last = _last_day_of(world, ("arrival", "departure"))
-    return last is None or world.day - last >= ARRIVAL_MIN_GAP_DAYS
+    gap = (ARRIVAL_MIN_GAP_DAYS if short_of_somebody(world)
+           else ARRIVAL_SETTLED_GAP_DAYS)
+    return world.day - _road_anchor(world) >= gap
 
 
 def _free_person_id(world, name: str) -> str:
@@ -425,6 +452,7 @@ def _free_person_id(world, name: str) -> str:
 
 def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the road whether anybody comes up it today. Usually nobody does."""
+    world.road_asked_on = world.day
     settings = _settings(config, "arrive")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     call = Call(

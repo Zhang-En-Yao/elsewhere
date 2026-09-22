@@ -332,6 +332,8 @@ def direct_user(world, recent) -> str:
         for p in world.places.values())
     people = ["People:"]
     for person in sorted(world.people.values(), key=lambda p: p.name):
+        if not person.present:
+            continue
         place = world.places.get(person.place)
         wants = f" Lately after: {'; '.join(person.wants)}." if person.wants else ""
         people.append(f"  - {person.name}, {person.occupation or 'no trade'}, "

@@ -20,9 +20,11 @@ Landed:
   telling changes what is told (`recall`, when a trace is brought up).
 - **P4** — nights change what is held (`reflect`): a thought, at most one
   belief pointing at the memory it came from, a want, a mood.
-- **The road** — people leave and are not got back, and a town that is short
-  of somebody is eventually asked who comes up the road. A seventh call site,
-  `arrive`, and a sixth verb for `act` that only exists where the road does.
+- **The road** — people leave and are not got back, and a town is asked who
+  comes up the road: about monthly while it is down somebody, about yearly
+  when it is not. A seventh call site, `arrive`, and a sixth verb for `act`
+  that only exists where the road does. The population moves both ways
+  between a floor of two and a ceiling of eight.
 
 There is no P2 in the history. It went P1 → P3/P4.
 
@@ -153,12 +155,8 @@ cross.
 
 ## What the road left undone
 
-Three things it deliberately does not do, in the order they would bite:
+Two things it deliberately does not do, and one to watch:
 
-- **A town cannot grow.** Arrival is counted off departures, so a town refills
-  to the size it began at and stops. That is honest scarcity rather than a
-  design, and "a new family arrived" in the README still has nowhere to come
-  from. It needs a reason for a town to get bigger that is not just a number.
 - **Nobody comes back.** A name the town has used is refused, which is the
   right guard against the road inventing a second Carol, and also means the
   one thing the README asks for by name — meeting again years later, both

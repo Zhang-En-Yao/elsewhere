@@ -173,8 +173,13 @@ class TestGoing(Road):
         self.send_carol_away()
         self.to_phase("morning")
         tick_mod.tick(self.world, config())
-        schema = self.calls("direct")[-1].schema
-        self.assertNotIn("Carol", schema["properties"]["who"]["enum"])
+        call = self.calls("direct")[-1]
+        self.assertNotIn("Carol", call.schema["properties"]["who"]["enum"])
+        listed = call.user.split("People:")[1].split("Lately")[0]
+        self.assertNotIn("Carol", listed,
+                         "nor standing on the hill road among the people it is shown")
+        self.assertIn("Carol took the road", call.user,
+                      "but the record still says she went - that is why_now material")
 
 
 class TestComing(Road):
@@ -260,16 +265,54 @@ class TestComing(Road):
         self.assertIn("Who has gone", user)
         self.assertIn("Carol", user)
 
-    def test_the_town_refills_to_what_it_was_and_no_further(self):
+    def test_asking_counts_even_when_nobody_comes(self):
+        self.send_carol_away()
+        self.morning_after_a_gap()                   # asked; nobody came
+        self.assertEqual(len(self.calls("arrive")), 1)
+        self.to_phase("morning")
+        tick_mod.tick(self.world, config())
+        self.assertEqual(len(self.calls("arrive")), 1,
+                         "a town that is owed somebody still does not ask daily")
+        self.assertEqual(self.world.road_asked_on, self.world.day - 1)
+
+    def test_a_town_that_is_whole_waits_a_year(self):
         self.send_carol_away()
         self.stub.set("arrive", SOMEBODY)
         self.morning_after_a_gap()
-        self.assertEqual(len(self.present()), 4)
+        self.assertEqual(len(self.present()), 4, "back to the size it began at")
         self.assertFalse(agents.may_arrive(self.world))
-        before = len(self.calls("arrive"))
-        self.morning_after_a_gap()
-        self.assertEqual(len(self.calls("arrive")), before,
-                         "the road is not asked again while the town is whole")
+        self.world.day += agents.ARRIVAL_MIN_GAP_DAYS
+        self.assertFalse(agents.may_arrive(self.world), "a month is not enough now")
+        self.world.day += agents.ARRIVAL_SETTLED_GAP_DAYS
+        self.assertTrue(agents.may_arrive(self.world))
+
+    def test_and_can_then_be_more_than_it_ever_was(self):
+        self.stub.set("arrive", {**SOMEBODY, "name": "Edda"})
+        self.morning_after_a_gap(agents.ARRIVAL_SETTLED_GAP_DAYS)
+        self.assertEqual(len(self.present()), 5,
+                         "nobody left, and the town is bigger than it started")
+
+    def test_but_not_more_than_a_town_anybody_knows(self):
+        for n in range(agents.TOWN_CEILING - len(self.present())):
+            self.world.people[f"p_x{n}"] = type(self.carol)(
+                id=f"p_x{n}", name=f"X{n}", place="square")
+        self.assertEqual(len(self.present()), agents.TOWN_CEILING)
+        self.world.day += agents.ARRIVAL_SETTLED_GAP_DAYS * 2
+        self.assertFalse(agents.may_arrive(self.world))
+
+    def test_and_can_shrink_until_it_stops_being_one(self):
+        self.send_carol_away()
+        alice = self.world.people["p_alice"]
+        alice.place = "hill"
+        self.world.day += agents.DEPARTURE_MIN_GAP_DAYS
+        self.assertTrue(agents.may_leave(self.world, alice))
+        alice.present = False
+        bram = self.world.people["p_bram"]
+        bram.place = "hill"
+        self.world.day += agents.DEPARTURE_MIN_GAP_DAYS
+        self.assertEqual(len(self.present()), 2)
+        self.assertFalse(agents.may_leave(self.world, bram),
+                         "the last two cannot both walk out")
 
     def test_a_name_the_town_already_uses_is_refused(self):
         self.send_carol_away()

@@ -172,6 +172,9 @@ def build(root, name: str = "Wend") -> World:
                  }})
 
     world.day, world.phase = START_DAY, 0
+    # The town starts settled: nobody is owed, so the road waits a year before
+    # it is worth asking who is on it.
+    world.road_asked_on = START_DAY
     return world
 
 
