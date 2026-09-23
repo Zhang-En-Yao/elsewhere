@@ -42,7 +42,7 @@ class Talk:
 @dataclass
 class Occurrence:
     event_id: str
-    what: str
+    account: str
     kept: List[Trace] = field(default_factory=list)
 
 
@@ -50,7 +50,7 @@ class Occurrence:
 class Arrival:
     person_id: str
     event_id: str
-    what: str
+    account: str
     kept: List[Trace] = field(default_factory=list)
 
 

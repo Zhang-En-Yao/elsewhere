@@ -236,12 +236,12 @@ def print_report(world, report) -> None:
     print(f"\n{report.label}")
     if report.occurrence is not None:
         h = report.occurrence
-        print(f"  * {h.what}")
+        print(f"  * {h.account}")
         for tr in h.kept:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     if report.arrival is not None:
         a = report.arrival
-        print(f"  + {a.what}")
+        print(f"  + {a.account}")
         for tr in a.kept:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     for d in report.departures:

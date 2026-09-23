@@ -127,8 +127,5 @@ class Chronicle:
                 return e
         return None
 
-    def since(self, day: int) -> List[Event]:
-        return [e for e in self.all() if e.day >= day]
-
     def __len__(self) -> int:
         return len(self.all())
