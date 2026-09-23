@@ -173,7 +173,7 @@ def tick(world, config, transcript: Optional[Transcript] = None,
         if d.action == schemas.LEAVE:
             event, kept = agents.depart(world, person, d.because, config, transcript)
             report.departures.append(Departure(person.id, event.id, d.because, kept))
-        elif d.action == "go" and d.target in world.places:
+        elif d.action == "go" and d.target is not None and d.target in world.places:
             before = person.place
             person.place = d.target
             person.last_action = f"walked to {world.places[d.target].name}"

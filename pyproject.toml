@@ -9,6 +9,7 @@ dependencies = []
 
 [project.optional-dependencies]
 llm = ["anthropic>=0.40"]
+dev = ["mypy>=1.8"]
 
 [project.scripts]
 elsewhere = "elsewhere.cli:main"
@@ -19,3 +20,17 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.mypy]
+files = ["src/elsewhere"]
+# Not strict. The one thing this is here for is the class of mistake a test
+# cannot reach: an attribute that stopped existing, in code nothing calls.
+# Chronicle.all() is annotated, so `e.day` on an Event is an error the day
+# it is written rather than whenever somebody next reads the file.
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# The Claude backend is an optional extra; it is expected to be missing.
+module = ["anthropic", "anthropic.*"]
+ignore_missing_imports = true

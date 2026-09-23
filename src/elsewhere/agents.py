@@ -8,7 +8,7 @@ to answer, the person simply had nothing, which is allowed.
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence
+from typing import Collection, List, Optional, Sequence
 
 from . import prompts, retrieval, schemas
 from .backends import Call, Settings, Transcript, ask, get as get_backend
@@ -352,7 +352,7 @@ ARRIVAL_MIN_GAP = 30 * HOURS_PER_DAY        # while the town is short of somebod
 ARRIVAL_SETTLED_GAP = 120 * HOURS_PER_DAY   # a year, when it is not
 
 
-def _last_at_of(world, kinds: Sequence[str]) -> Optional[float]:
+def _last_at_of(world, kinds: Collection[str]) -> Optional[float]:
     for event in reversed(world.chronicle.all()):
         if event.category in kinds:
             return event.at

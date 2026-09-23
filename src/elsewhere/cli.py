@@ -103,7 +103,7 @@ def cmd_person(args) -> None:
     print(f"  {person.card}")
     at = world.at if person.present else (person.left_at or world.at)
     if not person.present:
-        print(f"\n  Left on {when(person.left_at)}. What follows is how they stood "
+        print(f"\n  Left on {when(at)}. What follows is how they stood "
               f"then; nothing here has touched it since.")
     else:
         print(f"\n  mood: {person.mood}   at: "

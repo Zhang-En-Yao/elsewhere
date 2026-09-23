@@ -2,8 +2,15 @@
 
 PY ?= python3
 
-test:            ## run everything that needs no model
+test: typecheck  ## run everything that needs no model
 	ELSEWHERE_BACKEND=stub $(PY) -m unittest discover -s tests
+
+typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
+	@if $(PY) -c "import mypy" 2>/dev/null; then \
+	    $(PY) -m mypy; \
+	else \
+	    echo "  mypy not installed, skipping: pip install -e \".[dev]\""; \
+	fi
 
 world:           ## make a world in ./world (needs a reachable model)
 	elsewhere init --world world
@@ -33,4 +40,4 @@ help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
-.PHONY: test world doctor live help tick news schedule unschedule schedule-status
+.PHONY: test typecheck world doctor live help tick news schedule unschedule schedule-status

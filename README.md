@@ -581,7 +581,7 @@ python3 --version           # verify: Python 3.12.0
 
 python3 -m venv .venv       # create the virtual environment
 source .venv/bin/activate   # activate it
-pip install -e .            # install Elsewhere (editable mode)
+pip install -e ".[dev]"     # install Elsewhere, and mypy for `make test`
 ```
 
 Then a mind for the town to think with. The default config expects
@@ -755,6 +755,14 @@ The engine still owns the scheduling — the town is asked about once a day
 whether anything happens to it, and each person goes over their day about a day
 after they last did — but those are rates, not hours, and nobody is ever asked
 what time it is.
+
+`make test` type-checks before it runs anything. That is not thoroughness for
+its own sake: the one mistake this codebase keeps making is an attribute that
+stopped existing, in code nothing calls — `Chronicle.since` read `e.day` for
+several commits after days stopped being stored, and 84 passing tests had
+nothing to say about it, because nothing called it. `Chronicle.all()` is
+annotated, so mypy says so the day it is written. Tests cannot; they only
+reach code that runs.
 
 Every exchange is appended to a transcript, which is how a run is explained
 after the fact — there is no random seed to hold on to any more. The test

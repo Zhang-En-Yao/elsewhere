@@ -12,7 +12,7 @@ import json
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Dict, Optional
 
 from . import Call
 
@@ -57,7 +57,7 @@ class StubBackend:
             taken = self._taken[key]
             self._taken[key] += 1
             answer = answer[taken % len(answer)] if answer else {}
-        if isinstance(answer, Callable):           # type: ignore[arg-type]
+        if callable(answer):
             answer = answer(call)
         if isinstance(answer, str):
             return answer                          # let a test send back garbage
