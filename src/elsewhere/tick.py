@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple
 
 from . import agents, schemas
 from .backends import Transcript
-from .world.chronicle import BEINGS_SPOKE
+from .world.chronicle import CONVERSATION
 from .world.entities import Person
 from .world.memories import Trace
 
@@ -40,7 +40,7 @@ class Talk:
 
 
 @dataclass
-class Happening:
+class Occurrence:
     event_id: str
     what: str
     kept: List[Trace] = field(default_factory=list)
@@ -70,7 +70,7 @@ class TickReport:
     talks: List[Talk] = field(default_factory=list)
     missed: List[Tuple[str, str]] = field(default_factory=list)       # who, sought
     silent: int = 0                                                    # minds that gave nothing
-    happening: Optional[Happening] = None
+    occurrence: Optional[Occurrence] = None
     arrival: Optional[Arrival] = None
     departures: List[Departure] = field(default_factory=list)
     reflections: Dict[str, dict] = field(default_factory=dict)
@@ -99,7 +99,7 @@ def converse(world, speaker: Person, listener: Person, config,
                      else f"nearby, within earshot of {speaker.name} and {listener.name}")
                for pid in here if pid != speaker.id}
     event = world.record(
-        BEINGS_SPOKE,
+        CONVERSATION,
         f'{speaker.name} said to {listener.name}: "{line}"',
         place=speaker.place,
         involved=[speaker.id, listener.id],
@@ -148,7 +148,7 @@ def tick(world, config, transcript: Optional[Transcript] = None,
         event = agents.direct(world, config, transcript)
         if event is not None:
             kept = agents.perceive_all(world, event, config, transcript)
-            report.happening = Happening(event.id, event.account, kept)
+            report.occurrence = Occurrence(event.id, event.account, kept)
     if agents.may_arrive(world):
         event = agents.arrive(world, config, transcript)
         if event is not None:

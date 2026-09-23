@@ -62,7 +62,7 @@ class TestDirector(Town):
     def test_most_days_nothing_happens(self):
         before = len(self.world.chronicle)
         report = tick_mod.tick(self.world, config())
-        self.assertIsNone(report.happening)
+        self.assertIsNone(report.occurrence)
         self.assertEqual(len(self.world.chronicle), before)
 
     def test_something_happening_to_someone_happens_where_they_are(self):
@@ -74,10 +74,10 @@ class TestDirector(Town):
                                                 "means": "", "feeling": "fear",
                                                 "tags": ["roof"], "weight": "stays"}
         report = tick_mod.tick(self.world, config())
-        event = self.world.chronicle.get(report.happening.event_id)
+        event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")
-        self.assertEqual(event.category, chronicle.WORLD_ACT)
-        self.assertEqual([t.owner for t in report.happening.kept], ["p_adam"])
+        self.assertEqual(event.category, chronicle.OCCURRENCE)
+        self.assertEqual([t.owner for t in report.occurrence.kept], ["p_adam"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):
         self.stub.set("direct", {"why_now": "", "what": "A storm broke over the town.",
@@ -85,7 +85,7 @@ class TestDirector(Town):
                                  "reach": "the whole town", "tags": ["storm"],
                                  "happens": True})
         report = tick_mod.tick(self.world, config())
-        event = self.world.chronicle.get(report.happening.event_id)
+        event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(sorted(event.reached), sorted(self.world.people))
         perceived = sorted(c.about for c in self.calls("perceive"))
         self.assertEqual(perceived, sorted(self.world.people))

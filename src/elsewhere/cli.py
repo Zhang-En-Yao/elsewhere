@@ -234,8 +234,8 @@ def print_report(world, report) -> None:
     from .tick import LAST_ACTION
 
     print(f"\n{report.label}")
-    if report.happening is not None:
-        h = report.happening
+    if report.occurrence is not None:
+        h = report.occurrence
         print(f"  * {h.what}")
         for tr in h.kept:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
@@ -360,8 +360,8 @@ def cmd_news(args) -> None:
     for e in events:
         place = world.places.get(e.place or "")
         print(f"\n  {when(e.at)}, {place.name if place else '-'}")
-        mark = {chronicle.WORLD_ACT: "* ", chronicle.PRESENCE_BEGAN: "+ ",
-                chronicle.PRESENCE_ENDED: "- "}
+        mark = {chronicle.OCCURRENCE: "* ", chronicle.ARRIVAL: "+ ",
+                chronicle.DEPARTURE: "- "}
         print(f"    {mark.get(e.category, '')}{e.account}")
         for pid in e.reached:
             for t in world.traces(pid).about_event(e.id):

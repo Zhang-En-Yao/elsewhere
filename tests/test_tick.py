@@ -179,7 +179,7 @@ class TestCategories(unittest.TestCase):
         stub.answers["act|p_adam"] = {"because": "", "action": "talk", "target": "Eve"}
         register(stub)
         tick_mod.tick(world, config())
-        said = [e for e in world.chronicle.all() if e.category == chronicle.BEINGS_SPOKE]
+        said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
         self.assertEqual(len(said), 1)
 
     def test_the_three_kinds_account_for_everything_the_engine_writes(self):
@@ -187,8 +187,8 @@ class TestCategories(unittest.TestCase):
         # presence starting or stopping, and beings reaching each other. A
         # fifth category that belongs to none of them is a category nobody
         # has decided the meaning of yet.
-        world_acts = {chronicle.WORLD_ACT}
-        exchanges = {chronicle.BEINGS_SPOKE}
+        world_acts = {chronicle.OCCURRENCE}
+        exchanges = {chronicle.CONVERSATION}
         self.assertEqual(
             world_acts | chronicle.PRESENCE_CHANGES | exchanges,
             chronicle.ENGINE_CATEGORIES)
