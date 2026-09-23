@@ -76,11 +76,6 @@ class World:
     # of it names a part of the day: the engine knows what hour it is and
     # whether the sun is up, and stops there.
     @property
-    def days(self) -> float:
-        """Hours as days, for arithmetic that is easier to read in days."""
-        return self.at / HOURS_PER_DAY
-
-    @property
     def day_index(self) -> int:
         """Which day of the world this is. A count, not a stored field."""
         return int(self.at // HOURS_PER_DAY) + 1
@@ -191,23 +186,23 @@ def load(root) -> World:
     if not meta_path.exists():
         raise FileNotFoundError(f"no world at {root}")
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    if int(meta.get("schema", 0)) > SCHEMA_VERSION:
+    schema = int(meta.get("schema", 0))
+    if schema > SCHEMA_VERSION:
         raise ValueError(f"{root} was written by a newer Elsewhere")
-    # A world written before the clock went continuous kept a whole day and a
-    # quarter of it. Read it once, in hours, and it is never seen again.
-    if "at" in meta:
-        at = float(meta["at"])
-    else:
-        at = float(meta.get("day", 1)) * HOURS_PER_DAY + int(meta.get("phase", 0)) * 6.0
-    road = meta.get("road_asked_at")
-    if road is None and meta.get("road_asked_on") is not None:
-        road = float(meta["road_asked_on"]) * HOURS_PER_DAY
+    if schema < SCHEMA_VERSION:
+        # There is no conversion, on purpose. A world that kept time as whole
+        # days and named quarters of them is not this world, and pretending
+        # otherwise would silently put every memory at midnight.
+        raise ValueError(
+            f"{root} was written by Elsewhere schema {schema}, which kept time "
+            f"differently. This one cannot read it.")
     world = World(
-        root=root, name=meta.get("name", "Elsewhere"), at=at,
+        root=root, name=meta.get("name", "Elsewhere"), at=float(meta["at"]),
         counters=dict(meta.get("counters", {})),
         closed=bool(meta.get("closed", False)), closed_on=meta.get("closed_on"),
         last_tick_at=meta.get("last_tick_at"), news_seen=int(meta.get("news_seen", 0)),
-        road_asked_at=road, directed_at=meta.get("directed_at"),
+        road_asked_at=meta.get("road_asked_at"),
+        directed_at=meta.get("directed_at"),
         places={k: Place.from_dict(v) for k, v in meta.get("places", {}).items()},
     )
     world.chronicle = Chronicle(root / "chronicle.jsonl")

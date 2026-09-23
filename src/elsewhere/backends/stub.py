@@ -17,7 +17,7 @@ from typing import Callable, Dict, Optional
 from . import Call
 
 DEFAULTS: Dict[str, dict] = {
-    "perceive": {"stuck": False},
+    "perceive": {"weight": "nothing"},
     "act": {"because": "", "action": "stay", "target": ""},
     "speak": {"line": "..."},
     "recall": {"trace": "", "changed": False},

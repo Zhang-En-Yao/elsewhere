@@ -90,17 +90,14 @@ def perceive(world, person: Person, event: Event, config,
     if answer is None:
         return None
 
-    weight = answer.get("weight")
-    if weight is None:                              # an older tape, or a lenient backend
-        weight = "ordinary" if answer.get("stuck") else "nothing"
-    if weight == "nothing":
+    if answer.get("weight", "nothing") == "nothing":
         return None
 
     text = (answer.get("trace") or "").strip()
     if not text:
         return None
 
-    salience = schemas.weight_to_salience(weight)
+    salience = schemas.weight_to_salience(answer.get("weight"))
     if salience >= HEAVY and _heavy_today(world, person) >= HEAVY_PER_DAY:
         # They have already had their day. This one keeps its words and loses
         # its claim on the rest of their life.

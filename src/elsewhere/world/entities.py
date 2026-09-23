@@ -11,17 +11,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional
 
-from .. import HOURS_PER_DAY
-
-
-def _hours(d: dict, key: str, was: str) -> Optional[float]:
-    """Read a moment, converting a whole day written by an older world."""
-    if d.get(key) is not None:
-        return float(d[key])
-    if d.get(was) is not None:
-        return float(d[was]) * HOURS_PER_DAY
-    return None
-
 
 @dataclass
 class Tie:
@@ -35,10 +24,8 @@ class Tie:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Tie":
-        seen = (float(d["last_seen_at"]) if "last_seen_at" in d
-                else float(d.get("last_seen_day", 0)) * HOURS_PER_DAY)
         return cls(note=d.get("note", ""), closeness=float(d.get("closeness", 0.0)),
-                   last_seen_at=seen)
+                   last_seen_at=float(d.get("last_seen_at", 0.0)))
 
 
 @dataclass
@@ -54,10 +41,8 @@ class Belief:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Belief":
-        at = (float(d["at"]) if "at" in d
-              else float(d.get("day", 0)) * HOURS_PER_DAY)
         return cls(text=d["text"], confidence=float(d.get("confidence", 0.4)),
-                   at=at, origin=list(d.get("origin", [])),
+                   at=float(d.get("at", 0.0)), origin=list(d.get("origin", [])),
                    origin_lost=bool(d.get("origin_lost", False)))
 
 
@@ -110,8 +95,7 @@ class Person:
             beliefs=[Belief.from_dict(b) for b in d.get("beliefs", [])],
             kind=d.get("kind", "person"), note=d.get("note", ""),
             mind=d.get("mind", "model"), present=bool(d.get("present", True)),
-            arrived_at=_hours(d, "arrived_at", "arrived_on"),
-            left_at=_hours(d, "left_at", "left_on"),
+            arrived_at=d.get("arrived_at"), left_at=d.get("left_at"),
             reflected_at=d.get("reflected_at"),
             last_action=d.get("last_action", ""),
             last_created_day=int(d.get("last_created_day", 0)),

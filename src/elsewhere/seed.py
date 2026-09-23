@@ -108,7 +108,7 @@ def build(root, name: str = "Wend") -> World:
     def tie(a: str, b: str, note: str, closeness: float):
         world.people[a].tie(b).note = note
         world.people[a].tie(b).closeness = closeness
-        world.people[a].tie(b).last_seen_day = 1
+        world.people[a].tie(b).last_seen_at = HOURS_PER_DAY
 
     tie("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 0.7)
     tie("p_eve", "p_adam", "He works too late. Good hands.", 0.68)

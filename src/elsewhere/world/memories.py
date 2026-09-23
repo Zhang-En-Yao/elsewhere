@@ -16,8 +16,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterator, List, Optional
 
-from .. import HOURS_PER_DAY
-
 
 @dataclass
 class Trace:
@@ -59,17 +57,13 @@ class Trace:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Trace":
-        # A world written before the clock went continuous stored whole days.
-        at = float(d["at"]) if "at" in d else float(d["day"]) * HOURS_PER_DAY
-        touched = (float(d["touched_at"]) if "touched_at" in d
-                   else float(d.get("last_touched", d.get("day", 0))) * HOURS_PER_DAY)
         return cls(
-            id=d["id"], owner=d["owner"], at=at, trace=d["trace"],
+            id=d["id"], owner=d["owner"], at=float(d["at"]), trace=d["trace"],
             means=d.get("means", ""), feeling=d.get("feeling", "none"),
             salience=float(d.get("salience", 0.4)), tags=list(d.get("tags", [])),
             source=d.get("source", "witnessed"), event_id=d.get("event_id"),
             about=list(d.get("about", [])), place=d.get("place"),
-            touched_at=touched,
+            touched_at=float(d.get("touched_at", d["at"])),
             recalls=int(d.get("recalls", 0)), heard=d.get("heard"),
             history=list(d.get("history", [])),
         )

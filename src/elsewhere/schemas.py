@@ -212,8 +212,8 @@ def grammar(name: str) -> dict:
     """The schema as handed to a decoder: every field required.
 
     Under grammar-constrained decoding an optional field is an invitation to
-    stop early - the shortest valid answer to PERCEIVE is {"stuck": true},
-    which says something stayed and nothing about what. The inbound validator
+    stop early - the shortest valid answer to PERCEIVE would be {"weight":
+    "stays"}, which says something stayed and nothing about what. The validator
     stays lenient (other backends and recorded tapes may omit fields); the
     grammar does not.
     """
