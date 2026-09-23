@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import agents, config as config_mod
+from . import HOURS_PER_DAY
 from .world.chronicle import Chronicle
 from .world.entities import Person, Place
 from .world.store import World, save
 
 START_DAY = 121          # year 2, day 1: the town already has a past
+START_AT = (START_DAY - 1) * HOURS_PER_DAY + 8.0      # and it starts mid-morning
 
 
 def _place(world: World, pid: str, name: str, description: str, tags, neighbours):
@@ -44,7 +46,7 @@ def _clear(root: Path) -> None:
 def build(root, name: str = "Wend") -> World:
     root = Path(root)
     _clear(root)
-    world = World(root=root, name=name, day=1, phase=0)
+    world = World(root=root, name=name, at=0.0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
 
     _place(world, "garden", "The Garden",
@@ -120,7 +122,7 @@ def build(root, name: str = "Wend") -> World:
     # the chronicle - as a position and nothing more. "Close enough to feel the
     # spray" is already a perception, and a small model will copy it straight
     # into the memory it is supposed to be forming for itself.
-    world.day, world.phase = 18, 2                              # evening
+    world.at = 17 * HOURS_PER_DAY + 19.0                        # an evening
     world.record("gathering",
                  "Adam and Eve raised the shelter's first frame, and the three "
                  "of them ate under it before the roof was even on.",
@@ -132,7 +134,7 @@ def build(root, name: str = "Wend") -> World:
                      "p_eve": "on the ground, passing the rope up",
                      "p_lilith": "sitting apart, watching them work",
                  }})
-    world.day, world.phase = 68, 3                              # night
+    world.at = 67 * HOURS_PER_DAY + 2.0                         # the small hours
     world.record("flood",
                  "The water came up over the waterline in the night and did "
                  "not go down for three days.",
@@ -144,7 +146,7 @@ def build(root, name: str = "Wend") -> World:
                      "p_eve": "in the garden, on the last dry rise, holding what she could carry",
                      "p_lilith": "on the ridge path, above all of it, watching the valley disappear",
                  }})
-    world.day, world.phase = 92, 1                              # afternoon
+    world.at = 91 * HOURS_PER_DAY + 14.0                        # an afternoon
     world.record("building",
                  "The shelter was raised again, this time on posts, out of "
                  "timber that had not finished drying.",
@@ -157,10 +159,10 @@ def build(root, name: str = "Wend") -> World:
                      "p_eve": "in the garden, close enough to hear the hammering",
                  }})
 
-    world.day, world.phase = START_DAY, 0
+    world.at = START_AT
     # The town starts settled: nobody is owed, so the road waits a year before
     # it is worth asking who is on it.
-    world.road_asked_on = START_DAY
+    world.road_asked_at = START_AT
     return world
 
 
@@ -169,8 +171,8 @@ def remember_backstory(world: World, config, transcript=None) -> List:
     made = []
     here_now = {p.id: p.place for p in world.people.values()}
     for event in world.chronicle.all():
-        day_before = world.day
-        world.day = event.day
+        was = world.at
+        world.at = event.at
         for person in world.people.values():
             if person.id not in event.present:
                 continue
@@ -178,7 +180,7 @@ def remember_backstory(world: World, config, transcript=None) -> List:
             trace = agents.perceive(world, person, event, config, transcript)
             if trace is not None:
                 made.append(trace)
-        world.day = day_before
+        world.at = was
     for person in world.people.values():
         person.place = here_now[person.id]
     return made

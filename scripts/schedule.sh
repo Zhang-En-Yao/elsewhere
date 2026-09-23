@@ -8,9 +8,9 @@
 #   scripts/schedule.sh uninstall   # stop
 #
 # The agent runs `elsewhere catchup`, which does nothing unless the wall clock
-# says a phase is owed (one per PHASE_HOURS, default 6). Checking every half
+# says a step is owed (one per STEP_HOURS, default 6). Checking every half
 # hour rather than every six hours means a Mac that was asleep catches up soon
-# after it wakes; launchd folds the missed checks into one. At most MAX phases
+# after it wakes; launchd folds the missed checks into one. At most MAX steps
 # are lived per run, so a week away does not become an hour of model calls.
 #
 # The model has to be running for any of this to happen - with Homebrew:
@@ -25,7 +25,7 @@ LABEL="com.elsewhere.catchup"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 WORLD="${WORLD:-$REPO/world}"
 MAX="${MAX:-4}"
-PHASE_HOURS="${PHASE_HOURS:-6}"
+STEP_HOURS="${STEP_HOURS:-6}"
 CHECK_EVERY="${CHECK_EVERY:-1800}"
 LOG="$REPO/.elsewhere/catchup.log"
 
@@ -90,7 +90,7 @@ plist() {
     <string>--world</string><string>$WORLD</string>
     <string>catchup</string>
     <string>--max</string><string>$MAX</string>
-    <string>--hours</string><string>$PHASE_HOURS</string>
+    <string>--hours</string><string>$STEP_HOURS</string>
   </array>
   <key>WorkingDirectory</key><string>$REPO</string>
   <key>StartInterval</key><integer>$CHECK_EVERY</integer>
@@ -111,8 +111,8 @@ case "${1:-status}" in
     plist "$cli" > "$PLIST"
     launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$PLIST"
-    echo "Scheduled. $WORLD now lives one phase every $PHASE_HOURS hours,"
-    echo "at most $MAX phases per wake. Log: $LOG"
+    echo "Scheduled. $WORLD now lives one step every $STEP_HOURS hours,"
+    echo "at most $MAX steps per wake. Log: $LOG"
     echo "The model must be running: brew services start ollama"
     if protected_path "$REPO"; then tcc_warning "$cli"; fi
     ;;

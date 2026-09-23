@@ -11,12 +11,17 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterator, List, Optional
 
+from .. import HOURS_PER_DAY
+
+
+#: Only for reading what a world wrote before the clock went continuous.
+_WAS_PHASE = {"morning": 0, "afternoon": 1, "evening": 2, "night": 3}
+
 
 @dataclass
 class Event:
     id: str
-    day: int
-    phase: str
+    at: float                                  # hours into the world
     kind: str
     what: str                                  # neutral, chronicle voice
     where: Optional[str] = None
@@ -30,7 +35,10 @@ class Event:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Event":
-        return cls(id=d["id"], day=d["day"], phase=d["phase"], kind=d["kind"],
+        # Older worlds wrote a whole day and a named quarter of it.
+        at = (float(d["at"]) if "at" in d else
+              float(d["day"]) * HOURS_PER_DAY + _WAS_PHASE.get(d.get("phase"), 0) * 6.0)
+        return cls(id=d["id"], at=at, kind=d["kind"],
                    what=d["what"], where=d.get("where"), who=list(d.get("who", [])),
                    present=list(d.get("present", [])), tags=list(d.get("tags", [])),
                    data=dict(d.get("data", {})))

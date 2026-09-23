@@ -36,24 +36,22 @@ class Town(unittest.TestCase):
     def calls(self, name):
         return [c for c in self.stub.calls if c.name == name]
 
-    def to_phase(self, name):
-        """Put the clock one phase before `name`, so the next tick lands on it.
-        (Landing on morning rolls the day over; advance_clock does that.)"""
-        order = ["morning", "afternoon", "evening", "night"]
-        self.world.phase = (order.index(name) - 1) % 4
+    def a_day_on(self):
+        """Move the clock far enough that the once-a-day rates come round again."""
+        self.world.at += 24
 
 
 class TestDirector(Town):
-    def test_asked_once_a_day_in_the_morning(self):
-        for _ in range(4):
+    def test_asked_about_once_a_day_whatever_the_hour(self):
+        for _ in range(4):                       # four steps: a whole day
             tick_mod.tick(self.world, config())
-        self.assertEqual(len(self.calls("direct")), 1)
-        # the seed starts at morning; the first tick is afternoon, so the one
-        # call came at the next morning
-        self.assertEqual(self.world.phase_name, "morning")
+        self.assertEqual(len(self.calls("direct")), 1,
+                         "asked on the first step, then not again inside the day")
+        tick_mod.tick(self.world, config())
+        self.assertEqual(len(self.calls("direct")), 2,
+                         "a day on, it is worth asking again")
 
     def test_it_can_only_name_what_exists(self):
-        self.to_phase("morning")
         tick_mod.tick(self.world, config())
         schema = self.calls("direct")[0].schema
         self.assertIn("The Ridge Path", schema["properties"]["where"]["enum"])
@@ -61,7 +59,6 @@ class TestDirector(Town):
                          ["", "Adam", "Eve", "Lilith"])
 
     def test_most_days_nothing_happens(self):
-        self.to_phase("morning")
         before = len(self.world.chronicle)
         report = tick_mod.tick(self.world, config())
         self.assertIsNone(report.happening)
@@ -75,7 +72,6 @@ class TestDirector(Town):
         self.stub.answers["perceive|p_adam"] = {"trace": "the crack before the dust",
                                                 "means": "", "feeling": "fear",
                                                 "tags": ["roof"], "weight": "stays"}
-        self.to_phase("morning")
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.happening.event_id)
         self.assertEqual(event.where, "yard", "Adam is in his own yard, not on the ridge")
@@ -87,7 +83,6 @@ class TestDirector(Town):
                                  "where": "The Shelter", "who": "",
                                  "reach": "the whole town", "tags": ["storm"],
                                  "happens": True})
-        self.to_phase("morning")
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.happening.event_id)
         self.assertEqual(sorted(event.present), sorted(self.world.people))
@@ -100,12 +95,11 @@ class TestDirector(Town):
         self.stub.set("direct", {"why_now": "", "what": "A goat got loose.",
                                  "where": "The Shelter", "who": "",
                                  "reach": "the people there", "tags": [], "happens": True})
-        self.to_phase("morning")
         tick_mod.tick(self.world, config())
-        for _ in range(4):                       # through to the next morning
+        for _ in range(4):                       # a whole day further on
             tick_mod.tick(self.world, config())
         self.assertEqual(len(self.calls("direct")), 1,
-                         "the next morning is inside the quiet gap; nobody asks")
+                         "the next day is still inside the quiet gap; nobody asks")
 
 
 class TestRecall(Town):
@@ -113,9 +107,9 @@ class TestRecall(Town):
         super().setUp()
         for pid in ("p_adam", "p_eve"):
             self.world.people[pid].place = "yard"
-        self.flood = Trace(id="mem9001", owner="p_eve", day=68,
+        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
                            trace="the water in the doorway before I could move anything",
-                           feeling="fear", salience=0.95, tags=["flood"], last_touched=68)
+                           feeling="fear", salience=0.95, tags=["flood"], touched_at=68 * 24)
         self.world.traces("p_eve").add(self.flood)
         self.stub.answers["act|p_eve"] = {"because": "", "action": "talk", "target": "Adam"}
         self.stub.set("speak", {"about": "1", "line": "That night."})
@@ -151,25 +145,25 @@ class TestRecall(Town):
 class TestReflect(Town):
     def setUp(self):
         super().setUp()
-        self.today = Trace(id="mem9100", owner="p_lilith", day=self.world.day,
+        self.today = Trace(id="mem9100", owner="p_lilith", at=self.world.at,
                            trace="the valley disappearing under the water", feeling="unease",
                            salience=0.7, tags=["flood", "leaving"],
-                           last_touched=self.world.day)
+                           touched_at=self.world.at)
 
-    def night(self):
-        self.to_phase("night")
+    def reckoning(self):
+        """Live the step in which this person's own day comes round."""
         return tick_mod.tick(self.world, config())
 
-    def test_only_those_whose_day_left_something_lie_awake(self):
+    def test_only_those_whose_day_left_something_go_over_it(self):
         self.world.traces("p_lilith").add(self.today)
-        self.night()
+        self.reckoning()
         self.assertEqual([c.about for c in self.calls("reflect")], ["p_lilith"])
 
     def test_a_belief_remembers_where_it_came_from(self):
         self.world.traces("p_lilith").add(self.today)
         self.stub.set("reflect", {"thought": "nobody went down", "belief": "Nobody here will ever leave",
                                   "belief_from": "1", "want": "go before winter", "mood": "restless"})
-        self.night()
+        self.reckoning()
         lilith = self.world.people["p_lilith"]
         belief = next(b for b in lilith.beliefs if "leave" in b.text)
         self.assertEqual(belief.origin, ["mem9100"])
@@ -179,17 +173,17 @@ class TestReflect(Town):
     def test_the_same_belief_twice_is_held_harder_not_written_twice(self):
         self.world.traces("p_lilith").add(self.today)
         self.stub.set("reflect", {"belief": "Nobody here will ever leave", "belief_from": "1"})
-        self.night()
+        self.reckoning()
 
-        # The next night, something new stays with her and she arrives at the
-        # same place in different words.
-        self.world.day += 1
+        # A day on, something new stays with her and she arrives at the same
+        # place in different words.
+        self.world.at += 1 * 24
         self.world.traces("p_lilith").add(Trace(
-            id="mem9101", owner="p_lilith", day=self.world.day, trace="the road again",
-            salience=0.4, tags=["leaving"], last_touched=self.world.day))
+            id="mem9101", owner="p_lilith", at=self.world.at, trace="the road again",
+            salience=0.4, tags=["leaving"], touched_at=self.world.at))
         self.stub.set("reflect", {"belief": "nobody here will ever leave this town",
                                   "belief_from": "1"})
-        self.night()
+        self.reckoning()
 
         beliefs = [b for b in self.world.people["p_lilith"].beliefs
                    if "leave" in b.text.lower()]
@@ -201,10 +195,10 @@ class TestReflect(Town):
     def test_a_belief_can_outlive_its_reasons(self):
         self.world.traces("p_lilith").add(self.today)
         self.stub.set("reflect", {"belief": "Nobody here will ever leave", "belief_from": "1"})
-        self.night()
+        self.reckoning()
         lilith = self.world.people["p_lilith"]
         self.today.salience = 0.15            # it did not, in the end, weigh much
-        self.world.day += 400
+        self.world.at += 400 * 24
         agents.refresh_origins(self.world, lilith)
         belief = next(b for b in lilith.beliefs if "leave" in b.text)
         self.assertTrue(belief.origin_lost)

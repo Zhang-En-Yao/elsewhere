@@ -16,12 +16,14 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterator, List, Optional
 
+from .. import HOURS_PER_DAY
+
 
 @dataclass
 class Trace:
     id: str
     owner: str
-    day: int                       # when it was laid down
+    at: float                      # hours into the world, when it was laid down
     trace: str                     # what they would say happened
     means: str = ""                # what they think it meant
     feeling: str = "none"
@@ -31,12 +33,12 @@ class Trace:
     event_id: Optional[str] = None
     about: List[str] = field(default_factory=list)   # person ids in it
     place: Optional[str] = None
-    last_touched: int = 0
+    touched_at: float = 0.0
     recalls: int = 0
     heard: Optional[str] = None    # the words they think they were given
     history: List[str] = field(default_factory=list)  # earlier wordings, newest last
 
-    def rewrite(self, new_trace: str, day: int, means: str = "",
+    def rewrite(self, new_trace: str, at: float, means: str = "",
                 feeling: str = "") -> None:
         """A mind has looked at this again and it came back different."""
         if new_trace and new_trace != self.trace:
@@ -47,23 +49,27 @@ class Trace:
             self.means = means
         if feeling:
             self.feeling = feeling
-        self.last_touched = day
+        self.touched_at = at
         self.recalls += 1
 
     def to_dict(self) -> dict:
         d = asdict(self)
         return {k: v for k, v in d.items()
-                if v not in (None, [], "") or k in ("id", "owner", "day", "trace")}
+                if v not in (None, [], "") or k in ("id", "owner", "at", "trace")}
 
     @classmethod
     def from_dict(cls, d: dict) -> "Trace":
+        # A world written before the clock went continuous stored whole days.
+        at = float(d["at"]) if "at" in d else float(d["day"]) * HOURS_PER_DAY
+        touched = (float(d["touched_at"]) if "touched_at" in d
+                   else float(d.get("last_touched", d.get("day", 0))) * HOURS_PER_DAY)
         return cls(
-            id=d["id"], owner=d["owner"], day=int(d["day"]), trace=d["trace"],
+            id=d["id"], owner=d["owner"], at=at, trace=d["trace"],
             means=d.get("means", ""), feeling=d.get("feeling", "none"),
             salience=float(d.get("salience", 0.4)), tags=list(d.get("tags", [])),
             source=d.get("source", "witnessed"), event_id=d.get("event_id"),
             about=list(d.get("about", [])), place=d.get("place"),
-            last_touched=int(d.get("last_touched", d.get("day", 0))),
+            touched_at=touched,
             recalls=int(d.get("recalls", 0)), heard=d.get("heard"),
             history=list(d.get("history", [])),
         )

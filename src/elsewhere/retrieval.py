@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 from typing import Iterable, List, Optional, Sequence, Set
 
+from . import HOURS_PER_DAY
 from .world.memories import Trace
 
 HALF_LIFE = 45.0          # days, before the hold of an intense memory is applied
@@ -37,13 +38,19 @@ def hold(trace: Trace) -> float:
     return 0.25 + 3.6 * (trace.salience ** 1.5) + 0.35 * math.log1p(trace.recalls)
 
 
-def reach(trace: Trace, day: int) -> float:
-    age = max(0, day - trace.last_touched)
+def reach(trace: Trace, at: float) -> float:
+    """How reachable this is, now.
+
+    `at` is hours into the world, and so is the trace's own clock, so decay is
+    continuous: a memory is slightly further away at dusk than it was at noon,
+    instead of standing still and then dropping four times a day.
+    """
+    age = max(0.0, (at - trace.touched_at) / HOURS_PER_DAY)
     return trace.salience * math.exp(-age / (HALF_LIFE * hold(trace)))
 
 
-def dormant(trace: Trace, day: int) -> bool:
-    return reach(trace, day) < FLOOR
+def dormant(trace: Trace, at: float) -> bool:
+    return reach(trace, at) < FLOOR
 
 
 def relevance(trace: Trace, cues: Set[str]) -> float:
@@ -55,11 +62,11 @@ def relevance(trace: Trace, cues: Set[str]) -> float:
     return len(tags & cues) / len(tags | cues)
 
 
-def score(trace: Trace, day: int, cues: Set[str]) -> float:
-    return reach(trace, day) * (1.0 + 2.0 * relevance(trace, cues))
+def score(trace: Trace, at: float, cues: Set[str]) -> float:
+    return reach(trace, at) * (1.0 + 2.0 * relevance(trace, cues))
 
 
-def recallable(traces: Iterable[Trace], day: int, cues: Optional[Set[str]] = None,
+def recallable(traces: Iterable[Trace], at: float, cues: Optional[Set[str]] = None,
                limit: int = CONTEXT_TRACES) -> List[Trace]:
     """What this person has within reach, most available first.
 
@@ -67,12 +74,12 @@ def recallable(traces: Iterable[Trace], day: int, cues: Optional[Set[str]] = Non
     forgotten - whether or not it is still on disk.
     """
     cues = set(cues or ())
-    live = [t for t in traces if not dormant(t, day)]
-    live.sort(key=lambda t: score(t, day, cues), reverse=True)
+    live = [t for t in traces if not dormant(t, at)]
+    live.sort(key=lambda t: score(t, at, cues), reverse=True)
     return live[:limit]
 
 
-def cued_return(traces: Iterable[Trace], day: int, cues: Set[str]) -> Optional[Trace]:
+def cued_return(traces: Iterable[Trace], at: float, cues: Set[str]) -> Optional[Trace]:
     """Something out of reach that this exact place or word points straight at.
 
     'A memory that unexpectedly returns years later.' It has to be a direct
@@ -80,7 +87,7 @@ def cued_return(traces: Iterable[Trace], day: int, cues: Set[str]) -> Optional[T
     """
     best, best_score = None, 0.0
     for trace in traces:
-        if not dormant(trace, day):
+        if not dormant(trace, at):
             continue
         overlap = relevance(trace, set(cues))
         if overlap < 0.34:

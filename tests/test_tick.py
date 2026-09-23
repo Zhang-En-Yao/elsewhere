@@ -48,10 +48,15 @@ class TownTest(unittest.TestCase):
 
 
 class TestTime(TownTest):
-    def test_a_tick_is_one_phase(self):
-        day, phase = self.world.day, self.world.phase
+    def test_a_tick_is_one_step_of_the_clock(self):
+        was = self.world.at
         tick_mod.tick(self.world, config())
-        self.assertEqual((self.world.day, self.world.phase), (day, phase + 1))
+        self.assertEqual(self.world.at, was + tick_mod.STEP_HOURS)
+
+    def test_a_step_can_be_any_length(self):
+        was = self.world.at
+        tick_mod.tick(self.world, config(), hours=1.5)
+        self.assertEqual(self.world.at, was + 1.5)
 
     def test_everyone_is_asked_once(self):
         tick_mod.tick(self.world, config())
@@ -88,10 +93,10 @@ class TestConversation(TownTest):
         super().setUp()
         for pid in ("p_eve", "p_adam"):
             self.world.people[pid].place = "yard"
-        self.flood = Trace(id="mem9001", owner="p_eve", day=68,
+        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
                            trace="the water in the doorway before I could move anything",
                            means="", feeling="fear", salience=0.95,
-                           tags=["flood", "waterline"], last_touched=68)
+                           tags=["flood", "waterline"], touched_at=68 * 24)
         self.world.traces("p_eve").add(self.flood)
 
     def test_something_said_is_something_someone_else_can_keep(self):
@@ -121,7 +126,7 @@ class TestConversation(TownTest):
         self.say("speak", {"about": "1", "line": "That night."})
         tick_mod.tick(self.world, config())
         self.assertEqual(self.flood.recalls, 1)
-        self.assertEqual(self.flood.last_touched, self.world.day)
+        self.assertEqual(self.flood.touched_at, self.world.at)
 
     def test_the_speaker_is_offered_what_they_can_reach(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
@@ -154,15 +159,15 @@ class TestConversation(TownTest):
         before = self.world.people["p_adam"].ties["p_eve"].closeness
         tick_mod.tick(self.world, config())
         tie = self.world.people["p_adam"].ties["p_eve"]
-        self.assertEqual(tie.last_seen_day, self.world.day)
+        self.assertEqual(tie.last_seen_at, self.world.at)
         self.assertGreater(tie.closeness, before)
 
 
 class TestOwedTime(unittest.TestCase):
-    def test_owed_phases(self):
-        self.assertEqual(tick_mod.owed_phases(None, 1e9), 0)
-        self.assertEqual(tick_mod.owed_phases(0, 5.9 * 3600), 0)
-        self.assertEqual(tick_mod.owed_phases(0, 25 * 3600), 4)
+    def test_owed_steps(self):
+        self.assertEqual(tick_mod.owed_steps(None, 1e9), 0)
+        self.assertEqual(tick_mod.owed_steps(0, 5.9 * 3600), 0)
+        self.assertEqual(tick_mod.owed_steps(0, 25 * 3600), 4)
 
     def test_a_capped_backlog_is_slept_through(self):
         self.assertEqual(tick_mod.settle_clock(0, 100 * 3600, ran=4, owed=16), 100 * 3600)
@@ -203,20 +208,21 @@ class TestCatchup(unittest.TestCase):
         out = self.run_cli("catchup")
         after = store.load(self.root)
         self.assertIn("clock started", out)
-        self.assertEqual((after.day, after.phase), (before.day, before.phase))
+        self.assertEqual(after.at, before.at)
 
     def test_it_lives_what_is_owed(self):
         self.set_last_tick(13)
-        before = store.load(self.root).phase
+        before = store.load(self.root).at
         self.run_cli("catchup")
-        self.assertEqual(store.load(self.root).phase, before + 2)
+        self.assertEqual(store.load(self.root).at,
+                         before + 2 * tick_mod.STEP_HOURS)
 
     def test_it_never_lives_more_than_the_cap(self):
         self.set_last_tick(24 * 7)
-        before = store.load(self.root).phase
+        before = store.load(self.root).at
         out = self.run_cli("catchup", "--max", "1")
         after = store.load(self.root)
-        self.assertEqual(after.phase, before + 1)
+        self.assertEqual(after.at, before + tick_mod.STEP_HOURS)
         self.assertIn("slept through", out)
         self.assertLess(time.time() - after.last_tick_at, 60)
 

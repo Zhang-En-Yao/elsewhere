@@ -20,6 +20,12 @@ Landed:
   telling changes what is told (`recall`, when a trace is brought up).
 - **P4** — nights change what is held (`reflect`): a thought, at most one
   belief pointing at the memory it came from, a want, a mood.
+- **One clock** — `day` and `phase` are gone. The world keeps hours elapsed as
+  a single float; days, seasons and a clock reading are worked out from it and
+  never stored. A mind is told the time and whether the sun is up, and decides
+  for itself what that is worth - naming a quarter of the day was the engine
+  suggesting what everyone ought to be doing at it. Scheduling stayed with the
+  engine but became rates rather than hours, and memory decays continuously.
 - **The road** — people leave and are not got back, and a town is asked who
   comes up the road: about monthly while it is down somebody, about yearly
   when it is not. A seventh call site, `arrive`, and a sixth verb for `act`

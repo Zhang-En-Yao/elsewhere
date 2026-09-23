@@ -15,7 +15,8 @@ from .backends import Call, Settings, Transcript, ask, get as get_backend
 from .world.chronicle import Event
 from .world.entities import Person
 from .world.memories import Trace
-from .world.store import season_of
+from . import HOURS_PER_DAY
+from .world.store import clock_at, season_at
 
 #: How many memories a person may lay down in one day that they will still
 #: have years later. Models have no sense of scarcity; the engine supplies it.
@@ -34,7 +35,7 @@ def _others_here(world, person: Person) -> List[Person]:
 def _heavy_today(world, person: Person) -> int:
     store = world.traces(person.id)
     return sum(1 for t in store
-               if t.day == world.day and t.salience >= HEAVY)
+               if world.at - t.at < HOURS_PER_DAY and t.salience >= HEAVY)
 
 
 def vantage(world, person: Person, event: Event) -> str:
@@ -65,7 +66,7 @@ def perceive(world, person: Person, event: Event, config,
     settings = _settings(config, "perceive")
     store = world.traces(person.id)
     cues = retrieval.cues_from(event.tags, [event.where or ""])
-    context = retrieval.recallable(store, world.day, cues)
+    context = retrieval.recallable(store, world.at, cues)
 
     place = world.places.get(event.where or "")
     call = Call(
@@ -75,7 +76,7 @@ def perceive(world, person: Person, event: Event, config,
             person=person,
             what_happened=event.what,
             where=place.name if place else "nowhere in particular",
-            when=f"{event.phase} in {season_of(event.day)}",
+            when=f"{clock_at(event.at)} in {season_at(event.at)}",
             vantage=vantage(world, person, event),
             others=[world.people[pid] for pid in event.present
                     if pid != person.id and pid in world.people],
@@ -108,7 +109,7 @@ def perceive(world, person: Person, event: Event, config,
     trace = Trace(
         id=world.next_id("mem"),
         owner=person.id,
-        day=world.day,
+        at=world.at,
         trace=text,
         means=(answer.get("means") or "").strip(),
         feeling=answer.get("feeling", "none"),
@@ -118,7 +119,7 @@ def perceive(world, person: Person, event: Event, config,
         event_id=event.id,
         about=[w for w in event.who if w != person.id],
         place=event.where,
-        last_touched=world.day,
+        touched_at=world.at,
     )
     store.add(trace)
     return trace
@@ -153,9 +154,16 @@ class Decision:
 
 
 def when_label(world) -> str:
+    """The time, and whether the sun is up. Not what either of those means.
+
+    A named quarter of the day would be the engine deciding that this hour is
+    for working or for sleeping, the same for everybody. The clock and the
+    light are facts; what this hour is worth doing with is read off the person.
+    """
     from .world.store import DAYS_PER_YEAR
-    doy = (world.day - 1) % DAYS_PER_YEAR + 1
-    return f"{world.phase_name} in {world.season}, day {doy}"
+    doy = (world.day_index - 1) % DAYS_PER_YEAR + 1
+    light = "light" if world.daylight else "dark"
+    return f"{world.clock} and {light}, {world.season}, day {doy}"
 
 
 def act(world, person: Person, config,
@@ -168,7 +176,7 @@ def act(world, person: Person, config,
                  if n in world.places]
     store = world.traces(person.id)
     cues = retrieval.cues_from(place.tags if place else [], [person.place])
-    context = retrieval.recallable(store, world.day, cues, limit=4)
+    context = retrieval.recallable(store, world.at, cues, limit=4)
 
     going = may_leave(world, person)
     call = Call(
@@ -223,7 +231,7 @@ def speak(world, speaker: Person, listener: Person, config,
     for t in store:
         if listener.id in t.about:
             cues |= set(t.tags)
-    topics = retrieval.recallable(store, world.day, cues, limit=3)
+    topics = retrieval.recallable(store, world.at, cues, limit=3)
     place = world.places.get(speaker.place)
 
     call = Call(
@@ -245,7 +253,7 @@ def speak(world, speaker: Person, listener: Person, config,
     about = answer.get("about", "")
     if about.isdigit() and 1 <= int(about) <= len(topics):
         drawn = topics[int(about) - 1]
-        drawn.last_touched = world.day
+        drawn.touched_at = world.at
         drawn.recalls += 1
         store.touch()
     return line, drawn
@@ -256,22 +264,35 @@ def speak(world, speaker: Person, listener: Person, config,
 
 #: Scarcity the director cannot supply for itself: whatever it proposes, the
 #: town gets at least this many quiet days between happenings.
-DIRECTOR_MIN_GAP_DAYS = 2
+DIRECTOR_MIN_GAP = 2 * HOURS_PER_DAY    # quiet time the town gets between happenings
+DIRECTOR_EVERY = HOURS_PER_DAY          # and how often it is asked at all
 DIRECTOR_RECENT_EVENTS = 8
 
 
-def last_happening_day(world) -> Optional[int]:
+def last_happening_at(world) -> Optional[int]:
     for e in reversed(world.chronicle.all()):
         if e.kind == "happening":
-            return e.day
+            return e.at
     return None
 
 
+def may_direct(world) -> bool:
+    """Whether the town is worth asking, now.
+
+    This used to be "in the morning", which meant the engine had decided that
+    things happen to towns at a particular hour. It is a rate: about once a
+    day, and never inside the quiet stretch after something already happened.
+    """
+    if (world.directed_at is not None
+            and world.at - world.directed_at < DIRECTOR_EVERY):
+        return False
+    last = last_happening_at(world)
+    return last is None or world.at - last >= DIRECTOR_MIN_GAP
+
+
 def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
-    """Ask the town whether anything happens to it today. Usually nothing does."""
-    last = last_happening_day(world)
-    if last is not None and world.day - last < DIRECTOR_MIN_GAP_DAYS:
-        return None
+    """Ask the town whether anything happens to it. Usually nothing does."""
+    world.directed_at = world.at
     settings = _settings(config, "direct")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
@@ -328,15 +349,15 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 #: since the last one went.
 TOWN_FLOOR = 2                  # below this it stops being a town
 TOWN_CEILING = 8                # above this it stops being one anybody knows
-DEPARTURE_MIN_GAP_DAYS = 45
-ARRIVAL_MIN_GAP_DAYS = 30       # while the town is short of somebody
-ARRIVAL_SETTLED_GAP_DAYS = 120  # a year, when it is not
+DEPARTURE_MIN_GAP = 45 * HOURS_PER_DAY
+ARRIVAL_MIN_GAP = 30 * HOURS_PER_DAY        # while the town is short of somebody
+ARRIVAL_SETTLED_GAP = 120 * HOURS_PER_DAY   # a year, when it is not
 
 
-def _last_day_of(world, kinds: Sequence[str]) -> Optional[int]:
+def _last_at_of(world, kinds: Sequence[str]) -> Optional[float]:
     for event in reversed(world.chronicle.all()):
         if event.kind in kinds:
-            return event.day
+            return event.at
     return None
 
 
@@ -349,21 +370,22 @@ def leaving_place(world):
 
 
 def may_leave(world, person: Person) -> bool:
-    """Whether this person could walk out of the world today.
+    """Whether this person could walk out of the world right now.
 
-    Four facts, none of them about what they want. Wanting to go is the mind's
-    business and it is asked for in the usual way; this only decides whether
-    the verb is in the vocabulary at all.
+    Three facts, none of them about what they want, and none of them about
+    what hour it is. There used to be a fourth - not at night - and it was the
+    engine deciding that nobody in this town is the sort of person who leaves
+    in the dark. Whether to walk out at three in the morning is exactly the
+    kind of thing that should differ from one person to the next, so it is
+    theirs to answer, in "because".
     """
     place = world.places.get(person.place)
     if place is None or "leaving" not in place.tags:
         return False
-    if world.phase_name == "night":
-        return False
     if sum(1 for p in world.people.values() if p.present) <= TOWN_FLOOR:
         return False
-    last = _last_day_of(world, ("departure",))
-    return last is None or world.day - last >= DEPARTURE_MIN_GAP_DAYS
+    last = _last_at_of(world, ("departure",))
+    return last is None or world.at - last >= DEPARTURE_MIN_GAP
 
 
 def depart(world, person: Person, because: str, config,
@@ -397,25 +419,25 @@ def depart(world, person: Person, because: str, config,
     )
     kept = perceive_all(world, event, config, transcript)
     person.present = False
-    person.left_on = world.day
+    person.left_at = world.at
     person.last_action = "took the road out of town"
     return event, kept
 
 
-def _road_anchor(world) -> int:
+def _road_anchor(world) -> float:
     """The last time the road was either asked or answered.
 
     Asking has to count, or a town that is owed somebody would put the question
     every morning until it got one, which is a model call a day for an answer
     that is almost always no.
     """
-    days = [d for d in (world.road_asked_on,
-                        _last_day_of(world, ("arrival", "departure")))
-            if d is not None]
-    if days:
-        return max(days)
+    moments = [d for d in (world.road_asked_at,
+                           _last_at_of(world, ("arrival", "departure")))
+               if d is not None]
+    if moments:
+        return max(moments)
     events = world.chronicle.all()             # a world written before this
-    return events[0].day if events else world.day
+    return events[0].at if events else world.at
 
 
 def short_of_somebody(world) -> bool:
@@ -437,9 +459,8 @@ def may_arrive(world) -> bool:
     here = sum(1 for p in world.people.values() if p.present)
     if here >= TOWN_CEILING:
         return False
-    gap = (ARRIVAL_MIN_GAP_DAYS if short_of_somebody(world)
-           else ARRIVAL_SETTLED_GAP_DAYS)
-    return world.day - _road_anchor(world) >= gap
+    gap = ARRIVAL_MIN_GAP if short_of_somebody(world) else ARRIVAL_SETTLED_GAP
+    return world.at - _road_anchor(world) >= gap
 
 
 def _free_person_id(world, name: str) -> str:
@@ -452,7 +473,7 @@ def _free_person_id(world, name: str) -> str:
 
 def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the road whether anybody comes up it today. Usually nobody does."""
-    world.road_asked_on = world.day
+    world.road_asked_at = world.at
     settings = _settings(config, "arrive")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     call = Call(
@@ -488,7 +509,7 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         # have to come by here, like anyone else.
         home="",
         mood="unsettled",
-        arrived_on=world.day,
+        arrived_at=world.at,
     )
     world.people[person.id] = person
 
@@ -522,6 +543,21 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 # reflect
 
 MAX_BELIEFS = 6
+REFLECT_EVERY = HOURS_PER_DAY   # roughly once a day each, on their own clock
+
+
+def may_reflect(world, person: Person) -> bool:
+    """Whether this person is due to go over a day of their own.
+
+    This used to be "everyone, at night". Now it is a rolling day per person,
+    anchored on the last time *they* did it - so somebody who arrived at noon
+    goes over their day at noon, and the town does not all fall quiet at once
+    because the engine said the hour for it had come.
+    """
+    if (person.reflected_at is not None
+            and world.at - person.reflected_at < REFLECT_EVERY):
+        return False
+    return any(world.at - t.at < REFLECT_EVERY for t in world.traces(person.id))
 
 _STOP_WORDS = {"the", "and", "that", "with", "from", "into", "still", "this",
               "there", "their", "were", "was", "had", "have", "then", "they",
@@ -547,19 +583,20 @@ def refresh_origins(world, person: Person) -> None:
         if not belief.origin:
             continue
         alive = [t for t in (store.get(i) for i in belief.origin)
-                 if t is not None and not retrieval.dormant(t, world.day)]
+                 if t is not None and not retrieval.dormant(t, world.at)]
         belief.origin_lost = not alive
 
 
 def reflect(world, person: Person, config,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
-    """Night: what this person is left with. Only asked of people whose day left something."""
+    """What this person is left with, after a day of their own."""
     store = world.traces(person.id)
-    today = [t for t in store if t.day == world.day]
+    person.reflected_at = world.at
+    today = [t for t in store if world.at - t.at < REFLECT_EVERY]
     if not today:
         return None
     today = sorted(today, key=lambda t: -t.salience)[:3]
-    older = [t for t in retrieval.recallable(store, world.day, limit=4) if t not in today][:3]
+    older = [t for t in retrieval.recallable(store, world.at, limit=4) if t not in today][:3]
     settings = _settings(config, "reflect")
     call = Call(
         name="reflect",
@@ -586,7 +623,7 @@ def reflect(world, person: Person, config,
                 if trace_id not in existing.origin and len(existing.origin) < 3:
                     existing.origin.append(trace_id)
         else:
-            person.beliefs.append(Belief(text=text, confidence=0.5, day=world.day,
+            person.beliefs.append(Belief(text=text, confidence=0.5, at=world.at,
                                          origin=origin))
             if len(person.beliefs) > MAX_BELIEFS:
                 person.beliefs.sort(key=lambda b: -b.confidence)
@@ -613,11 +650,11 @@ def recall(world, person: Person, trace: Trace, config,
     trace's history, so what it used to be is not lost to anyone reading.
     """
     settings = _settings(config, "recall")
-    age = max(0, world.day - trace.day)
+    age = max(0, int((world.at - trace.at) // HOURS_PER_DAY))
     call = Call(
         name="recall",
         system=prompts.RECALL_SYSTEM,
-        user=prompts.recall_user(person, trace, age, retrieval.reach(trace, world.day)),
+        user=prompts.recall_user(person, trace, age, retrieval.reach(trace, world.at)),
         schema=schemas.grammar("recall"),
         about=person.id,
     )
@@ -627,7 +664,7 @@ def recall(world, person: Person, trace: Trace, config,
     new = (answer.get("trace") or "").strip()
     if not new or new == trace.trace:
         return False
-    trace.rewrite(new, world.day, means=(answer.get("means") or "").strip(),
+    trace.rewrite(new, world.at, means=(answer.get("means") or "").strip(),
                   feeling=answer.get("feeling") or "")
     # rewrite() counts a recall; speak() already counted this one.
     trace.recalls -= 1

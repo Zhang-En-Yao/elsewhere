@@ -18,19 +18,36 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .. import SCHEMA_VERSION
+from .. import HOURS_PER_DAY, SCHEMA_VERSION
 from .chronicle import Chronicle, Event
 from .entities import Person, Place
 from .memories import TraceStore
 
-PHASES = ("morning", "afternoon", "evening", "night")
 DAYS_PER_SEASON = 30
 SEASONS = ("spring", "summer", "autumn", "winter")
 DAYS_PER_YEAR = DAYS_PER_SEASON * len(SEASONS)
 
+#: The sun does not negotiate. This is the one thing about the hour that the
+#: engine states as a fact, because it is one - it is dark or it is not. What
+#: being dark is worth doing about is nobody's business but the person's.
+DAWN, DUSK = 6.0, 20.0
 
-def season_of(day: int) -> str:
+
+def season_at(at: float) -> str:
+    day = int(at // HOURS_PER_DAY) + 1
     return SEASONS[((day - 1) // DAYS_PER_SEASON) % len(SEASONS)]
+
+
+def day_of(at: float) -> int:
+    """Which day of the world a moment falls on. Worked out, never stored."""
+    return int(at // HOURS_PER_DAY) + 1
+
+
+def clock_at(at: float) -> str:
+    """The reading on a clock face: '03:40'. A number, not a name."""
+    hour = at % HOURS_PER_DAY
+    h = int(hour)
+    return f"{h:02d}:{int((hour - h) * 60):02d}"
 
 
 class Locked(RuntimeError):
@@ -41,41 +58,59 @@ class Locked(RuntimeError):
 class World:
     root: Path
     name: str = "Elsewhere"
-    day: int = 1
-    phase: int = 0
+    at: float = 0.0                       # hours since the world began
     places: Dict[str, Place] = field(default_factory=dict)
     people: Dict[str, Person] = field(default_factory=dict)
     counters: Dict[str, int] = field(default_factory=dict)
     closed: bool = False
     closed_on: Optional[int] = None
-    last_tick_at: Optional[float] = None  # wall clock of the last phase lived, epoch s
+    last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     news_seen: int = 0                    # chronicle length the last time you looked
-    road_asked_on: Optional[int] = None   # the day the road was last asked who was coming
+    road_asked_at: Optional[float] = None  # when the road was last asked who was coming
+    directed_at: Optional[float] = None    # when the town was last asked if anything happens
     chronicle: Chronicle = None          # type: ignore[assignment]
     _traces: Dict[str, TraceStore] = field(default_factory=dict)
 
     # -- time -------------------------------------------------------------
+    # Everything below is worked out from `at`. None of it is stored, and none
+    # of it names a part of the day: the engine knows what hour it is and
+    # whether the sun is up, and stops there.
     @property
-    def phase_name(self) -> str:
-        return PHASES[self.phase]
+    def days(self) -> float:
+        """Hours as days, for arithmetic that is easier to read in days."""
+        return self.at / HOURS_PER_DAY
+
+    @property
+    def day_index(self) -> int:
+        """Which day of the world this is. A count, not a stored field."""
+        return int(self.at // HOURS_PER_DAY) + 1
+
+    @property
+    def hour(self) -> float:
+        return self.at % HOURS_PER_DAY
+
+    @property
+    def clock(self) -> str:
+        return clock_at(self.at)
+
+    @property
+    def daylight(self) -> bool:
+        return DAWN <= self.hour < DUSK
 
     @property
     def season(self) -> str:
-        return SEASONS[((self.day - 1) // DAYS_PER_SEASON) % len(SEASONS)]
+        return season_at(self.at)
 
     @property
     def year(self) -> int:
-        return (self.day - 1) // DAYS_PER_YEAR + 1
+        return (self.day_index - 1) // DAYS_PER_YEAR + 1
 
     def label(self) -> str:
-        doy = (self.day - 1) % DAYS_PER_YEAR + 1
-        return f"Year {self.year}, day {doy} ({self.season} {self.phase_name})"
+        doy = (self.day_index - 1) % DAYS_PER_YEAR + 1
+        return f"Year {self.year}, day {doy}, {self.clock} ({self.season})"
 
-    def advance_clock(self) -> None:
-        self.phase += 1
-        if self.phase >= len(PHASES):
-            self.phase = 0
-            self.day += 1
+    def advance(self, hours: float) -> None:
+        self.at += hours
 
     # -- ids ---------------------------------------------------------------
     def next_id(self, prefix: str) -> str:
@@ -119,7 +154,7 @@ class World:
     def record(self, kind: str, what: str, *, where: Optional[str] = None,
                who: Optional[List[str]] = None, present: Optional[List[str]] = None,
                tags: Optional[List[str]] = None, data: Optional[dict] = None) -> Event:
-        event = Event(id=self.next_id("ev"), day=self.day, phase=self.phase_name,
+        event = Event(id=self.next_id("ev"), at=self.at,
                       kind=kind, what=what, where=where, who=list(who or []),
                       present=list(present or []), tags=list(tags or []),
                       data=dict(data or {}))
@@ -137,11 +172,11 @@ def _atomic_write(path: Path, payload: dict) -> None:
 
 def save(world: World) -> None:
     _atomic_write(world.root / "world.json", {
-        "schema": SCHEMA_VERSION, "name": world.name, "day": world.day,
-        "phase": world.phase, "counters": world.counters,
+        "schema": SCHEMA_VERSION, "name": world.name, "at": world.at,
+        "counters": world.counters,
         "closed": world.closed, "closed_on": world.closed_on,
         "last_tick_at": world.last_tick_at, "news_seen": world.news_seen,
-        "road_asked_on": world.road_asked_on,
+        "road_asked_at": world.road_asked_at, "directed_at": world.directed_at,
         "places": {k: v.to_dict() for k, v in world.places.items()},
     })
     for person in world.people.values():
@@ -158,12 +193,21 @@ def load(root) -> World:
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     if int(meta.get("schema", 0)) > SCHEMA_VERSION:
         raise ValueError(f"{root} was written by a newer Elsewhere")
+    # A world written before the clock went continuous kept a whole day and a
+    # quarter of it. Read it once, in hours, and it is never seen again.
+    if "at" in meta:
+        at = float(meta["at"])
+    else:
+        at = float(meta.get("day", 1)) * HOURS_PER_DAY + int(meta.get("phase", 0)) * 6.0
+    road = meta.get("road_asked_at")
+    if road is None and meta.get("road_asked_on") is not None:
+        road = float(meta["road_asked_on"]) * HOURS_PER_DAY
     world = World(
-        root=root, name=meta.get("name", "Elsewhere"), day=int(meta.get("day", 1)),
-        phase=int(meta.get("phase", 0)), counters=dict(meta.get("counters", {})),
+        root=root, name=meta.get("name", "Elsewhere"), at=at,
+        counters=dict(meta.get("counters", {})),
         closed=bool(meta.get("closed", False)), closed_on=meta.get("closed_on"),
         last_tick_at=meta.get("last_tick_at"), news_seen=int(meta.get("news_seen", 0)),
-        road_asked_on=meta.get("road_asked_on"),
+        road_asked_at=road, directed_at=meta.get("directed_at"),
         places={k: Place.from_dict(v) for k, v in meta.get("places", {}).items()},
     )
     world.chronicle = Chronicle(root / "chronicle.jsonl")

@@ -1,4 +1,4 @@
-"""One phase of one day, and the machinery that decides how many are owed.
+"""One step of the world, and the machinery that decides how many are owed.
 
 Everyone decides at once, then the world resolves what they decided: people
 move, and anyone who went to speak to someone still standing in the same place
@@ -20,7 +20,10 @@ from .backends import Transcript
 from .world.entities import Person
 from .world.memories import Trace
 
-PHASE_HOURS = 6.0
+#: How much world time one step covers. Everyone decides once per step, so
+#: this is the grain of the simulation - not a named part of the day, just how
+#: far the clock moves before anybody is asked anything again.
+STEP_HOURS = 6.0
 CLOSENESS_PER_MEETING = 0.02      # bookkeeping for retrieval, not a feeling
 
 
@@ -75,7 +78,7 @@ class TickReport:
 def _meet(world, a: Person, b: Person) -> None:
     for x, y in ((a, b), (b, a)):
         tie = x.tie(y.id)
-        tie.last_seen_day = world.day
+        tie.last_seen_at = world.at
         tie.closeness = min(1.0, tie.closeness + CLOSENESS_PER_MEETING)
 
 
@@ -130,25 +133,26 @@ LAST_ACTION = {"stay": "stayed where they were", "work": "worked",
                "rest": "rested"}
 
 
-def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
-    """Live one phase."""
-    world.advance_clock()
+def tick(world, config, transcript: Optional[Transcript] = None,
+         hours: float = STEP_HOURS) -> TickReport:
+    """Live one step of the world."""
+    world.advance(hours)
     report = TickReport(label=world.label())
 
-    # 0. Morning: the town decides whether anything happens to it today, and
-    #    whether anybody comes up the road - both before anyone decides what
-    #    to do, so they can respond to it, and so a newcomer has their first
-    #    day rather than standing at the top of the road until tomorrow.
-    if world.phase_name == "morning":
+    # 0. First, whatever happens to the town rather than in it - so people can
+    #    respond to it in the same step, and so somebody who has just walked
+    #    up the road gets a life today instead of standing there until the
+    #    engine next feels like asking. Both are rates now, not hours.
+    if agents.may_direct(world):
         event = agents.direct(world, config, transcript)
         if event is not None:
             kept = agents.perceive_all(world, event, config, transcript)
             report.happening = Happening(event.id, event.what, kept)
-        if agents.may_arrive(world):
-            event = agents.arrive(world, config, transcript)
-            if event is not None:
-                kept = agents.perceive_all(world, event, config, transcript)
-                report.arrival = Arrival(event.who[0], event.id, event.what, kept)
+    if agents.may_arrive(world):
+        event = agents.arrive(world, config, transcript)
+        if event is not None:
+            kept = agents.perceive_all(world, event, config, transcript)
+            report.arrival = Arrival(event.who[0], event.id, event.what, kept)
 
     minds = sorted((p for p in world.people.values()
                     if p.present and p.mind == "model"), key=lambda p: p.id)
@@ -198,14 +202,16 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
         if talk is not None:
             report.talks.append(talk)
 
-    # 4. Night: whoever's day left something goes over it.
-    if world.phase_name == "night":
-        for person in minds:
-            answer = agents.reflect(world, person, config, transcript)
-            if answer is not None:
-                report.reflections[person.id] = answer
-            else:
-                agents.refresh_origins(world, person)
+    # 4. Whoever is a day on from their own last reckoning goes over it. Not
+    #    everyone at once, and not because it got dark.
+    for person in minds:
+        if not agents.may_reflect(world, person):
+            continue
+        answer = agents.reflect(world, person, config, transcript)
+        if answer is not None:
+            report.reflections[person.id] = answer
+        else:
+            agents.refresh_origins(world, person)
 
     return report
 
@@ -213,16 +219,16 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
 # --------------------------------------------------------------------------
 # how much time is owed
 
-def owed_phases(last_tick_at: Optional[float], now: float,
-                phase_hours: float = PHASE_HOURS) -> int:
+def owed_steps(last_tick_at: Optional[float], now: float,
+               step_hours: float = STEP_HOURS) -> int:
     if last_tick_at is None:
         return 0
-    return max(0, int((now - last_tick_at) // (phase_hours * 3600)))
+    return max(0, int((now - last_tick_at) // (step_hours * 3600)))
 
 
 def settle_clock(last_tick_at: Optional[float], now: float, ran: int, owed: int,
-                 phase_hours: float = PHASE_HOURS) -> float:
-    """Where the wall clock stands after living `ran` of `owed` phases.
+                 step_hours: float = STEP_HOURS) -> float:
+    """Where the wall clock stands after living `ran` of `owed` steps.
 
     If the backlog was capped, the rest is not lived later - the town simply
     slept through it. Carrying it forward would mean a laptop that sleeps for
@@ -230,4 +236,4 @@ def settle_clock(last_tick_at: Optional[float], now: float, ran: int, owed: int,
     """
     if last_tick_at is None or ran < owed:
         return now
-    return last_tick_at + ran * phase_hours * 3600
+    return last_tick_at + ran * step_hours * 3600

@@ -629,8 +629,8 @@ pip install -e .
 elsewhere init                  # 3 people, 1 town, a flood nobody agrees about
 elsewhere init --blank          # the same town, but nobody has been asked to remember it
 
-elsewhere tick -n 4             # live four phases now (morning, afternoon, evening, night)
-elsewhere catchup               # live whatever phases the wall clock says are owed
+elsewhere tick -n 4             # live four steps of the world now (six hours each)
+elsewhere catchup               # live whatever steps the wall clock says are owed
 elsewhere news                  # what happened since you last looked
 
 elsewhere status                # where everyone is, and how much they still hold
@@ -669,9 +669,9 @@ Lilith kept:  "What I took from it was the river came up over The Waterline
 
 ### A world that keeps going while you are away
 
-One phase of the world takes six real hours, so a day here is a day there.
+One step of the world takes six real hours, so a day here is a day there.
 `elsewhere catchup` lives whatever the wall clock says is owed, at most four
-phases in one go; a longer backlog is slept through rather than carried, so a
+steps in one go; a longer backlog is slept through rather than carried, so a
 laptop that was shut for a week does not wake up and spend an hour on it. If
 the model cannot be reached, the world waits rather than inventing a day.
 
@@ -707,10 +707,11 @@ its context will always say yes.
 ### The road runs both ways
 
 People can leave, and the town does not get them back. Leaving is a sixth verb
-that `act` is only offered where the road actually goes out of the town,
-in daylight, in a town that can spare somebody, and not in the same season as
-the last one who went — four facts the engine checks before the word is even
-in the vocabulary. Wanting to go is nobody's business but the person's.
+that `act` is only offered where the road actually goes out of the town, in a
+town that can spare somebody, and not in the same season as the last one who
+went — three facts the engine checks before the word is even in the vocabulary.
+Whether to go, and whether to go at three in the morning, is nobody's business
+but the person's.
 
 When somebody goes, the whole town hears it and each of them keeps their own
 version. What they took with them stays exactly as it was on the day they
@@ -728,6 +729,32 @@ So the town's population moves in both directions. It cannot fall below two,
 which is where it stops being a town, or rise above eight, which is where it
 stops being one where everybody knows everybody — and between those it is the
 minds, not the engine, that decide.
+
+### One clock, and no name for the hour
+
+The world keeps a single number: hours since it began. Days, seasons and the
+reading on a clock face are all worked out from it; none of them are stored,
+and nothing anywhere stores a named part of the day.
+
+That is deliberate. "Morning" and "night" are not facts about a town so much as
+a suggestion about what the people in it should be doing, and the engine has no
+business making it — a restless person works through the small hours and
+somebody content is asleep by dusk. So a mind is told the time and whether the
+sun is up, and nothing else:
+
+```
+It is 03:00 and dark, spring, day 2.
+```
+
+What that hour is worth doing with is read off who they are. Memory decay runs
+on the same continuous clock, so something is slightly further away at dusk
+than it was at noon, rather than standing still and then dropping four times a
+day.
+
+The engine still owns the scheduling — the town is asked about once a day
+whether anything happens to it, and each person goes over their day about a day
+after they last did — but those are rates, not hours, and nobody is ever asked
+what time it is.
 
 Every exchange is appended to a transcript, which is how a run is explained
 after the fact — there is no random seed to hold on to any more. The test
@@ -750,10 +777,10 @@ would get built.
 ### The World
 
 - [x] A persistent world
-- [x] Passage of time — four phases a day, six real hours each
+- [x] Passage of time — one clock, running; six real hours to the step
 - [x] Places
 - [ ] Communities — there is no structure above the individual yet
-- [x] Events — each morning the town is asked whether anything happens to it
+- [x] Events — about once a day the town is asked whether anything happens to it
 - [x] A living timeline
 - [x] People arriving and leaving — a population that moves both ways
 
@@ -772,7 +799,7 @@ would get built.
 - [x] Selective memories — the mind decides what stuck; the engine only records that it did
 - [x] Forgetting — a dormant trace is simply not handed over
 - [x] Memory reinforcement — bringing something up in conversation keeps it in reach
-- [x] Reflection — at night, for whoever's day left something
+- [x] Reflection — each person on their own day, not all at one nightfall
 - [x] Changing beliefs — a belief can outlive every memory that produced it
 - [x] Long-term influence
 
@@ -876,8 +903,8 @@ That world now runs. It has three people and a flood in its past that each of
 them remembers differently.
 
 On `v2` it also keeps going without being watched: the town decides for itself
-whether anything happens each morning, everyone decides what to do from where
-they stand, what gets said is heard imperfectly, and the night changes what
+whether anything happens to it, everyone decides what to do from where they
+stand, what gets said is heard imperfectly, and going over a day changes what
 people hold. A launchd agent can be left to run it at a day per day.
 
 What it does not do yet: let you live in it, let anyone make anything, or grow

@@ -11,28 +11,41 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional
 
+from .. import HOURS_PER_DAY
+
+
+def _hours(d: dict, key: str, was: str) -> Optional[float]:
+    """Read a moment, converting a whole day written by an older world."""
+    if d.get(key) is not None:
+        return float(d[key])
+    if d.get(was) is not None:
+        return float(d[was]) * HOURS_PER_DAY
+    return None
+
 
 @dataclass
 class Tie:
     """One person's account of another. Never symmetric."""
     note: str = ""                 # written by the model, in their words
     closeness: float = 0.0         # 0 unknown .. 1 lifelong, for retrieval
-    last_seen_day: int = 0
+    last_seen_at: float = 0.0
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "Tie":
+        seen = (float(d["last_seen_at"]) if "last_seen_at" in d
+                else float(d.get("last_seen_day", 0)) * HOURS_PER_DAY)
         return cls(note=d.get("note", ""), closeness=float(d.get("closeness", 0.0)),
-                   last_seen_day=int(d.get("last_seen_day", 0)))
+                   last_seen_at=seen)
 
 
 @dataclass
 class Belief:
     text: str
     confidence: float = 0.4
-    day: int = 0
+    at: float = 0.0
     origin: List[str] = field(default_factory=list)   # trace ids, at most 3
     origin_lost: bool = False
 
@@ -41,8 +54,10 @@ class Belief:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Belief":
+        at = (float(d["at"]) if "at" in d
+              else float(d.get("day", 0)) * HOURS_PER_DAY)
         return cls(text=d["text"], confidence=float(d.get("confidence", 0.4)),
-                   day=int(d.get("day", 0)), origin=list(d.get("origin", [])),
+                   at=at, origin=list(d.get("origin", [])),
                    origin_lost=bool(d.get("origin_lost", False)))
 
 
@@ -64,8 +79,9 @@ class Person:
     note: str = ""                 # why this being is in the world at all
     mind: str = "model"            # model | player
     present: bool = True
-    arrived_on: Optional[int] = None   # None: they were here when it started
-    left_on: Optional[int] = None      # the day they took the road; None: still here
+    arrived_at: Optional[float] = None  # None: they were here when it started
+    left_at: Optional[float] = None     # when they took the road; None: still here
+    reflected_at: Optional[float] = None  # when they last went over a day of their own
     last_action: str = ""
     last_created_day: int = 0
 
@@ -94,7 +110,9 @@ class Person:
             beliefs=[Belief.from_dict(b) for b in d.get("beliefs", [])],
             kind=d.get("kind", "person"), note=d.get("note", ""),
             mind=d.get("mind", "model"), present=bool(d.get("present", True)),
-            arrived_on=d.get("arrived_on"), left_on=d.get("left_on"),
+            arrived_at=_hours(d, "arrived_at", "arrived_on"),
+            left_at=_hours(d, "left_at", "left_on"),
+            reflected_at=d.get("reflected_at"),
             last_action=d.get("last_action", ""),
             last_created_day=int(d.get("last_created_day", 0)),
         )

@@ -11,6 +11,12 @@ from typing import List, Optional, Sequence
 
 from .world.entities import Person
 from .world.memories import Trace
+from .world.store import clock_at, day_of
+
+
+def _when(at: float) -> str:
+    """A moment as the record says it: 'day 68, 02:00'. No name for the hour."""
+    return f"day {day_of(at)}, {clock_at(at)}"
 
 
 def person_block(person: Person) -> str:
@@ -178,9 +184,12 @@ next place - it is the end of their life here. Almost nobody takes it. Take it
 only when their own wants, and what they hold to be true, have been pointing
 down that road for a while, and say so plainly in "because".
 
-People mostly do ordinary things. In the day they work. At night almost
-everyone is at home asleep - if you are not home, you go home; if you are, you
-rest.
+The hour is a fact about the clock, not an instruction about what to do with
+it. It does not mean the same thing to everyone: the same night is nothing for
+one person and everything for another. Read that from who they are, below -
+their card, their mood, what they want - not from what hour it is. Most people
+are home and settled by night, because most people are; that is a fact about
+most people, not a rule this one has to follow.
 
 This town is small. When someone is right there with you, you usually say
 something, even if it is only about the weather - unless you have your own
@@ -199,6 +208,11 @@ Three people, another town, another day - the form, not the content:
   Night. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
     {"because": "tired",
      "action": "rest", "target": ""}
+
+  Night. Sula, who has not slept right since the flood, is at her door.
+  Here: nobody. Can go to: the waterline.
+    {"because": "lying there is worse than walking",
+     "action": "go", "target": "the waterline"}
 
   Afternoon. Carin is on the ridge, where the road goes out. Here: nobody.
   Can go to: the well. Leaving is possible today.
@@ -339,7 +353,7 @@ def direct_user(world, recent) -> str:
         people.append(f"  - {person.name}, {person.occupation or 'no trade'}, "
                       f"at {place.name if place else 'nowhere'}.{wants}")
     record = ["Lately, in the record:"]
-    record += [f"  - day {e.day}, {e.phase}: {e.what}" for e in recent] or ["  nothing."]
+    record += [f"  - {_when(e.at)}: {e.what}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,
@@ -404,7 +418,7 @@ def arrive_user(world, recent) -> str:
             f"{p.name}, {p.occupation}" if p.occupation else p.name
             for p in sorted(gone, key=lambda p: p.name)) + ".")
     record = ["Lately, in the record:"]
-    record += [f"  - day {e.day}: {e.what}" for e in recent] or ["  nothing."]
+    record += [f"  - {_when(e.at)}: {e.what}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,

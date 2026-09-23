@@ -16,7 +16,7 @@ from typing import List, Optional
 from . import agents, config as config_mod, retrieval, schemas, seed
 from .backends import Call, Settings, Transcript, ask, get as get_backend
 from .world import store
-from .world.store import World
+from .world.store import World, clock_at, day_of
 
 DEFAULT_ROOT = Path("world")
 
@@ -29,7 +29,12 @@ def open_world(args) -> World:
 
 
 def transcript_for(world: World) -> Transcript:
-    return Transcript(world.root / "transcript" / f"day{world.day:05d}.jsonl")
+    return Transcript(world.root / "transcript" / f"day{day_of(world.at):05d}.jsonl")
+
+
+def when(at: float) -> str:
+    """A moment, for a person to read: 'day 121, 18:00'."""
+    return f"day {day_of(at)}, {clock_at(at)}"
 
 
 def heading(text: str) -> str:
@@ -72,16 +77,16 @@ def cmd_status(args) -> None:
     gone = [p for p in world.people.values() if not p.present]
     if gone:
         print("  gone: " + ", ".join(
-            f"{p.name} (day {p.left_on})" if p.left_on else p.name
-            for p in sorted(gone, key=lambda p: p.left_on or 0)))
+            f"{p.name} ({when(p.left_at)})" if p.left_at else p.name
+            for p in sorted(gone, key=lambda p: p.left_at or 0)))
     total = 0
     for person in world.people.values():
         store_ = world.traces(person.id)
-        # Somebody who left is counted as they were on the day they went. The
+        # Somebody who left is counted as they were the moment they went. The
         # world has no idea what has happened to them since and will not
         # pretend to by going on fading things nobody here can see.
-        day = world.day if person.present else (person.left_on or world.day)
-        live = [t for t in store_ if not retrieval.dormant(t, day)]
+        at = world.at if person.present else (person.left_at or world.at)
+        live = [t for t in store_ if not retrieval.dormant(t, at)]
         total += len(store_)
         mark = "" if person.present else "  (left)"
         print(f"  {person.name:<8} {len(live)} within reach, "
@@ -96,15 +101,15 @@ def cmd_person(args) -> None:
         sys.exit(f"Nobody here is called {args.name!r}")
     print(heading(f"{person.name}, {person.age}, {person.occupation}"))
     print(f"  {person.card}")
-    day = world.day if person.present else (person.left_on or world.day)
+    at = world.at if person.present else (person.left_at or world.at)
     if not person.present:
-        print(f"\n  Left on day {person.left_on}. What follows is how they stood "
-              f"that day; nothing here has touched it since.")
+        print(f"\n  Left on {when(person.left_at)}. What follows is how they stood "
+              f"then; nothing here has touched it since.")
     else:
         print(f"\n  mood: {person.mood}   at: "
               f"{world.places[person.place].name if person.place in world.places else '-'}")
-    if person.arrived_on:
-        print(f"  came up the road on day {person.arrived_on}")
+    if person.arrived_at:
+        print(f"  came up the road on {when(person.arrived_at)}")
     if person.wants:
         print("  wants: " + "; ".join(person.wants))
     if person.beliefs:
@@ -120,15 +125,15 @@ def cmd_person(args) -> None:
         gone = "  (gone)" if not other.present else ""
         print(f"    {other.name:<8} {tie.note or '-'}{gone}")
     traces = list(world.traces(person.id))
-    within = retrieval.recallable(traces, day, limit=args.limit)
+    within = retrieval.recallable(traces, at, limit=args.limit)
     print(f"\n  memory: {len(traces)} traces, "
-          f"{sum(1 for t in traces if retrieval.dormant(t, day))} out of reach")
+          f"{sum(1 for t in traces if retrieval.dormant(t, at))} out of reach")
     for t in within:
-        print(f"    day {t.day:<5} [{t.feeling}] {t.trace}")
+        print(f"    {when(t.at):<18} [{t.feeling}] {t.trace}")
         if t.means:
             print(f"          ~ {t.means}")
         print(f"          weight {t.salience:.2f}  reach "
-              f"{retrieval.reach(t, day):.2f}  "
+              f"{retrieval.reach(t, at):.2f}  "
               f"tags {', '.join(t.tags) or '-'}")
 
 
@@ -136,7 +141,7 @@ def cmd_timeline(args) -> None:
     world = open_world(args)
     print(heading(f"{world.name}: what happened"))
     for e in world.chronicle.all()[-args.limit:]:
-        print(f"  {e.id}  day {e.day:<5} {e.kind:<12} {e.what}")
+        print(f"  {e.id}  {when(e.at):<18} {e.kind:<12} {e.what}")
 
 
 def cmd_event(args) -> None:
@@ -145,7 +150,7 @@ def cmd_event(args) -> None:
     if event is None:
         sys.exit(f"No event {args.event_id}")
     place = world.places.get(event.where or "")
-    print(heading(f"{event.id} - day {event.day}, {event.kind}, "
+    print(heading(f"{event.id} - {when(event.at)}, {event.kind}, "
                   f"at {place.name if place else '-'}"))
     print(f"  History says:  {event.what}")
     print(f"  tags: {', '.join(event.tags) or '-'}")
@@ -157,8 +162,8 @@ def cmd_event(args) -> None:
                 print(f"    {person.name:<8} - nothing. They were there.")
             continue
         for t in traces:
-            state = ("out of reach" if retrieval.dormant(t, world.day)
-                     else f"reach {retrieval.reach(t, world.day):.2f}")
+            state = ("out of reach" if retrieval.dormant(t, world.at)
+                     else f"reach {retrieval.reach(t, world.at):.2f}")
             print(f"    {person.name:<8} \"{t.trace}\"")
             if t.means:
                 print(f"    {'':<8}   {t.feeling}: {t.means}")
@@ -283,7 +288,7 @@ def _open_live(args):
 
 
 def cmd_tick(args) -> None:
-    """Live N phases now, by hand."""
+    """Live N steps now, by hand."""
     from .tick import tick
 
     world = _open_live(args)
@@ -301,8 +306,8 @@ def cmd_tick(args) -> None:
 
 
 def cmd_catchup(args) -> None:
-    """The scheduled entry point: live whatever phases the wall clock says are owed."""
-    from .tick import owed_phases, settle_clock, tick
+    """The scheduled entry point: live whatever steps the wall clock says are owed."""
+    from .tick import owed_steps, settle_clock, tick
     from .backends import probe
 
     stamp = time.strftime("%Y-%m-%d %H:%M")
@@ -315,18 +320,18 @@ def cmd_catchup(args) -> None:
                 store.save(world)
                 print(f"[{stamp}] clock started for {world.name}")
                 return
-            owed = owed_phases(world.last_tick_at, now, args.hours)
+            owed = owed_steps(world.last_tick_at, now, args.hours)
             if owed == 0:
                 # A heartbeat, so "is the schedule running at all?" can be
                 # answered from the log instead of by waiting six hours.
                 due = world.last_tick_at + args.hours * 3600 - now
-                print(f"[{stamp}] checked; next phase in {due / 3600:.1f}h")
+                print(f"[{stamp}] checked; next step in {due / 3600:.1f}h")
                 return
             config = config_mod.load(world.root)
             ok, message = probe(config["act"])
             if not ok:
                 # The world waits rather than going on without minds.
-                print(f"[{stamp}] {owed} phase(s) owed, but the minds are {message}; "
+                print(f"[{stamp}] {owed} step(s) owed, but the minds are {message}; "
                       f"{world.name} waits")
                 return
             ran = 0
@@ -339,7 +344,7 @@ def cmd_catchup(args) -> None:
             world.last_tick_at = settle_clock(world.last_tick_at, now, ran, owed, args.hours)
             store.save(world)
             if ran < owed:
-                print(f"[{stamp}] {owed - ran} more phase(s) were owed; "
+                print(f"[{stamp}] {owed - ran} more step(s) were owed; "
                       f"{world.name} slept through them")
     except store.Locked as exc:
         print(f"[{stamp}] skipped: {exc}")
@@ -354,7 +359,7 @@ def cmd_news(args) -> None:
         print("  Nothing has happened since you last looked.")
     for e in events:
         place = world.places.get(e.where or "")
-        print(f"\n  day {e.day} {e.phase}, {place.name if place else '-'}")
+        print(f"\n  {when(e.at)}, {place.name if place else '-'}")
         mark = {"happening": "* ", "arrival": "+ ", "departure": "- "}
         print(f"    {mark.get(e.kind, '')}{e.what}")
         for pid in e.present:
@@ -410,13 +415,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("event_id")
     p.set_defaults(func=cmd_remember)
 
-    p = sub.add_parser("tick", help="live N phases now")
+    p = sub.add_parser("tick", help="live N steps of the world now")
     p.add_argument("-n", type=int, default=1)
     p.set_defaults(func=cmd_tick)
 
-    p = sub.add_parser("catchup", help="live the phases the wall clock says are owed")
-    p.add_argument("--max", type=int, default=4, help="most phases to live in one go")
-    p.add_argument("--hours", type=float, default=6.0, help="real hours per phase")
+    p = sub.add_parser("catchup", help="live the steps the wall clock says are owed")
+    p.add_argument("--max", type=int, default=4, help="most steps to live in one go")
+    p.add_argument("--hours", type=float, default=6.0, help="real hours per step")
     p.set_defaults(func=cmd_catchup)
 
     p = sub.add_parser("news", help="what happened since you last looked")

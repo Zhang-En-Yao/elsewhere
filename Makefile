@@ -8,7 +8,7 @@ test:            ## run everything that needs no model
 world:           ## make a world in ./world (needs a reachable model)
 	elsewhere init --world world
 
-tick:            ## live one phase now (TICKS=3 for three)
+tick:            ## live one step now (TICKS=3 for three)
 	elsewhere tick -n $(or $(TICKS),1)
 
 news:            ## what happened since you last looked

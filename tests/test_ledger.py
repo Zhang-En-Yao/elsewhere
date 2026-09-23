@@ -14,9 +14,9 @@ from elsewhere.world.memories import Trace
 
 
 def trace(**kw):
-    base = dict(id="m1", owner="p", day=100, trace="the water rose over the fields",
+    base = dict(id="m1", owner="p", at=100 * 24, trace="the water rose over the fields",
                 means="I was frightened", feeling="fear", salience=0.7,
-                tags=["flood", "town"], place="waterline", last_touched=100)
+                tags=["flood", "town"], place="waterline", touched_at=100 * 24)
     base.update(kw)
     return Trace(**base)
 
@@ -31,12 +31,12 @@ class TestWorldStore(unittest.TestCase):
 
     def test_a_world_survives_being_written_and_read(self):
         world = seed.build(self.root)
-        world.traces("p_eve").add(trace(owner="p_eve", day=world.day))
+        world.traces("p_eve").add(trace(owner="p_eve", at=world.at))
         store.save(world)
 
         back = store.load(self.root)
         self.assertEqual(back.name, world.name)
-        self.assertEqual(back.day, world.day)
+        self.assertEqual(back.at, world.at)
         self.assertEqual(len(back.people), len(world.people))
         self.assertEqual(back.people["p_eve"].card, world.people["p_eve"].card)
         self.assertEqual(len(back.traces("p_eve")), 1)
@@ -64,39 +64,39 @@ class TestWorldStore(unittest.TestCase):
 class TestRetrieval(unittest.TestCase):
     def test_what_mattered_stays_in_reach_for_a_year(self):
         t = trace(salience=0.95)
-        self.assertFalse(retrieval.dormant(t, 100 + 365))
+        self.assertFalse(retrieval.dormant(t, (100 + 365) * 24))
 
     def test_an_ordinary_day_does_not(self):
         t = trace(salience=0.15)
-        self.assertTrue(retrieval.dormant(t, 100 + 120))
+        self.assertTrue(retrieval.dormant(t, (100 + 120) * 24))
 
     def test_only_a_handful_can_be_brought_to_mind(self):
-        traces = [trace(id=f"m{i}", salience=0.5, day=100 - i, last_touched=100 - i)
+        traces = [trace(id=f"m{i}", salience=0.5, at=100 * 24 - i, touched_at=100 * 24 - i)
                   for i in range(20)]
-        got = retrieval.recallable(traces, 100, limit=6)
+        got = retrieval.recallable(traces, 100 * 24, limit=6)
         self.assertEqual(len(got), 6)
         self.assertEqual(got[0].id, "m0")          # freshest first, all else equal
 
     def test_a_cue_pulls_its_own_subject_forward(self):
         plain = trace(id="a", salience=0.5, tags=["garden"])
         cued = trace(id="b", salience=0.4, tags=["flood"])
-        got = retrieval.recallable([plain, cued], 110, cues={"flood"}, limit=2)
+        got = retrieval.recallable([plain, cued], 110 * 24, cues={"flood"}, limit=2)
         self.assertEqual(got[0].id, "b")
 
     def test_something_out_of_reach_can_still_be_pointed_at(self):
         t = trace(salience=0.9, tags=["flood"])
-        day = 100 + 900
-        self.assertTrue(retrieval.dormant(t, day))
-        self.assertIsNone(retrieval.cued_return([t], day, {"harvest"}))
-        self.assertIs(retrieval.cued_return([t], day, {"flood", "town", "waterline"}), t)
+        at = (100 + 900) * 24
+        self.assertTrue(retrieval.dormant(t, at))
+        self.assertIsNone(retrieval.cued_return([t], at, {"harvest"}))
+        self.assertIs(retrieval.cued_return([t], at, {"flood", "town", "waterline"}), t)
 
     def test_rewriting_keeps_the_older_wording(self):
         t = trace()
-        t.rewrite("something about a flood", day=200, feeling="fear")
+        t.rewrite("something about a flood", at=200 * 24, feeling="fear")
         self.assertEqual(t.trace, "something about a flood")
         self.assertEqual(t.history, ["the water rose over the fields"])
         self.assertEqual(t.recalls, 1)
-        self.assertEqual(t.last_touched, 200)
+        self.assertEqual(t.touched_at, 200 * 24)
 
 
 class TestAnswers(unittest.TestCase):
