@@ -12,7 +12,8 @@ from typing import List, Optional, Sequence
 
 from . import prompts, retrieval, schemas
 from .backends import Call, Settings, Transcript, ask, get as get_backend
-from .world.chronicle import (ARRIVAL, DEPARTURE, Event, HAPPENING)
+from .world.chronicle import (Event, PRESENCE_BEGAN, PRESENCE_CHANGES,
+                              PRESENCE_ENDED, WORLD_ACT)
 from .world.entities import Person
 from .world.memories import Trace
 from . import HOURS_PER_DAY
@@ -266,9 +267,9 @@ DIRECTOR_EVERY = HOURS_PER_DAY          # and how often it is asked at all
 DIRECTOR_RECENT_EVENTS = 8
 
 
-def last_happening_at(world) -> Optional[int]:
+def last_world_act_at(world) -> Optional[int]:
     for e in reversed(world.chronicle.all()):
-        if e.category == HAPPENING:
+        if e.category == WORLD_ACT:
             return e.at
     return None
 
@@ -283,7 +284,7 @@ def may_direct(world) -> bool:
     if (world.directed_at is not None
             and world.at - world.directed_at < DIRECTOR_EVERY):
         return False
-    last = last_happening_at(world)
+    last = last_world_act_at(world)
     return last is None or world.at - last >= DIRECTOR_MIN_GAP
 
 
@@ -327,7 +328,7 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         reached = here
         vantage = {pid: f"right there, at {place.name}" for pid in reached}
     return world.record(
-        HAPPENING, what, place=place.id,
+        WORLD_ACT, what, place=place.id,
         involved=[who.id] if who is not None else [],
         reached=reached,
         cues=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:5],
@@ -381,7 +382,7 @@ def may_leave(world, person: Person) -> bool:
         return False
     if sum(1 for p in world.people.values() if p.present) <= TOWN_FLOOR:
         return False
-    last = _last_at_of(world, (DEPARTURE,))
+    last = _last_at_of(world, (PRESENCE_ENDED,))
     return last is None or world.at - last >= DEPARTURE_MIN_GAP
 
 
@@ -408,7 +409,7 @@ def depart(world, person: Person, because: str, config,
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     event = world.record(
-        DEPARTURE,
+        PRESENCE_ENDED,
         f"{person.name} took the road out of {world.name} and did not come back.",
         place=person.place, involved=[person.id], reached=reached,
         cues=["leaving", "road"],
@@ -429,7 +430,7 @@ def _road_anchor(world) -> float:
     that is almost always no.
     """
     moments = [d for d in (world.road_asked_at,
-                           _last_at_of(world, (ARRIVAL, DEPARTURE)))
+                           _last_at_of(world, PRESENCE_CHANGES))
                if d is not None]
     if moments:
         return max(moments)
@@ -440,7 +441,7 @@ def _road_anchor(world) -> float:
 def short_of_somebody(world) -> bool:
     """Has this town lost more people than it has taken in?"""
     lost = sum(1 for p in world.people.values() if not p.present)
-    taken = sum(1 for e in world.chronicle.all() if e.category == ARRIVAL)
+    taken = sum(1 for e in world.chronicle.all() if e.category == PRESENCE_BEGAN)
     return lost > taken
 
 
@@ -529,7 +530,7 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     return world.record(
-        ARRIVAL, said, place=place.id, involved=[person.id], reached=reached,
+        PRESENCE_BEGAN, said, place=place.id, involved=[person.id], reached=reached,
         cues=["arrival", "road", "stranger"],
         data={"why_now": (answer.get("why_now") or "").strip(),
               "from_where": came_from, "person": person.id, "vantage": vantage},

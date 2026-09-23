@@ -76,7 +76,7 @@ class TestDirector(Town):
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.happening.event_id)
         self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")
-        self.assertEqual(event.category, chronicle.HAPPENING)
+        self.assertEqual(event.category, chronicle.WORLD_ACT)
         self.assertEqual([t.owner for t in report.happening.kept], ["p_adam"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):

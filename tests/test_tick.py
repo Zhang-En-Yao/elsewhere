@@ -179,17 +179,24 @@ class TestCategories(unittest.TestCase):
         stub.answers["act|p_adam"] = {"because": "", "action": "talk", "target": "Eve"}
         register(stub)
         tick_mod.tick(world, config())
-        said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
+        said = [e for e in world.chronicle.all() if e.category == chronicle.BEINGS_SPOKE]
         self.assertEqual(len(said), 1)
 
-    def test_every_category_the_engine_gates_on_is_one_it_names(self):
-        # The point of the constants: anything the engine both writes and
-        # later looks for has to come from one place, or a rename breaks a
-        # gate without breaking anything loudly.
+    def test_the_three_kinds_account_for_everything_the_engine_writes(self):
+        # The taxonomy is the point: the world acting on people, a being's
+        # presence starting or stopping, and beings reaching each other. A
+        # fifth category that belongs to none of them is a category nobody
+        # has decided the meaning of yet.
+        world_acts = {chronicle.WORLD_ACT}
+        exchanges = {chronicle.BEINGS_SPOKE}
         self.assertEqual(
-            chronicle.ENGINE_CATEGORIES,
-            {chronicle.HAPPENING, chronicle.ARRIVAL,
-             chronicle.DEPARTURE, chronicle.CONVERSATION})
+            world_acts | chronicle.PRESENCE_CHANGES | exchanges,
+            chronicle.ENGINE_CATEGORIES)
+        self.assertEqual(
+            len(world_acts) + len(chronicle.PRESENCE_CHANGES) + len(exchanges),
+            len(chronicle.ENGINE_CATEGORIES), "the three kinds do not overlap")
+
+    def test_the_names_stay_the_shape_a_string_match_needs(self):
         for name in chronicle.ENGINE_CATEGORIES:
             self.assertEqual(name, name.lower())
             self.assertTrue(name.isalpha(), f"{name!r} is matched by string")

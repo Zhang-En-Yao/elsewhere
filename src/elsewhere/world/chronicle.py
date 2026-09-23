@@ -12,20 +12,46 @@ from pathlib import Path
 from typing import Iterator, List, Optional
 
 
-#: The categories the engine itself matches on. Spelling one of these wrong
-#: raises nothing and breaks nothing loudly - it quietly stops a gate from
-#: ever firing again, which is the only reason they are named rather than
-#: written out at each site.
-HAPPENING = "happening"          # the town decided something happened to it
-ARRIVAL = "arrival"              # somebody came up the road
-DEPARTURE = "departure"          # somebody took it the other way
-CONVERSATION = "conversation"    # something said out loud, and overheard
+# ---------------------------------------------------------------------------
+# What the engine writes, in three kinds. They are not sorted by how large a
+# thing was; they are sorted by what the sentence is predicated on - the
+# world, a being's existence in it, or one being reaching another.
 
-#: Which is not the whole vocabulary, on purpose. A world's own past belongs
-#: to that world - this one has a flood, a gathering and a building, another
-#: would have a fire or a harvest - and none of that needs the engine's
-#: permission to be written down. Only these four carry machinery.
-ENGINE_CATEGORIES = frozenset({HAPPENING, ARRIVAL, DEPARTURE, CONVERSATION})
+#: The world acting on the people in it. Nobody chose it and nobody did it:
+#: the town is asked, about once a day, whether anything befalls it, and the
+#: answer is usually no. The only category that is nobody's doing.
+WORLD_ACT = "happening"
+
+#: A being's presence in the world beginning or ending. These are the only
+#: two that change who there is left to ask anything of, which is why the
+#: engine counts them rather than reading them.
+#:
+#: They are not mirror images, whatever the chronicle makes them look like.
+#: Coming is the world's doing - the road is asked who is on it. Going is the
+#: person's own, answered in `act` like any other thing they decided to do.
+#: What makes them one kind is not who caused them but what they change:
+#: afterwards there is somebody here who was not, or there is not somebody
+#: who was.
+PRESENCE_BEGAN = "arrival"
+PRESENCE_ENDED = "departure"
+
+#: One being reaching another. There is exactly one way to do that here, and
+#: it is words. Standing in the same place as somebody changes what each of
+#: them holds about the other - see tick._meet - but it is not an event and
+#: nothing is written down about it.
+BEINGS_SPOKE = "conversation"
+
+#: The two that the road's arithmetic treats as one question: when did who
+#: is here last change?
+PRESENCE_CHANGES = frozenset({PRESENCE_BEGAN, PRESENCE_ENDED})
+
+#: All four, and not the whole vocabulary, on purpose. A world's own past
+#: belongs to that world - this one has a flood, a gathering and a building,
+#: another would have a fire or a harvest - and none of that needs the
+#: engine's permission to be written down. Only these four carry machinery,
+#: and spelling one wrong raises nothing: it quietly stops a gate from ever
+#: firing again.
+ENGINE_CATEGORIES = frozenset({WORLD_ACT, BEINGS_SPOKE}) | PRESENCE_CHANGES
 
 
 @dataclass

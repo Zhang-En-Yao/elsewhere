@@ -360,8 +360,8 @@ def cmd_news(args) -> None:
     for e in events:
         place = world.places.get(e.place or "")
         print(f"\n  {when(e.at)}, {place.name if place else '-'}")
-        mark = {chronicle.HAPPENING: "* ", chronicle.ARRIVAL: "+ ",
-                chronicle.DEPARTURE: "- "}
+        mark = {chronicle.WORLD_ACT: "* ", chronicle.PRESENCE_BEGAN: "+ ",
+                chronicle.PRESENCE_ENDED: "- "}
         print(f"    {mark.get(e.category, '')}{e.account}")
         for pid in e.reached:
             for t in world.traces(pid).about_event(e.id):
