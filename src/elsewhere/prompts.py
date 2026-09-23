@@ -85,7 +85,13 @@ out loud to someone. Not a lesson and not a moral - nobody says "a reminder of
 the fragility of life" about their own week. Plenty of people make nothing of
 things; leave it empty then.
 
-feeling, tags: one feeling; two to four short tags for what it was about.
+feeling: what it feels like to them, in their own words. Usually one word,
+and not necessarily a common one - a feeling nobody has a tidy name for is
+still the feeling they had, and "relief that came out wrong" is a better
+answer than the nearest word off a list. Empty, or "none", when there is
+nothing.
+
+tags: two to four short tags for what it was about.
 
 weight, last: how much of that survives in this person.
   nothing  - it is gone by tomorrow
@@ -486,7 +492,8 @@ person, never more detail than they had.
 
 trace: the memory as it now stands, in their own words, one sentence or less.
 means: what it means to them now, or empty.
-feeling: the feeling that comes with it now.
+feeling: what comes with it now, in their own words. It does not have to be
+what it was, and it does not have to be a word anyone else would use.
 
 Two memories, another town - the form, not the content:
 

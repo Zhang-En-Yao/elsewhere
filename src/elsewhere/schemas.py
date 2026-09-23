@@ -14,10 +14,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-FEELINGS = [
-    "fear", "grief", "relief", "warmth", "unease", "awe", "anger",
-    "resolve", "shame", "tenderness", "boredom", "hope", "none",
-]
+# There is no list of feelings. There was one - thirteen words and "none" -
+# and the engine never did anything with it: a feeling is stored, printed,
+# and handed back to a mind as text, and not one line anywhere compares two
+# of them or sorts by one. It was a vocabulary a person had to squeeze into
+# for the engine's convenience, and the engine had no convenience in it.
+#
+# Compare `mood` in REFLECT, which has never been constrained and is a word
+# somebody picked for how they are going to sleep. Both are the same kind of
+# thing. The unconstrained one was right.
 
 # A small ladder instead of a float: a 4B model has no idea what 0.73 means,
 # and neither does a person. The engine maps these onto numbers itself.
@@ -41,7 +46,7 @@ PERCEIVE = {
     "properties": {
         "trace": {"type": "string"},
         "means": {"type": "string"},
-        "feeling": {"type": "string", "enum": FEELINGS},
+        "feeling": {"type": "string"},
         "tags": {"type": "array", "items": {"type": "string"}},
         "weight": {"type": "string", "enum": WEIGHTS},
     },
@@ -82,7 +87,7 @@ RECALL = {
     "properties": {
         "trace": {"type": "string"},
         "means": {"type": "string"},
-        "feeling": {"type": "string", "enum": FEELINGS},
+        "feeling": {"type": "string"},
     },
     "required": ["trace"],
 }

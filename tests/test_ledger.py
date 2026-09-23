@@ -141,6 +141,19 @@ class TestAnswers(unittest.TestCase):
             self.assertTrue(rows[0]["ok"])
             self.assertEqual(rows[0]["about"], "p_eve")
 
+    def test_a_feeling_is_not_chosen_from_a_list(self):
+        # The engine never compares two feelings or sorts by one - it stores
+        # them, prints them, and hands them back as text. A vocabulary here
+        # would be a constraint on a person for nobody's benefit.
+        for name in ("perceive", "recall"):
+            self.assertNotIn("enum", schemas.BY_NAME[name]["properties"]["feeling"],
+                             f"{name} is telling people what they may feel")
+        clean, complaint = schemas.validate(
+            "perceive", {"trace": "the sound of it", "weight": "stays",
+                         "feeling": "something close to relief, but not quite"})
+        self.assertIsNone(complaint)
+        self.assertEqual(clean["feeling"], "something close to relief, but not quite")
+
     def test_the_weight_ladder_is_what_the_engine_sorts_by(self):
         self.assertGreater(schemas.weight_to_salience("marks"),
                            schemas.weight_to_salience("stays"))
