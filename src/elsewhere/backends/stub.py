@@ -18,7 +18,7 @@ from . import Call
 
 DEFAULTS: Dict[str, dict] = {
     "perceive": {"weight": "nothing"},
-    "act": {"because": "", "action": "stay", "target": ""},
+    "act": {"because": "", "doing": "", "action": "stay", "target": ""},
     "speak": {"line": "..."},
     "recall": {"trace": "", "changed": False},
     "reflect": {},

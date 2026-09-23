@@ -231,8 +231,6 @@ def _name(world, pid: str) -> str:
 
 
 def print_report(world, report) -> None:
-    from .tick import LAST_ACTION
-
     print(f"\n{report.label}")
     if report.occurrence is not None:
         h = report.occurrence
@@ -257,7 +255,7 @@ def print_report(world, report) -> None:
         person = world.people[pid]
         if pid in talked:
             continue
-        what = person.last_action or LAST_ACTION.get(d.action, d.action)
+        what = person.last_action or d.doing or d.action
         why = f'  - "{d.because}"' if d.because else ("  (no answer)" if not d.answered else "")
         print(f"  {person.name:<7} {what:<34}{why}")
     for t in report.talks:

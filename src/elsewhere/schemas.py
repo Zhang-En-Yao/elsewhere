@@ -28,14 +28,23 @@ from typing import Any, Dict, List, Optional, Tuple
 # and neither does a person. The engine maps these onto numbers itself.
 WEIGHTS = ["nothing", "faint", "ordinary", "stays", "marks"]
 
-# Kept small on purpose: every extra verb is another way for a 3.8B model to
-# pick something that means nothing. 'make' and 'tend' come back with art (P5).
-ACTIONS = ["stay", "go", "talk", "work", "rest"]
+# Three, because the engine can only do three things about an answer: move
+# somebody, put two people in a conversation, or take somebody out of the
+# world. There used to be five - 'work' and 'rest' were in here too - and
+# the engine did nothing with either of them except print a different canned
+# sentence. They were a vocabulary a life had to be squeezed into so that the
+# display could say "worked" instead of "rested".
+#
+# What somebody is doing is not the engine's to enumerate. It goes in `doing`,
+# in their words, and 'work' and 'rest' are two of the infinite things it can
+# say. 'make' and 'tend' come back with art (P5), because those two do change
+# the world and so the engine does have to know them apart.
+ACTIONS = ["stay", "go", "talk"]
 
 # Not a sixth everyday verb. Leaving is added to the grammar only where the
 # road actually goes out and only when the town can spare somebody, so a model
 # that picks it has been standing somewhere that means it. See agents.may_leave.
-LEAVE = "leave"
+LEAVE = "leave"      # a fourth, offered only where the road goes out
 
 # Order matters under a grammar: keys are generated in this order, so a model
 # that is asked "stuck?" first commits to an answer in one token, before it has
@@ -55,12 +64,16 @@ PERCEIVE = {
     "required": [],
 }
 
-# Reason first, verb second, object last - the same lesson as PERCEIVE: under a
-# grammar the first key is decided before anything else is written.
+# Reason, then what it looks like, then the verb - the same lesson as
+# PERCEIVE: under a grammar the first key is committed before anything else
+# is written, so the description comes before the classification rather than
+# after it. By the time a verb is picked they have already said what they are
+# doing, and the verb is only which of three things the world must do about it.
 ACT = {
     "type": "object",
     "properties": {
         "because": {"type": "string"},
+        "doing": {"type": "string"},
         # Leaving is in the vocabulary here and taken out again by act_grammar
         # wherever the road does not go. The inbound check stays lenient, the
         # way it is for every other field; the engine's own gate is what

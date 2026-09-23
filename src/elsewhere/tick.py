@@ -130,10 +130,6 @@ def converse(world, speaker: Person, listener: Person, config,
                 drawn.id if drawn else None, kept, reshaped)
 
 
-LAST_ACTION = {"stay": "stayed where they were", "work": "worked",
-               "rest": "rested"}
-
-
 def tick(world, config, transcript: Optional[Transcript] = None,
          hours: float = STEP_HOURS) -> TickReport:
     """Live one step of the world."""
@@ -178,8 +174,10 @@ def tick(world, config, transcript: Optional[Transcript] = None,
             person.place = d.target
             person.last_action = f"walked to {world.places[d.target].name}"
             report.moves.append((person.id, before, d.target))
-        elif d.action in LAST_ACTION:
-            person.last_action = LAST_ACTION[d.action]
+        elif d.action != "talk":
+            # Nothing moved, so what this looked like is whatever they said it
+            # looked like. The engine has nothing to add and does not try.
+            person.last_action = d.doing or "stayed where they were"
 
     # 3. Conversations, among people still in the same place.
     minds = [p for p in minds if p.present]

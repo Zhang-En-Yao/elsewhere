@@ -148,6 +148,7 @@ class Decision:
     action: str = "stay"
     target: Optional[str] = None      # place id or person id, resolved
     because: str = ""
+    doing: str = ""                   # what it looks like, in their words
     answered: bool = True             # False when the mind gave nothing usable
 
 
@@ -196,6 +197,7 @@ def act(world, person: Person, config,
     action = answer.get("action", "stay")
     name = (answer.get("target") or "").strip()
     because = (answer.get("because") or "").strip()
+    doing = (answer.get("doing") or "").strip()
     target = None
     if action == "go":
         match = next((p for p in reachable if p.name == name), None)
@@ -210,7 +212,7 @@ def act(world, person: Person, config,
         # Likewise: nobody walks out of the world from somewhere the road
         # does not go, however the answer got here.
         action = "stay"
-    return Decision(person.id, action, target, because)
+    return Decision(person.id, action, target, because, doing)
 
 
 # --------------------------------------------------------------------------

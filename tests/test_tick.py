@@ -11,14 +11,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import cli, seed, tick as tick_mod
+from elsewhere import cli, schemas, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle, store
 from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
-STAY = {"because": "", "action": "stay", "target": ""}
+STAY = {"because": "", "doing": "", "action": "stay", "target": ""}
 
 
 def config():
@@ -161,6 +161,31 @@ class TestConversation(TownTest):
         tie = self.world.people["p_adam"].ties["p_eve"]
         self.assertEqual(tie.last_seen_at, self.world.at)
         self.assertGreater(tie.closeness, before)
+
+
+class TestStayingPut(TownTest):
+    """What somebody is doing is theirs to say, not the engine's to enumerate."""
+
+    def test_the_verbs_are_only_what_the_engine_can_resolve(self):
+        # Move somebody, put two in a conversation, take one out of the world.
+        # Anything else is staying put, and what that looks like is free text.
+        self.assertEqual(set(schemas.ACTIONS), {"stay", "go", "talk"})
+        self.assertNotIn("enum", schemas.ACT["properties"]["doing"])
+
+    def test_staying_put_is_described_rather_than_categorised(self):
+        self.stub.answers["act|p_eve"] = {
+            "because": "nothing I could name",
+            "doing": "sitting in the doorway with the seed trays, not sorting them",
+            "action": "stay", "target": ""}
+        tick_mod.tick(self.world, config())
+        self.assertEqual(
+            self.world.people["p_eve"].last_action,
+            "sitting in the doorway with the seed trays, not sorting them")
+
+    def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
+        tick_mod.tick(self.world, config())      # the stub's doing is ""
+        self.assertEqual(self.world.people["p_eve"].last_action,
+                         "stayed where they were")
 
 
 class TestCategories(unittest.TestCase):

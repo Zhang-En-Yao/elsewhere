@@ -174,15 +174,19 @@ the next few hours. You are not narrating and not explaining yourself to anyone.
 because: first, in a few words and in your own voice, what is pulling at you
 right now - a want, a worry, tiredness, someone you have been meaning to see.
 
-action: then one of
-  stay  - remain where you are, doing nothing in particular
+doing: then what you are actually doing, in your own words and in the
+present - mending the nets, sitting with the door open, not sleeping, walking
+because lying there is worse. This is not chosen from anything. Most of a life
+is here, and most of it is ordinary.
+
+action: then which of three things the world has to do about it. There are
+only three because there are only three things it can do.
+  stay  - nothing moves; whatever you said in "doing" is what it looks like
   go    - walk to one of the places you can reach from here (target: the place)
   talk  - speak with someone who is here right now (target: their name)
-  work  - get on with your trade
-  rest  - sleep, or sit and do nothing
 
 target: the place or the person, exactly as written in the options; empty for
-stay, work and rest.
+stay.
 
 Some days one more verb is there: leave. It only ever appears when this person
 is standing where the road goes out of the town, and it is not a walk to the
@@ -201,23 +205,27 @@ This town is small. When someone is right there with you, you usually say
 something, even if it is only about the weather - unless you have your own
 reason not to, and then that reason is your "because".
 
-Three people, another town, another day - the form, not the content:
+Four people, another town, another day - the form, not the content:
 
   Morning. Mira is at her door. Here: nobody. Can go to: the ford, the well.
     {"because": "the children arrive soon and the step needs scrubbing",
-     "action": "work", "target": ""}
+     "doing": "scrubbing the step, badly, because there is no time",
+     "action": "stay", "target": ""}
 
   Afternoon. Oskar is at the ford. Here: Mira. Can go to: the market.
     {"because": "she saw the cart go over; I want to know what she told the reeve",
+     "doing": "working round to asking her about it",
      "action": "talk", "target": "Mira"}
 
   Night. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
     {"because": "tired",
-     "action": "rest", "target": ""}
+     "doing": "asleep in the chair before he gets as far as the bed",
+     "action": "stay", "target": ""}
 
   Night. Sula, who has not slept right since the flood, is at her door.
   Here: nobody. Can go to: the waterline.
     {"because": "lying there is worse than walking",
+     "doing": "going down to look at the water, which she knows does not help",
      "action": "go", "target": "the waterline"}
 
   Afternoon. Carin is on the ridge, where the road goes out. Here: nobody.

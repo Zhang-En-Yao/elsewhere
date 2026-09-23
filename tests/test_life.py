@@ -14,7 +14,7 @@ from elsewhere.world import chronicle
 from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
-STAY = {"because": "", "action": "stay", "target": ""}
+STAY = {"because": "", "doing": "", "action": "stay", "target": ""}
 QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
          "reach": "the people there", "tags": [], "happens": False}
 
