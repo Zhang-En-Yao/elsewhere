@@ -15,7 +15,7 @@ from typing import List, Optional
 
 from . import agents, config as config_mod, retrieval, schemas, seed
 from .backends import Call, Settings, Transcript, ask, get as get_backend
-from .world import store
+from .world import chronicle, store
 from .world.store import World, clock_at, day_of
 
 DEFAULT_ROOT = Path("world")
@@ -360,7 +360,8 @@ def cmd_news(args) -> None:
     for e in events:
         place = world.places.get(e.place or "")
         print(f"\n  {when(e.at)}, {place.name if place else '-'}")
-        mark = {"happening": "* ", "arrival": "+ ", "departure": "- "}
+        mark = {chronicle.HAPPENING: "* ", chronicle.ARRIVAL: "+ ",
+                chronicle.DEPARTURE: "- "}
         print(f"    {mark.get(e.category, '')}{e.account}")
         for pid in e.reached:
             for t in world.traces(pid).about_event(e.id):

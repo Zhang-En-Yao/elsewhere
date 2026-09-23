@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from elsewhere import agents, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
+from elsewhere.world import chronicle
 from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
@@ -75,7 +76,7 @@ class TestDirector(Town):
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.happening.event_id)
         self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")
-        self.assertEqual(event.category, "happening")
+        self.assertEqual(event.category, chronicle.HAPPENING)
         self.assertEqual([t.owner for t in report.happening.kept], ["p_adam"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):

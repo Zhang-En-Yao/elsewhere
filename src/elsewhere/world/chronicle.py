@@ -12,11 +12,28 @@ from pathlib import Path
 from typing import Iterator, List, Optional
 
 
+#: The categories the engine itself matches on. Spelling one of these wrong
+#: raises nothing and breaks nothing loudly - it quietly stops a gate from
+#: ever firing again, which is the only reason they are named rather than
+#: written out at each site.
+HAPPENING = "happening"          # the town decided something happened to it
+ARRIVAL = "arrival"              # somebody came up the road
+DEPARTURE = "departure"          # somebody took it the other way
+CONVERSATION = "conversation"    # something said out loud, and overheard
+
+#: Which is not the whole vocabulary, on purpose. A world's own past belongs
+#: to that world - this one has a flood, a gathering and a building, another
+#: would have a fire or a harvest - and none of that needs the engine's
+#: permission to be written down. Only these four carry machinery.
+ENGINE_CATEGORIES = frozenset({HAPPENING, ARRIVAL, DEPARTURE, CONVERSATION})
+
+
 @dataclass
 class Event:
     id: str
     at: float                      # hours into the world
-    category: str                  # flood | conversation | arrival | departure | ...
+    category: str                  # one of ENGINE_CATEGORIES, or whatever this
+                                   # world calls a thing that happened in it
     account: str                   # one sentence, in the chronicle's voice and
                                    # nobody else's: what anyone would agree happened
     place: Optional[str] = None

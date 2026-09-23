@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Tuple
 
 from . import agents, schemas
 from .backends import Transcript
+from .world.chronicle import CONVERSATION
 from .world.entities import Person
 from .world.memories import Trace
 
@@ -98,7 +99,7 @@ def converse(world, speaker: Person, listener: Person, config,
                      else f"nearby, within earshot of {speaker.name} and {listener.name}")
                for pid in here if pid != speaker.id}
     event = world.record(
-        "conversation",
+        CONVERSATION,
         f'{speaker.name} said to {listener.name}: "{line}"',
         place=speaker.place,
         involved=[speaker.id, listener.id],

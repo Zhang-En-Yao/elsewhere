@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from elsewhere import cli, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
-from elsewhere.world import store
+from elsewhere.world import chronicle, store
 from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
@@ -161,6 +161,38 @@ class TestConversation(TownTest):
         tie = self.world.people["p_adam"].ties["p_eve"]
         self.assertEqual(tie.last_seen_at, self.world.at)
         self.assertGreater(tie.closeness, before)
+
+
+class TestCategories(unittest.TestCase):
+    """The engine's categories are matched by string, and a typo is silent."""
+
+    def test_a_conversation_is_recorded_under_the_name_the_engine_knows(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        world = seed.build(Path(tmp.name) / "world")
+        for pid in ("p_adam", "p_eve"):
+            world.people[pid].place = "shelter"
+        stub = StubBackend({"act": STAY, "perceive": {"weight": "nothing"},
+                            "direct": {"happens": False}, "reflect": {},
+                            "arrive": {"comes": False},
+                            "speak": {"about": "nothing in particular", "line": "Cold."}})
+        stub.answers["act|p_adam"] = {"because": "", "action": "talk", "target": "Eve"}
+        register(stub)
+        tick_mod.tick(world, config())
+        said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
+        self.assertEqual(len(said), 1)
+
+    def test_every_category_the_engine_gates_on_is_one_it_names(self):
+        # The point of the constants: anything the engine both writes and
+        # later looks for has to come from one place, or a rename breaks a
+        # gate without breaking anything loudly.
+        self.assertEqual(
+            chronicle.ENGINE_CATEGORIES,
+            {chronicle.HAPPENING, chronicle.ARRIVAL,
+             chronicle.DEPARTURE, chronicle.CONVERSATION})
+        for name in chronicle.ENGINE_CATEGORIES:
+            self.assertEqual(name, name.lower())
+            self.assertTrue(name.isalpha(), f"{name!r} is matched by string")
 
 
 class TestOwedTime(unittest.TestCase):

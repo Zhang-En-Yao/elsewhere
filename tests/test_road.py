@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from elsewhere import agents, cli, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
+from elsewhere.world import chronicle
 from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
@@ -129,7 +130,7 @@ class TestGoing(Road):
     def test_the_whole_town_hears_it(self):
         report = self.send_lilith_away()
         event = self.world.chronicle.get(report.departures[0].event_id)
-        self.assertEqual(event.category, "departure")
+        self.assertEqual(event.category, chronicle.DEPARTURE)
         self.assertEqual(sorted(event.reached), sorted(self.world.people))
         eve = next(c for c in self.calls("perceive") if c.about == "p_eve")
         self.assertIn("word of it reached you", eve.user)
@@ -229,7 +230,7 @@ class TestComing(Road):
         self.assertEqual(tam.home, "", "a newcomer has nowhere of their own")
 
         event = self.world.chronicle.get(report.arrival.event_id)
-        self.assertEqual(event.category, "arrival")
+        self.assertEqual(event.category, chronicle.ARRIVAL)
         self.assertEqual(event.involved, ["p_tam"])
         self.assertIn("beyond the ridge", event.account)
 
