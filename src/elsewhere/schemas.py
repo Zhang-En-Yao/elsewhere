@@ -222,10 +222,6 @@ def validate(name: str, data: Any) -> Tuple[Optional[dict], Optional[str]]:
     return clean, None
 
 
-def required_for(name: str) -> List[str]:
-    return list(BY_NAME[name].get("required", []))
-
-
 def grammar(name: str) -> dict:
     """The schema as handed to a decoder: every field required.
 

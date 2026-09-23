@@ -152,7 +152,7 @@ class TestGoing(Road):
     def test_and_so_does_what_everyone_wrote_about_her(self):
         self.send_lilith_away()
         eve = self.world.people["p_eve"]
-        self.assertEqual(eve.ties["p_lilith"].note,
+        self.assertEqual(eve.regards["p_lilith"].account,
                          "Young. Always about to go somewhere.")
 
     def test_whoever_went_to_find_her_finds_the_road(self):
@@ -256,8 +256,8 @@ class TestComing(Road):
         self.stub.set("arrive", SOMEBODY)
         self.after_a_gap()
         tam = self.world.person_by_name("Tam")
-        self.assertEqual(tam.ties, {})
-        self.assertEqual(self.world.people["p_eve"].ties.get("p_tam"), None)
+        self.assertEqual(tam.regards, {})
+        self.assertEqual(self.world.people["p_eve"].regards.get("p_tam"), None)
 
     def test_the_road_is_told_who_is_missing(self):
         self.send_lilith_away()

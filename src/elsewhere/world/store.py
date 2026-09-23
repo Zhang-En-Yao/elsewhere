@@ -191,12 +191,14 @@ def load(root) -> World:
     if schema > SCHEMA_VERSION:
         raise ValueError(f"{root} was written by a newer Elsewhere")
     if schema < SCHEMA_VERSION:
-        # There is no conversion, on purpose. A world that kept time as whole
-        # days and named quarters of them is not this world, and pretending
-        # otherwise would silently put every memory at midnight.
+        # There is no conversion, on purpose. Each bump here is a world that
+        # worked differently - schema 3 kept time as whole days and named
+        # quarters of them, schema 4 scored how close two people were - and
+        # filling in the difference would silently invent history nobody
+        # lived. Worlds that old are read as a record, not resumed.
         raise ValueError(
-            f"{root} was written by Elsewhere schema {schema}, which kept time "
-            f"differently. This one cannot read it.")
+            f"{root} was written by Elsewhere schema {schema}, which was a "
+            f"differently made world. This one cannot read it.")
     world = World(
         root=root, name=meta.get("name", "Elsewhere"), at=float(meta["at"]),
         counters=dict(meta.get("counters", {})),

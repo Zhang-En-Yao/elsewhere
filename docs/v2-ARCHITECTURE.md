@@ -40,12 +40,12 @@ speaker's.
 | file | what it owns |
 | --- | --- |
 | [`world/chronicle.py`](../src/elsewhere/world/chronicle.py) | `Event`, `Chronicle` — the one thing that is true |
-| [`world/entities.py`](../src/elsewhere/world/entities.py) | `Person`, `Place`, `Tie` (one-sided relationship note), `Belief` |
+| [`world/entities.py`](../src/elsewhere/world/entities.py) | `Person`, `Place`, `Regard` (one person's account of another, one-way), `Belief` |
 | [`world/memories.py`](../src/elsewhere/world/memories.py) | `Trace`, `TraceStore` |
 | [`world/store.py`](../src/elsewhere/world/store.py) | `World`, save/load, `tick_lock`, the calendar (`season_of`, phases) |
 | [`schemas.py`](../src/elsewhere/schemas.py) | the seven answer shapes, used both as a decoding grammar and as an inbound check |
 | [`prompts.py`](../src/elsewhere/prompts.py) | the system/user prompt text for each call site |
-| [`retrieval.py`](../src/elsewhere/retrieval.py) | `reach`/`hold`/`dormant`/`recallable` — the one judgement the engine keeps for itself |
+| [`retrieval.py`](../src/elsewhere/retrieval.py) | `reach`/`hold`/`dormant`/`recallable`/`on_faith` — the one judgement the engine keeps for itself |
 | [`agents.py`](../src/elsewhere/agents.py) | the seven call sites: `perceive`, `act`, `speak`, `recall`, `reflect`, `direct`, `arrive`; plus the road (`may_leave`, `depart`, `may_arrive`, `arrive`) |
 | [`tick.py`](../src/elsewhere/tick.py) | one phase, in order; `owed_phases`/`settle_clock` for `catchup` |
 | [`config.py`](../src/elsewhere/config.py) | which backend and model answers which call site |
@@ -181,10 +181,10 @@ constants only gate whether the question is even on the table today.
    memory of what they drew on, and every listener present gets their own
    `perceive` of the exchange — the same machinery as perceiving an event,
    because a sentence someone hears is one.
-5. **Night only** — whoever's day left something is asked `reflect`; whoever
-   is left over just has their beliefs' `origin_lost` flags refreshed
-   (`agents.refresh_origins`), since a trace a belief pointed at may have
-   gone dormant without anyone reflecting today.
+5. **Night only** — whoever's day left something is asked `reflect`. Nothing
+   is done for whoever is left over: whether a belief's origins are still in
+   reach is asked when someone looks (`retrieval.on_faith`), not kept as a
+   flag that has to be refreshed.
 
 `elsewhere tick -n` calls this directly, `n` times. `elsewhere catchup` is the
 scheduled entry point: `tick.owed_phases` works out how many phases the wall

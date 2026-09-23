@@ -114,16 +114,18 @@ def cmd_person(args) -> None:
         print("  wants: " + "; ".join(person.wants))
     if person.beliefs:
         print("\n  holds to be true")
+        store = world.traces(person.id)
         for b in sorted(person.beliefs, key=lambda b: -b.confidence):
-            lost = "  (cannot say why any more)" if b.origin_lost else ""
-            print(f"    [{b.confidence:.2f}] {b.text}{lost}")
+            lost = ("  (cannot say why any more)"
+                    if retrieval.on_faith(b, store, at) else "")
+            print(f"    [{b.confidence:.2f}] {b.belief}{lost}")
     known = [(world.people[i], t) for i, t in
-             sorted(person.ties.items(), key=lambda kv: -kv[1].closeness)
+             sorted(person.regards.items(), key=lambda kv: -kv[1].last_seen_at)
              if i in world.people]
     print("\n  who they know" if known else "\n  they know nobody here yet")
-    for other, tie in known:
+    for other, regard in known:
         gone = "  (gone)" if not other.present else ""
-        print(f"    {other.name:<8} {tie.note or '-'}{gone}")
+        print(f"    {other.name:<8} {regard.account or '-'}{gone}")
     traces = list(world.traces(person.id))
     within = retrieval.recallable(traces, at, limit=args.limit)
     print(f"\n  memory: {len(traces)} traces, "

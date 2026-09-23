@@ -25,7 +25,6 @@ from .world.memories import Trace
 #: this is the grain of the simulation - not a named part of the day, just how
 #: far the clock moves before anybody is asked anything again.
 STEP_HOURS = 6.0
-CLOSENESS_PER_MEETING = 0.02      # bookkeeping for retrieval, not a feeling
 
 
 @dataclass
@@ -34,7 +33,6 @@ class Talk:
     listener: str
     line: str
     event_id: str
-    drawn_on: Optional[str] = None
     kept: List[Trace] = field(default_factory=list)
     reshaped: Optional[Tuple[str, str]] = None      # (was, now) if the telling changed it
 
@@ -77,10 +75,9 @@ class TickReport:
 
 
 def _meet(world, a: Person, b: Person) -> None:
+    """Both of them now know when this was. Nothing else is inferred from it."""
     for x, y in ((a, b), (b, a)):
-        tie = x.tie(y.id)
-        tie.last_seen_at = world.at
-        tie.closeness = min(1.0, tie.closeness + CLOSENESS_PER_MEETING)
+        x.regard(y.id).last_seen_at = world.at
 
 
 def converse(world, speaker: Person, listener: Person, config,
@@ -126,8 +123,7 @@ def converse(world, speaker: Person, listener: Person, config,
         trace = agents.perceive(world, world.people[pid], event, config, transcript)
         if trace is not None:
             kept.append(trace)
-    return Talk(speaker.id, listener.id, line, event.id,
-                drawn.id if drawn else None, kept, reshaped)
+    return Talk(speaker.id, listener.id, line, event.id, kept, reshaped)
 
 
 def tick(world, config, transcript: Optional[Transcript] = None,
@@ -209,8 +205,6 @@ def tick(world, config, transcript: Optional[Transcript] = None,
         answer = agents.reflect(world, person, config, transcript)
         if answer is not None:
             report.reflections[person.id] = answer
-        else:
-            agents.refresh_origins(world, person)
 
     return report
 

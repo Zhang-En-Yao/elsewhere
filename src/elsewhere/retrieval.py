@@ -13,6 +13,10 @@ So this file does three things and no more:
   * choose the handful that go into the prompt, under a fixed budget
   * decide which ones have sunk below reach, and can only come back if
     something in the world points straight at them
+
+The last of those is also asked about beliefs - whether the memories a belief
+grew out of are still within reach - which is the same judgement, not a
+fourth one.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import math
 from typing import Iterable, List, Optional, Sequence, Set
 
 from . import HOURS_PER_DAY
+from .world.entities import Belief
 from .world.memories import Trace
 
 HALF_LIFE = 45.0          # days, before the hold of an intense memory is applied
@@ -51,6 +56,23 @@ def reach(trace: Trace, at: float) -> float:
 
 def dormant(trace: Trace, at: float) -> bool:
     return reach(trace, at) < FLOOR
+
+
+def on_faith(belief: Belief, store, at: float) -> bool:
+    """Whether this is now held for no reason they can still reach.
+
+    They believe it as firmly as they ever did; what has gone is the memory
+    it grew out of. Asked rather than stored, because the answer is only ever
+    a fact about right now - and a belief can stop being held on faith, if
+    something in the world points back at where it came from.
+
+    A belief that never recorded an origin is not counted: nothing was lost,
+    it was simply never written down.
+    """
+    if not belief.origin:
+        return False
+    return not any(t is not None and not dormant(t, at)
+                   for t in (store.get(i) for i in belief.origin))
 
 
 def relevance(trace: Trace, cues: Set[str]) -> float:

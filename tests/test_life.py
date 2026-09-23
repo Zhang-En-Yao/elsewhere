@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import agents, seed, tick as tick_mod
+from elsewhere import agents, retrieval, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle
@@ -166,7 +166,7 @@ class TestReflect(Town):
                                   "belief_from": "1", "want": "go before winter", "mood": "restless"})
         self.reckoning()
         lilith = self.world.people["p_lilith"]
-        belief = next(b for b in lilith.beliefs if "leave" in b.text)
+        belief = next(b for b in lilith.beliefs if "leave" in b.belief)
         self.assertEqual(belief.origin, ["mem9100"])
         self.assertEqual(lilith.wants[0], "go before winter")
         self.assertEqual(lilith.mood, "restless")
@@ -187,9 +187,9 @@ class TestReflect(Town):
         self.reckoning()
 
         beliefs = [b for b in self.world.people["p_lilith"].beliefs
-                   if "leave" in b.text.lower()]
+                   if "leave" in b.belief.lower()]
         self.assertEqual(len(beliefs), 1)
-        self.assertEqual(beliefs[0].text, "Nobody here will ever leave", "the first wording stays")
+        self.assertEqual(beliefs[0].belief, "Nobody here will ever leave", "the first wording stays")
         self.assertGreater(beliefs[0].confidence, 0.5)
         self.assertEqual(beliefs[0].origin, ["mem9100", "mem9101"])
 
@@ -200,9 +200,9 @@ class TestReflect(Town):
         lilith = self.world.people["p_lilith"]
         self.today.salience = 0.15            # it did not, in the end, weigh much
         self.world.at += 400 * 24
-        agents.refresh_origins(self.world, lilith)
-        belief = next(b for b in lilith.beliefs if "leave" in b.text)
-        self.assertTrue(belief.origin_lost)
+        belief = next(b for b in lilith.beliefs if "leave" in b.belief)
+        self.assertTrue(retrieval.on_faith(belief, self.world.traces("p_lilith"),
+                                           self.world.at))
         self.assertIn(belief, lilith.beliefs, "and she still holds it")
 
 

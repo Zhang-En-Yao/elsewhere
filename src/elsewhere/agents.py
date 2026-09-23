@@ -78,6 +78,7 @@ def perceive(world, person: Person, event: Event, config,
             what_happened=event.account,
             where=place.name if place else "nowhere in particular",
             when=f"{clock_at(event.at)} in {season_at(event.at)}",
+            at=world.at,
             vantage=vantage(world, person, event),
             others=[world.people[pid] for pid in event.reached
                     if pid != person.id and pid in world.people],
@@ -181,7 +182,7 @@ def act(world, person: Person, config,
     call = Call(
         name="act",
         system=prompts.ACT_SYSTEM,
-        user=prompts.act_user(person, when_label(world), place, others,
+        user=prompts.act_user(person, when_label(world), world.at, place, others,
                               [p.name for p in reachable], context,
                               home_name=(world.places[person.home].name
                                          if person.home in world.places else ""),
@@ -576,17 +577,6 @@ def _same_belief(a: str, b: str) -> bool:
     return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.5
 
 
-def refresh_origins(world, person: Person) -> None:
-    """Bookkeeping: can this person still reach the memories a belief came from?"""
-    store = world.traces(person.id)
-    for belief in person.beliefs:
-        if not belief.origin:
-            continue
-        alive = [t for t in (store.get(i) for i in belief.origin)
-                 if t is not None and not retrieval.dormant(t, world.at)]
-        belief.origin_lost = not alive
-
-
 def reflect(world, person: Person, config,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
     """What this person is left with, after a day of their own."""
@@ -615,7 +605,7 @@ def reflect(world, person: Person, config,
     if text:
         from .world.entities import Belief
 
-        existing = next((b for b in person.beliefs if _same_belief(b.text, text)), None)
+        existing = next((b for b in person.beliefs if _same_belief(b.belief, text)), None)
         if existing is not None:
             # Holding it again: the old wording stays, the grip tightens.
             existing.confidence = min(0.95, existing.confidence + 0.1)
@@ -623,8 +613,7 @@ def reflect(world, person: Person, config,
                 if trace_id not in existing.origin and len(existing.origin) < 3:
                     existing.origin.append(trace_id)
         else:
-            person.beliefs.append(Belief(text=text, confidence=0.5, at=world.at,
-                                         origin=origin))
+            person.beliefs.append(Belief(belief=text, confidence=0.5, origin=origin))
             if len(person.beliefs) > MAX_BELIEFS:
                 person.beliefs.sort(key=lambda b: -b.confidence)
                 del person.beliefs[MAX_BELIEFS:]
@@ -635,7 +624,6 @@ def reflect(world, person: Person, config,
     mood = (answer.get("mood") or "").strip().lower()
     if mood and len(mood.split()) <= 3:
         person.mood = mood
-    refresh_origins(world, person)
     return answer
 
 

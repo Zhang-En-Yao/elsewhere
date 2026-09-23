@@ -104,18 +104,19 @@ def build(root, name: str = "Wend") -> World:
     for person in people:
         world.people[person.id] = person
 
-    # Who already knows whom, in their own words. One-sided on both sides.
-    def tie(a: str, b: str, note: str, closeness: float):
-        world.people[a].tie(b).note = note
-        world.people[a].tie(b).closeness = closeness
-        world.people[a].tie(b).last_seen_at = HOURS_PER_DAY
+    # Who already knows whom, in their own words. One-sided on both sides -
+    # and so is the last time they spoke, which both of them can see and
+    # neither of them is told what to make of.
+    def regard(a: str, b: str, account: str, days_ago: float):
+        world.people[a].regard(b).account = account
+        world.people[a].regard(b).last_seen_at = START_AT - days_ago * HOURS_PER_DAY
 
-    tie("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 0.7)
-    tie("p_eve", "p_adam", "He works too late. Good hands.", 0.68)
-    tie("p_eve", "p_lilith", "Young. Always about to go somewhere.", 0.45)
-    tie("p_lilith", "p_eve", "She is kind and she will never leave this place.", 0.44)
-    tie("p_adam", "p_lilith", "Restless. Not unkind.", 0.35)
-    tie("p_lilith", "p_adam", "He would rebuild this whole place plank by plank and never ask why.", 0.33)
+    regard("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 1)
+    regard("p_eve", "p_adam", "He works too late. Good hands.", 1)
+    regard("p_eve", "p_lilith", "Young. Always about to go somewhere.", 6)
+    regard("p_lilith", "p_eve", "She is kind and she will never leave this place.", 6)
+    regard("p_adam", "p_lilith", "Restless. Not unkind.", 11)
+    regard("p_lilith", "p_adam", "He would rebuild this whole place plank by plank and never ask why.", 11)
 
     # ---- the first page of the chronicle ---------------------------------
     # Where each of them stood is part of what happened, so it is written into

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence
 
+from . import HOURS_PER_DAY
 from .world.entities import Person
 from .world.memories import Trace
 from .world.store import clock_at, day_of
@@ -38,7 +39,7 @@ def person_block(person: Person) -> str:
     if person.beliefs:
         held = sorted(person.beliefs, key=lambda b: -b.confidence)[:3]
         lines.append("What you hold to be true: " +
-                     " ".join(f"{b.text}." for b in held))
+                     " ".join(f"{b.belief}." for b in held))
     return "\n".join(lines)
 
 
@@ -56,17 +57,39 @@ def traces_block(traces: Sequence[Trace], header: str = "What you can bring to m
     return "\n".join(lines)
 
 
-def ties_block(person: Person, others: Sequence[Person]) -> str:
+def _since(regard, at: float) -> str:
+    """How long since they last spoke, as a fact and not as a verdict.
+
+    The engine does not decide what a season of silence means - some people
+    pick up where they left off and some never do. It says how long it has
+    been and leaves the reading of it to them.
+    """
+    if regard.last_seen_at <= 0.0:
+        return ""
+    days = int((at - regard.last_seen_at) // HOURS_PER_DAY)
+    if days <= 0:
+        return " You spoke earlier today."
+    if days == 1:
+        return " You last spoke yesterday."
+    return f" You last spoke {days} days ago."
+
+
+def regards_block(person: Person, others: Sequence[Person], at: float) -> str:
+    """Who is here, as this person would account for them.
+
+    Knowing somebody is having something to say about them - not a number
+    above a threshold. A mind that has never formed an account of this face
+    does not know it, however many times they have passed in the road.
+    """
     if not others:
         return "You are alone."
     lines = ["Who is here:"]
     for other in others:
-        tie = person.ties.get(other.id)
-        if tie is None or tie.closeness < 0.05:
+        regard = person.regards.get(other.id)
+        if regard is None or not regard.account:
             lines.append(f"  - {other.name}, who you do not know.")
         else:
-            note = f" {tie.note}" if tie.note else ""
-            lines.append(f"  - {other.name}.{note}")
+            lines.append(f"  - {other.name}. {regard.account}{_since(regard, at)}")
     return "\n".join(lines)
 
 
@@ -142,7 +165,7 @@ PERCEIVE_EXAMPLE_TRACES = (
 
 
 def perceive_user(person: Person, what_happened: str, where: str, when: str,
-                  others: Sequence[Person], traces: Sequence[Trace],
+                  at: float, others: Sequence[Person], traces: Sequence[Trace],
                   part_of_it: bool, vantage: str = "") -> str:
     """Scene first, person last.
 
@@ -156,7 +179,7 @@ def perceive_user(person: Person, what_happened: str, where: str, when: str,
         + what_happened,
         (f"You were {vantage}. That is where you stood, not what you noticed - "
          f"do not reuse its words.") if vantage else "",
-        ties_block(person, others).replace("Who is here:", "Who else was there:"),
+        regards_block(person, others, at).replace("Who is here:", "Who else was there:"),
         traces_block(traces),
         person_block(person),
         f"Now answer as {person.name}, and only as {person.name}: how much of this "
@@ -234,7 +257,7 @@ Four people, another town, another day - the form, not the content:
      "action": "go", "target": "the well"}"""
 
 
-def act_user(person: Person, when: str, place, others: Sequence[Person],
+def act_user(person: Person, when: str, at: float, place, others: Sequence[Person],
              reachable: Sequence[str], traces: Sequence[Trace],
              home_name: str = "", may_leave: bool = False) -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
@@ -251,7 +274,7 @@ def act_user(person: Person, when: str, place, others: Sequence[Person],
         f"From here you can go to: {', '.join(reachable) if reachable else 'nowhere'}.",
         ("From here the road also goes out of the town. You could take it "
          "today and not come back.") if may_leave else "",
-        ties_block(person, others) if others else "",
+        regards_block(person, others, at) if others else "",
         traces_block(traces),
         person_block(person),
         f"Now decide as {person.name}: what do you do for the next few hours?",
@@ -288,8 +311,8 @@ Three people, another town - the form, not the content:
 
 def speak_user(person: Person, listener: Person, when: str, place_name: str,
                topics: Sequence[Trace]) -> str:
-    tie = person.ties.get(listener.id)
-    knows = f" {tie.note}" if tie and tie.note else ""
+    regard = person.regards.get(listener.id)
+    knows = f" {regard.account}" if regard and regard.account else ""
     lines = [
         f"It is {when}, at {place_name}.",
         f"You are talking to {listener.name}.{knows}",

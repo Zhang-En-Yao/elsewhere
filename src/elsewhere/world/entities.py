@@ -13,37 +13,43 @@ from typing import Dict, List, Optional
 
 
 @dataclass
-class Tie:
-    """One person's account of another. Never symmetric."""
-    note: str = ""                 # written by the model, in their words
-    closeness: float = 0.0         # 0 unknown .. 1 lifelong, for retrieval
-    last_seen_at: float = 0.0
+class Regard:
+    """How one person holds another, and one-way by construction.
+
+    A's regard for B and B's regard for A are separate objects that never
+    have to agree, and nothing in the engine reconciles them.
+
+    There is no number here for how close they are. The engine cannot score a
+    relationship without scoring it the same way for everybody, and how a
+    person fades is already decided one memory at a time in ``retrieval.py``.
+    So a regard is what they would say about them and the last hour they
+    spoke - a sentence and a fact, neither of them a weight.
+    """
+    account: str = ""              # what they would say about them, in their words
+    last_seen_at: float = 0.0      # hours into the world; 0 if they never have
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Tie":
-        return cls(note=d.get("note", ""), closeness=float(d.get("closeness", 0.0)),
+    def from_dict(cls, d: dict) -> "Regard":
+        return cls(account=d.get("account", ""),
                    last_seen_at=float(d.get("last_seen_at", 0.0)))
 
 
 @dataclass
 class Belief:
-    text: str
+    belief: str
     confidence: float = 0.4
-    at: float = 0.0
     origin: List[str] = field(default_factory=list)   # trace ids, at most 3
-    origin_lost: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "Belief":
-        return cls(text=d["text"], confidence=float(d.get("confidence", 0.4)),
-                   at=float(d.get("at", 0.0)), origin=list(d.get("origin", [])),
-                   origin_lost=bool(d.get("origin_lost", False)))
+        return cls(belief=d["belief"], confidence=float(d.get("confidence", 0.4)),
+                   origin=list(d.get("origin", [])))
 
 
 @dataclass
@@ -58,7 +64,7 @@ class Person:
     home: str = ""
     mood: str = "even"             # a word, not a number
     wants: List[str] = field(default_factory=list)
-    ties: Dict[str, Tie] = field(default_factory=dict)
+    regards: Dict[str, Regard] = field(default_factory=dict)
     beliefs: List[Belief] = field(default_factory=list)
     kind: str = "person"           # person | companion | presence
     note: str = ""                 # why this being is in the world at all
@@ -70,16 +76,16 @@ class Person:
     last_action: str = ""
     last_created_day: int = 0
 
-    def tie(self, other_id: str) -> Tie:
-        t = self.ties.get(other_id)
-        if t is None:
-            t = Tie()
-            self.ties[other_id] = t
-        return t
+    def regard(self, other_id: str) -> Regard:
+        r = self.regards.get(other_id)
+        if r is None:
+            r = Regard()
+            self.regards[other_id] = r
+        return r
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        d["ties"] = {k: v.to_dict() for k, v in self.ties.items()}
+        d["regards"] = {k: v.to_dict() for k, v in self.regards.items()}
         d["beliefs"] = [b.to_dict() for b in self.beliefs]
         return d
 
@@ -91,7 +97,8 @@ class Person:
             occupation=d.get("occupation", ""), place=d.get("place", ""),
             home=d.get("home", ""), mood=d.get("mood", "even"),
             wants=list(d.get("wants", [])),
-            ties={k: Tie.from_dict(v) for k, v in d.get("ties", {}).items()},
+            regards={k: Regard.from_dict(v)
+                     for k, v in d.get("regards", {}).items()},
             beliefs=[Belief.from_dict(b) for b in d.get("beliefs", [])],
             kind=d.get("kind", "person"), note=d.get("note", ""),
             mind=d.get("mind", "model"), present=bool(d.get("present", True)),

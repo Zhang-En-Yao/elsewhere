@@ -156,11 +156,10 @@ class TestConversation(TownTest):
     def test_meeting_is_written_into_both_ties(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
-        before = self.world.people["p_adam"].ties["p_eve"].closeness
         tick_mod.tick(self.world, config())
-        tie = self.world.people["p_adam"].ties["p_eve"]
-        self.assertEqual(tie.last_seen_at, self.world.at)
-        self.assertGreater(tie.closeness, before)
+        for a, b in (("p_adam", "p_eve"), ("p_eve", "p_adam")):
+            self.assertEqual(self.world.people[a].regards[b].last_seen_at,
+                             self.world.at)
 
 
 class TestStayingPut(TownTest):
