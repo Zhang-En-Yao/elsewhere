@@ -49,9 +49,9 @@ def vantage(world, person: Person, event: Event) -> str:
     told = (event.data.get("vantage") or {}).get(person.id)
     if told:
         return told
-    if person.id in event.who:
+    if person.id in event.involved:
         return "in the middle of it"
-    place = world.places.get(event.where or "")
+    place = world.places.get(event.place or "")
     here = world.places.get(person.place)
     if place and here and here.id == place.id:
         return f"right there, at {place.name}"
@@ -65,23 +65,23 @@ def perceive(world, person: Person, event: Event, config,
     """Ask what this event leaves in this person. Usually the answer is nothing."""
     settings = _settings(config, "perceive")
     store = world.traces(person.id)
-    cues = retrieval.cues_from(event.tags, [event.where or ""])
+    cues = retrieval.cues_from(event.cues, [event.place or ""])
     context = retrieval.recallable(store, world.at, cues)
 
-    place = world.places.get(event.where or "")
+    place = world.places.get(event.place or "")
     call = Call(
         name="perceive",
         system=prompts.PERCEIVE_SYSTEM,
         user=prompts.perceive_user(
             person=person,
-            what_happened=event.what,
+            what_happened=event.account,
             where=place.name if place else "nowhere in particular",
             when=f"{clock_at(event.at)} in {season_at(event.at)}",
             vantage=vantage(world, person, event),
-            others=[world.people[pid] for pid in event.present
+            others=[world.people[pid] for pid in event.reached
                     if pid != person.id and pid in world.people],
             traces=context,
-            part_of_it=person.id in event.who,
+            part_of_it=person.id in event.involved,
         ),
         schema=schemas.grammar("perceive"),
         about=person.id,
@@ -112,10 +112,10 @@ def perceive(world, person: Person, event: Event, config,
         feeling=answer.get("feeling", "none"),
         salience=salience,
         tags=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:6],
-        source="witnessed" if person.id in event.present else "told",
+        source="witnessed" if person.id in event.reached else "told",
         event_id=event.id,
-        about=[w for w in event.who if w != person.id],
-        place=event.where,
+        about=[w for w in event.involved if w != person.id],
+        place=event.place,
         touched_at=world.at,
     )
     store.add(trace)
@@ -127,7 +127,7 @@ def perceive_all(world, event: Event, config,
     """Hand the event to everyone who was there, one mind at a time."""
     out = []
     for person in world.people.values():
-        if not person.present or person.id not in event.present:
+        if not person.present or person.id not in event.reached:
             continue
         trace = perceive(world, person, event, config, transcript)
         if trace is not None:
@@ -268,7 +268,7 @@ DIRECTOR_RECENT_EVENTS = 8
 
 def last_happening_at(world) -> Optional[int]:
     for e in reversed(world.chronicle.all()):
-        if e.kind == "happening":
+        if e.category == "happening":
             return e.at
     return None
 
@@ -318,19 +318,19 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 
     here = [p.id for p in world.people_at(place.id)]
     if answer.get("reach") == "the whole town":
-        present = [p.id for p in world.people.values() if p.present]
+        reached = [p.id for p in world.people.values() if p.present]
         vantage = {pid: (f"right there, at {place.name}" if pid in here
                          else f"at {world.places[world.people[pid].place].name}, "
                               f"and word of it reached you there")
-                   for pid in present}
+                   for pid in reached}
     else:
-        present = here
-        vantage = {pid: f"right there, at {place.name}" for pid in present}
+        reached = here
+        vantage = {pid: f"right there, at {place.name}" for pid in reached}
     return world.record(
-        "happening", what, where=place.id,
-        who=[who.id] if who is not None else [],
-        present=present,
-        tags=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:5],
+        "happening", what, place=place.id,
+        involved=[who.id] if who is not None else [],
+        reached=reached,
+        cues=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:5],
         data={"why_now": (answer.get("why_now") or "").strip(),
               "reach": answer.get("reach"), "vantage": vantage},
     )
@@ -353,7 +353,7 @@ ARRIVAL_SETTLED_GAP = 120 * HOURS_PER_DAY   # a year, when it is not
 
 def _last_at_of(world, kinds: Sequence[str]) -> Optional[float]:
     for event in reversed(world.chronicle.all()):
-        if event.kind in kinds:
+        if event.category in kinds:
             return event.at
     return None
 
@@ -396,9 +396,9 @@ def depart(world, person: Person, because: str, config,
     """
     place = world.places.get(person.place)
     where = place.name if place else "the road"
-    present = [p.id for p in world.people.values() if p.present]
+    reached = [p.id for p in world.people.values() if p.present]
     vantage = {}
-    for pid in present:
+    for pid in reached:
         if pid == person.id:
             vantage[pid] = f"on the road out of {world.name}, looking back"
         elif world.people[pid].place == person.place:
@@ -410,8 +410,8 @@ def depart(world, person: Person, because: str, config,
     event = world.record(
         "departure",
         f"{person.name} took the road out of {world.name} and did not come back.",
-        where=person.place, who=[person.id], present=present,
-        tags=["leaving", "road"],
+        place=person.place, involved=[person.id], reached=reached,
+        cues=["leaving", "road"],
         data={"because": because, "person": person.id, "vantage": vantage},
     )
     kept = perceive_all(world, event, config, transcript)
@@ -440,7 +440,7 @@ def _road_anchor(world) -> float:
 def short_of_somebody(world) -> bool:
     """Has this town lost more people than it has taken in?"""
     lost = sum(1 for p in world.people.values() if not p.present)
-    taken = sum(1 for e in world.chronicle.all() if e.kind == "arrival")
+    taken = sum(1 for e in world.chronicle.all() if e.category == "arrival")
     return lost > taken
 
 
@@ -517,9 +517,9 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         said += f" from {came_from}"
     said += f", came up the road into {world.name}."
 
-    present = [p.id for p in world.people.values() if p.present]
+    reached = [p.id for p in world.people.values() if p.present]
     vantage = {}
-    for pid in present:
+    for pid in reached:
         if pid == person.id:
             vantage[pid] = f"at the top of the road, seeing {world.name} for the first time"
         elif world.people[pid].place == place.id:
@@ -529,8 +529,8 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     return world.record(
-        "arrival", said, where=place.id, who=[person.id], present=present,
-        tags=["arrival", "road", "stranger"],
+        "arrival", said, place=place.id, involved=[person.id], reached=reached,
+        cues=["arrival", "road", "stranger"],
         data={"why_now": (answer.get("why_now") or "").strip(),
               "from_where": came_from, "person": person.id, "vantage": vantage},
     )

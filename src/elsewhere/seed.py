@@ -126,9 +126,9 @@ def build(root, name: str = "Wend") -> World:
     world.record("gathering",
                  "Adam and Eve raised the shelter's first frame, and the three "
                  "of them ate under it before the roof was even on.",
-                 where="shelter", who=["p_adam", "p_eve"],
-                 present=["p_adam", "p_eve", "p_lilith"],
-                 tags=["gathering", "building"],
+                 place="shelter", involved=["p_adam", "p_eve"],
+                 reached=["p_adam", "p_eve", "p_lilith"],
+                 cues=["gathering", "building"],
                  data={"vantage": {
                      "p_adam": "up on the frame, tying the crossbeams",
                      "p_eve": "on the ground, passing the rope up",
@@ -138,9 +138,9 @@ def build(root, name: str = "Wend") -> World:
     world.record("flood",
                  "The water came up over the waterline in the night and did "
                  "not go down for three days.",
-                 where="waterline", who=[],
-                 present=["p_adam", "p_eve", "p_lilith"],
-                 tags=["flood", "loss"],
+                 place="waterline", involved=[],
+                 reached=["p_adam", "p_eve", "p_lilith"],
+                 cues=["flood", "loss"],
                  data={"vantage": {
                      "p_adam": "on the roof of his own yard, watching the water take the floor below him",
                      "p_eve": "in the garden, on the last dry rise, holding what she could carry",
@@ -150,9 +150,9 @@ def build(root, name: str = "Wend") -> World:
     world.record("building",
                  "The shelter was raised again, this time on posts, out of "
                  "timber that had not finished drying.",
-                 where="shelter", who=["p_adam"],
-                 present=["p_adam", "p_lilith", "p_eve"],
-                 tags=["building", "work"],
+                 place="shelter", involved=["p_adam"],
+                 reached=["p_adam", "p_lilith", "p_eve"],
+                 cues=["building", "work"],
                  data={"vantage": {
                      "p_adam": "on the new posts, driving them deeper than anyone asked him to",
                      "p_lilith": "on the path down from the ridge, back for the day",
@@ -174,9 +174,9 @@ def remember_backstory(world: World, config, transcript=None) -> List:
         was = world.at
         world.at = event.at
         for person in world.people.values():
-            if person.id not in event.present:
+            if person.id not in event.reached:
                 continue
-            person.place = event.where or person.place
+            person.place = event.place or person.place
             trace = agents.perceive(world, person, event, config, transcript)
             if trace is not None:
                 made.append(trace)

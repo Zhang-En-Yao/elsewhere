@@ -74,8 +74,8 @@ class TestDirector(Town):
                                                 "tags": ["roof"], "weight": "stays"}
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.happening.event_id)
-        self.assertEqual(event.where, "yard", "Adam is in his own yard, not on the ridge")
-        self.assertEqual(event.kind, "happening")
+        self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")
+        self.assertEqual(event.category, "happening")
         self.assertEqual([t.owner for t in report.happening.kept], ["p_adam"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):
@@ -85,7 +85,7 @@ class TestDirector(Town):
                                  "happens": True})
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.happening.event_id)
-        self.assertEqual(sorted(event.present), sorted(self.world.people))
+        self.assertEqual(sorted(event.reached), sorted(self.world.people))
         perceived = sorted(c.about for c in self.calls("perceive"))
         self.assertEqual(perceived, sorted(self.world.people))
         lilith = next(c for c in self.calls("perceive") if c.about == "p_lilith")

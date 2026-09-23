@@ -15,13 +15,26 @@ from typing import Iterator, List, Optional
 @dataclass
 class Event:
     id: str
-    at: float                                  # hours into the world
-    kind: str
-    what: str                                  # neutral, chronicle voice
-    where: Optional[str] = None
-    who: List[str] = field(default_factory=list)      # people it happened to
-    present: List[str] = field(default_factory=list)  # people who were there
-    tags: List[str] = field(default_factory=list)
+    at: float                      # hours into the world
+    category: str                  # flood | conversation | arrival | departure | ...
+    account: str                   # one sentence, in the chronicle's voice and
+                                   # nobody else's: what anyone would agree happened
+    place: Optional[str] = None
+
+    #: The two lists are not the same list, and the difference is the whole
+    #: reason both exist. `involved` is who it happened to - the people the
+    #: account is about. `reached` is everyone it got as far as, whether they
+    #: were standing in it or heard about it later, and it is the list that
+    #: decides who is asked what they made of it.
+    involved: List[str] = field(default_factory=list)
+    reached: List[str] = field(default_factory=list)
+
+    #: Keys for retrieval, not categories for a reader. These are what a later
+    #: memory is matched against to decide whether this is still in reach.
+    cues: List[str] = field(default_factory=list)
+
+    #: Whatever only this category needs: who spoke, why they went, where each
+    #: person was standing. Nothing here is required and nothing is promised.
     data: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -29,10 +42,11 @@ class Event:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Event":
-        return cls(id=d["id"], at=float(d["at"]), kind=d["kind"],
-                   what=d["what"], where=d.get("where"), who=list(d.get("who", [])),
-                   present=list(d.get("present", [])), tags=list(d.get("tags", [])),
-                   data=dict(d.get("data", {})))
+        return cls(id=d["id"], at=float(d["at"]), category=d["category"],
+                   account=d["account"], place=d.get("place"),
+                   involved=list(d.get("involved", [])),
+                   reached=list(d.get("reached", [])),
+                   cues=list(d.get("cues", [])), data=dict(d.get("data", {})))
 
 
 class Chronicle:

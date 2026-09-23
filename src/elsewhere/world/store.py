@@ -146,13 +146,14 @@ class World:
         return None
 
     # -- recording ---------------------------------------------------------
-    def record(self, kind: str, what: str, *, where: Optional[str] = None,
-               who: Optional[List[str]] = None, present: Optional[List[str]] = None,
-               tags: Optional[List[str]] = None, data: Optional[dict] = None) -> Event:
+    def record(self, category: str, account: str, *, place: Optional[str] = None,
+               involved: Optional[List[str]] = None,
+               reached: Optional[List[str]] = None,
+               cues: Optional[List[str]] = None, data: Optional[dict] = None) -> Event:
         event = Event(id=self.next_id("ev"), at=self.at,
-                      kind=kind, what=what, where=where, who=list(who or []),
-                      present=list(present or []), tags=list(tags or []),
-                      data=dict(data or {}))
+                      category=category, account=account, place=place,
+                      involved=list(involved or []), reached=list(reached or []),
+                      cues=list(cues or []), data=dict(data or {}))
         return self.chronicle.append(event)
 
 

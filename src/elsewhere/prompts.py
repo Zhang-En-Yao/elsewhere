@@ -353,7 +353,7 @@ def direct_user(world, recent) -> str:
         people.append(f"  - {person.name}, {person.occupation or 'no trade'}, "
                       f"at {place.name if place else 'nowhere'}.{wants}")
     record = ["Lately, in the record:"]
-    record += [f"  - {_when(e.at)}: {e.what}" for e in recent] or ["  nothing."]
+    record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,
@@ -418,7 +418,7 @@ def arrive_user(world, recent) -> str:
             f"{p.name}, {p.occupation}" if p.occupation else p.name
             for p in sorted(gone, key=lambda p: p.name)) + ".")
     record = ["Lately, in the record:"]
-    record += [f"  - {_when(e.at)}: {e.what}" for e in recent] or ["  nothing."]
+    record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,

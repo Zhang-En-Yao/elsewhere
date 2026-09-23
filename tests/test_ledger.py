@@ -45,11 +45,11 @@ class TestWorldStore(unittest.TestCase):
     def test_the_chronicle_only_ever_grows(self):
         world = seed.build(self.root)
         before = len(world.chronicle)
-        world.record("test", "something happened", where="shelter")
+        world.record("test", "something happened", place="shelter")
         store.save(world)
         lines = (self.root / "chronicle.jsonl").read_text().strip().splitlines()
         self.assertEqual(len(lines), before + 1)
-        self.assertEqual(json.loads(lines[-1])["what"], "something happened")
+        self.assertEqual(json.loads(lines[-1])["account"], "something happened")
 
     def test_two_ticks_cannot_run_at_once(self):
         self.root.mkdir(parents=True)

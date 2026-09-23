@@ -12,4 +12,4 @@ __version__ = "2.0"
 #: named part of the day.
 HOURS_PER_DAY = 24.0
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4

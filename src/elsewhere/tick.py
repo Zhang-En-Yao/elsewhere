@@ -100,10 +100,10 @@ def converse(world, speaker: Person, listener: Person, config,
     event = world.record(
         "conversation",
         f'{speaker.name} said to {listener.name}: "{line}"',
-        where=speaker.place,
-        who=[speaker.id, listener.id],
-        present=here,
-        tags=list(drawn.tags) if drawn else ["talk"],
+        place=speaker.place,
+        involved=[speaker.id, listener.id],
+        reached=here,
+        cues=list(drawn.tags) if drawn else ["talk"],
         data={"speaker": speaker.id, "listener": listener.id, "line": line,
               "drawn_on": drawn.id if drawn else None, "vantage": vantage},
     )
@@ -147,12 +147,12 @@ def tick(world, config, transcript: Optional[Transcript] = None,
         event = agents.direct(world, config, transcript)
         if event is not None:
             kept = agents.perceive_all(world, event, config, transcript)
-            report.happening = Happening(event.id, event.what, kept)
+            report.happening = Happening(event.id, event.account, kept)
     if agents.may_arrive(world):
         event = agents.arrive(world, config, transcript)
         if event is not None:
             kept = agents.perceive_all(world, event, config, transcript)
-            report.arrival = Arrival(event.who[0], event.id, event.what, kept)
+            report.arrival = Arrival(event.involved[0], event.id, event.account, kept)
 
     minds = sorted((p for p in world.people.values()
                     if p.present and p.mind == "model"), key=lambda p: p.id)

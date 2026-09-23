@@ -113,7 +113,7 @@ class TestConversation(TownTest):
         talk = report.talks[0]
         self.assertEqual((talk.speaker, talk.listener), ("p_eve", "p_adam"))
         event = self.world.chronicle.get(talk.event_id)
-        self.assertIn("Could you feel it?", event.what)
+        self.assertIn("Could you feel it?", event.account)
 
         kept = self.world.traces("p_adam").about_event(event.id)
         self.assertEqual(len(kept), 1, "Adam kept his own version of it")

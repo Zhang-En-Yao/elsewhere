@@ -141,7 +141,7 @@ def cmd_timeline(args) -> None:
     world = open_world(args)
     print(heading(f"{world.name}: what happened"))
     for e in world.chronicle.all()[-args.limit:]:
-        print(f"  {e.id}  {when(e.at):<18} {e.kind:<12} {e.what}")
+        print(f"  {e.id}  {when(e.at):<18} {e.category:<12} {e.account}")
 
 
 def cmd_event(args) -> None:
@@ -149,16 +149,16 @@ def cmd_event(args) -> None:
     event = world.chronicle.get(args.event_id)
     if event is None:
         sys.exit(f"No event {args.event_id}")
-    place = world.places.get(event.where or "")
-    print(heading(f"{event.id} - {when(event.at)}, {event.kind}, "
+    place = world.places.get(event.place or "")
+    print(heading(f"{event.id} - {when(event.at)}, {event.category}, "
                   f"at {place.name if place else '-'}"))
-    print(f"  History says:  {event.what}")
-    print(f"  tags: {', '.join(event.tags) or '-'}")
+    print(f"  History says:  {event.account}")
+    print(f"  cues: {', '.join(event.cues) or '-'}")
     print("\n  What it left in people:")
     for person in world.people.values():
         traces = world.traces(person.id).about_event(event.id)
         if not traces:
-            if person.id in event.present:
+            if person.id in event.reached:
                 print(f"    {person.name:<8} - nothing. They were there.")
             continue
         for t in traces:
@@ -217,7 +217,7 @@ def cmd_remember(args) -> None:
     for person in world.people.values():
         world.traces(person.id).save()
     store.save(world)
-    print(f"{len(made)} of {len(event.present)} people kept something.")
+    print(f"{len(made)} of {len(event.reached)} people kept something.")
     for trace in made:
         print(f"  {world.people[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
 
@@ -246,7 +246,7 @@ def print_report(world, report) -> None:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     for d in report.departures:
         event = world.chronicle.get(d.event_id)
-        print(f"  - {event.what if event else _name(world, d.person_id) + ' left.'}")
+        print(f"  - {event.account if event else _name(world, d.person_id) + ' left.'}")
         if d.because:
             print(f'      "{d.because}"')
         for tr in d.kept:
@@ -269,7 +269,7 @@ def print_report(world, report) -> None:
         for tr in t.kept:
             print(f"  {'':<7}   {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
         ev = world.chronicle.get(t.event_id)
-        for pid in (ev.present if ev else []):
+        for pid in (ev.reached if ev else []):
             if pid not in heard and pid != t.speaker:
                 print(f"  {'':<7}   {_name(world, pid)} kept nothing of it")
     for pid, r in report.reflections.items():
@@ -358,11 +358,11 @@ def cmd_news(args) -> None:
     if not events:
         print("  Nothing has happened since you last looked.")
     for e in events:
-        place = world.places.get(e.where or "")
+        place = world.places.get(e.place or "")
         print(f"\n  {when(e.at)}, {place.name if place else '-'}")
         mark = {"happening": "* ", "arrival": "+ ", "departure": "- "}
-        print(f"    {mark.get(e.kind, '')}{e.what}")
-        for pid in e.present:
+        print(f"    {mark.get(e.category, '')}{e.account}")
+        for pid in e.reached:
             for t in world.traces(pid).about_event(e.id):
                 print(f"      {_name(world, pid)} kept [{t.feeling}] {t.trace}")
     print("\n  Now:")

@@ -129,8 +129,8 @@ class TestGoing(Road):
     def test_the_whole_town_hears_it(self):
         report = self.send_lilith_away()
         event = self.world.chronicle.get(report.departures[0].event_id)
-        self.assertEqual(event.kind, "departure")
-        self.assertEqual(sorted(event.present), sorted(self.world.people))
+        self.assertEqual(event.category, "departure")
+        self.assertEqual(sorted(event.reached), sorted(self.world.people))
         eve = next(c for c in self.calls("perceive") if c.about == "p_eve")
         self.assertIn("word of it reached you", eve.user)
 
@@ -229,9 +229,9 @@ class TestComing(Road):
         self.assertEqual(tam.home, "", "a newcomer has nowhere of their own")
 
         event = self.world.chronicle.get(report.arrival.event_id)
-        self.assertEqual(event.kind, "arrival")
-        self.assertEqual(event.who, ["p_tam"])
-        self.assertIn("beyond the ridge", event.what)
+        self.assertEqual(event.category, "arrival")
+        self.assertEqual(event.involved, ["p_tam"])
+        self.assertIn("beyond the ridge", event.account)
 
     def test_the_newcomer_gets_their_first_day(self):
         self.send_lilith_away()
