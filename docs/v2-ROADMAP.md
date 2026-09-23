@@ -43,7 +43,7 @@ you, make anything, or grow anything larger than one person.
 
 ## P2 — You
 
-**The gap.** `Person.mind` is typed `model | player`
+**The gap.** `Being.mind` is typed `model | player`
 ([`entities.py`](../src/elsewhere/world/entities.py)), and nothing in the tree
 reads `"player"`. [`tick.py`](../src/elsewhere/tick.py) selects
 `p.present and p.mind == "model"`, so a person marked `player` is skipped
@@ -68,9 +68,9 @@ has become an administrator.
   Worth trying both; the second is the one that makes forgetting apply to you.
 - A player who is not present must be handled: `elsewhere tick` while you are
   away should let the world run without stalling on an answer that is not
-  coming. `present=False` is already on `Person` and already respected.
-- Ties: other people forming a note about you is free once you are a `Person`
-  like any other. Nothing to add.
+  coming. `present=False` is already on `Being` and already respected.
+- Regards: other beings forming an account of you is free once you are a
+  `Being` like any other. Nothing to add.
 
 **Acceptance.** Play three phases, leave for a week of wall clock, come back and
 run `elsewhere person Eve` — she should have a note about you, and it should
@@ -80,8 +80,8 @@ be wrong in some specific way.
 
 **The gap.** `ACTIONS` is five verbs
 ([`schemas.py`](../src/elsewhere/schemas.py)) and the comment there already
-names the plan: `make` and `tend` arrive with art. `Person.last_created_day`
-and `Trace.source = "made"` are reserved and unwritten.
+names the plan: `make` and `tend` arrive with art. `Trace.source = "made"`
+is reserved and unwritten.
 
 **What it means to build.** An artifact is not a new kind of object so much as
 an event with a maker and a durable presence in a place.
@@ -100,7 +100,13 @@ an event with a maker and a durable presence in a place.
 
 **Watch out for.** A small model asked to write a poem will write a bad poem
 every phase. Making should be rare and expensive — gated on a trace that is
-still in reach and weighted heavily, and on `last_created_day`.
+still in reach and weighted heavily, and on nothing else. A cooldown was the
+obvious second gate and it is the wrong kind of rule: it would have the engine
+decide whether somebody makes something today, on the same clock for everyone.
+The engine decides what can be reached; a mind decides what to do about it.
+Rarity has to come from the fact that a memory still strong enough to make
+something out of is itself rare - and rare at a different time for each being,
+because `salience` is theirs and not the engine's.
 
 ## P6 — Above the individual
 
@@ -135,7 +141,7 @@ is about, and it is missing.
 - `elsewhere remember "the night bus back from Hualien, and the rain"` should
   record an event nobody witnessed and let it reach people as something carried
   in — `Trace.source = "carried_in"` is already reserved for it.
-- `elsewhere invite "Momo" --note "..."` — `Person.kind` is already typed
+- `elsewhere invite "Momo" --premise "..."` — `Being.kind` is already typed
   `person | companion | presence`. A presence is a person with a thinner card
   and no occupation; everything else already works on it.
 - Photographs and places are the same shape of problem and can wait.

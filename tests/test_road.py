@@ -26,8 +26,8 @@ GOING = {"because": "I said I would go before the rains", "action": "leave",
          "target": ""}
 NOBODY = {"comes": False}
 SOMEBODY = {"why_now": "nobody has tended the ridge plants since she went",
-            "name": "Tam", "from_where": "beyond the ridge", "trade": "herbalist",
-            "age": 30, "card": "You came for the plants and you keep to them.",
+            "name": "Tam", "from_where": "beyond the ridge",
+            "card": "You came for the plants and you keep to them.",
             "voice": "Dry, and not much of it.", "comes": True}
 
 
@@ -43,7 +43,7 @@ class Road(unittest.TestCase):
                                  "direct": QUIET, "reflect": {}, "arrive": NOBODY})
         register(self.stub)
         # Lilith begins on the ridge path, which is the way out of Wend.
-        self.lilith = self.world.people["p_lilith"]
+        self.lilith = self.world.beings["p_lilith"]
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -53,7 +53,7 @@ class Road(unittest.TestCase):
 
 
     def present(self):
-        return sorted(p.id for p in self.world.people.values() if p.present)
+        return sorted(p.id for p in self.world.beings.values() if p.present)
 
     def send_lilith_away(self):
         """Put Lilith on the road and let her take it."""
@@ -81,7 +81,7 @@ class TestWhetherAnyoneCanGoAtAll(Road):
                         "whether to go at this hour is hers to answer, in 'because'")
 
     def test_not_if_it_would_stop_being_a_town(self):
-        self.world.people["p_adam"].present = False
+        self.world.beings["p_adam"].present = False
         self.assertEqual(len(self.present()), 2)
         self.assertFalse(agents.may_leave(self.world, self.lilith),
                          "two people are not a town anybody can leave")
@@ -89,9 +89,9 @@ class TestWhetherAnyoneCanGoAtAll(Road):
     def test_not_twice_in_the_same_season(self):
         # A filler person keeps the town above the floor after Lilith goes, so
         # the day-gap gate is what is actually being tested here, not the floor.
-        self.world.people["p_x0"] = type(self.lilith)(id="p_x0", name="X0", place="shelter")
+        self.world.beings["p_x0"] = type(self.lilith)(id="p_x0", name="X0", place="shelter")
         self.send_lilith_away()
-        eve = self.world.people["p_eve"]
+        eve = self.world.beings["p_eve"]
         eve.place = "ridge"
         self.assertFalse(agents.may_leave(self.world, eve))
         self.world.at += agents.DEPARTURE_MIN_GAP
@@ -125,13 +125,13 @@ class TestGoing(Road):
         self.assertFalse(self.lilith.present)
         self.assertEqual(self.lilith.left_at, self.world.at)
         self.assertNotIn("p_lilith", self.present())
-        self.assertNotIn(self.lilith, self.world.people_at("ridge"))
+        self.assertNotIn(self.lilith, self.world.beings_at("ridge"))
 
     def test_the_whole_town_hears_it(self):
         report = self.send_lilith_away()
         event = self.world.chronicle.get(report.departures[0].event_id)
         self.assertEqual(event.category, chronicle.DEPARTURE)
-        self.assertEqual(sorted(event.reached), sorted(self.world.people))
+        self.assertEqual(sorted(event.reached), sorted(self.world.beings))
         eve = next(c for c in self.calls("perceive") if c.about == "p_eve")
         self.assertIn("word of it reached you", eve.user)
 
@@ -151,18 +151,18 @@ class TestGoing(Road):
 
     def test_and_so_does_what_everyone_wrote_about_her(self):
         self.send_lilith_away()
-        eve = self.world.people["p_eve"]
+        eve = self.world.beings["p_eve"]
         self.assertEqual(eve.regards["p_lilith"].account,
                          "Young. Always about to go somewhere.")
 
     def test_whoever_went_to_find_her_finds_the_road(self):
-        adam = self.world.people["p_adam"]
+        adam = self.world.beings["p_adam"]
         adam.place = "ridge"
         self.stub.answers["act|p_adam"] = {"because": "", "action": "talk",
                                            "target": "Lilith"}
         report = self.send_lilith_away()
         self.assertIn(("p_adam", "p_lilith"), report.missed)
-        self.assertIn("who had gone", adam.last_action)
+        self.assertIn("who had gone", adam.doing)
         self.assertEqual(report.talks, [])
 
     def test_the_town_stops_asking_her_anything(self):
@@ -220,11 +220,11 @@ class TestComing(Road):
         report = self.after_a_gap()
 
         self.assertIsNotNone(report.arrival)
-        tam = self.world.person_by_name("Tam")
+        tam = self.world.being_by_name("Tam")
         self.assertIsNotNone(tam)
         self.assertEqual(tam.id, "p_tam")
         self.assertEqual(tam.place, "ridge", "they come in the way she went out")
-        self.assertEqual(tam.occupation, "herbalist")
+        self.assertEqual(tam.card, "You came for the plants and you keep to them.")
         self.assertEqual(tam.arrived_at, self.world.at)
         self.assertTrue(tam.present)
         self.assertEqual(tam.home, "", "a newcomer has nowhere of their own")
@@ -255,9 +255,9 @@ class TestComing(Road):
         self.send_lilith_away()
         self.stub.set("arrive", SOMEBODY)
         self.after_a_gap()
-        tam = self.world.person_by_name("Tam")
+        tam = self.world.being_by_name("Tam")
         self.assertEqual(tam.regards, {})
-        self.assertEqual(self.world.people["p_eve"].regards.get("p_tam"), None)
+        self.assertEqual(self.world.beings["p_eve"].regards.get("p_tam"), None)
 
     def test_the_road_is_told_who_is_missing(self):
         self.send_lilith_away()
@@ -297,7 +297,7 @@ class TestComing(Road):
 
     def test_but_not_more_than_a_town_anybody_knows(self):
         for n in range(agents.TOWN_CEILING - len(self.present())):
-            self.world.people[f"p_x{n}"] = type(self.lilith)(
+            self.world.beings[f"p_x{n}"] = type(self.lilith)(
                 id=f"p_x{n}", name=f"X{n}", place="shelter")
         self.assertEqual(len(self.present()), agents.TOWN_CEILING)
         self.world.at += agents.ARRIVAL_SETTLED_GAP * 2
@@ -308,13 +308,13 @@ class TestComing(Road):
         # later than it would be from the seed's three alone, and both the
         # allowed and the blocked departure can be seen in one test.
         filler = type(self.lilith)(id="p_x0", name="X0", place="shelter")
-        self.world.people["p_x0"] = filler
+        self.world.beings["p_x0"] = filler
         self.send_lilith_away()                    # 3 present: adam, eve, x0
         filler.place = "ridge"
         self.world.at += agents.DEPARTURE_MIN_GAP
         self.assertTrue(agents.may_leave(self.world, filler))
         filler.present = False
-        adam = self.world.people["p_adam"]
+        adam = self.world.beings["p_adam"]
         adam.place = "ridge"
         self.world.at += agents.DEPARTURE_MIN_GAP
         self.assertEqual(len(self.present()), 2)

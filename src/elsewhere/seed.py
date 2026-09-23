@@ -15,7 +15,7 @@ from typing import List, Optional
 from . import agents, config as config_mod
 from . import HOURS_PER_DAY
 from .world.chronicle import Chronicle
-from .world.entities import Person, Place
+from .world.entities import Being, Place
 from .world.store import World, save
 
 START_DAY = 121          # year 2, day 1: the town already has a past
@@ -68,20 +68,21 @@ def build(root, name: str = "Wend") -> World:
            "Apart from everything else. She likes it that way.",
            ["quiet", "wild"], ["ridge", "waterline"])
 
-    people = [
-        Person(
+    beings = [
+        Being(
             id="p_adam",
-            voice="Plain and practical. You remember what your hands were doing, never how you felt.", name="Adam", age=38, occupation="builder",
+            voice="Plain and practical.", name="Adam",
             place="yard", home="yard", mood="even",
             card=("You build what holds, and you would rather fix a thing than "
                   "discuss it. You are steady to the point of being dull about "
-                  "it. You rebuilt the shelter after the water went down and "
+                  "it. You remember what your hands were doing, never how you "
+                  "felt. You rebuilt the shelter after the water went down and "
                   "that is, to you, the end of the story."),
             wants=["get the shelter's roof finished before the rains come back"],
         ),
-        Person(
+        Being(
             id="p_eve",
-            voice="Short, careful sentences. You leave the important part unsaid.", name="Eve", age=33, occupation="gardener",
+            voice="Short, careful sentences. You leave the important part unsaid.", name="Eve",
             place="garden", home="garden", mood="watchful",
             card=("You tend the garden, and you are good at it, and you do not "
                   "much like being watched while you work. You startle easily "
@@ -90,9 +91,9 @@ def build(root, name: str = "Wend") -> World:
                   "that down. You are warmer with people than you let them see."),
             wants=["get the new seedbed through one more season", "not be asked about the water"],
         ),
-        Person(
+        Being(
             id="p_lilith",
-            voice="Quick and a little sharp. You talk about what things mean for later.", name="Lilith", age=29, occupation="herbalist",
+            voice="Quick and a little sharp. You talk about what things mean for later.", name="Lilith",
             place="ridge", home="grove", mood="restless",
             card=("You know the plants on the ridge better than anyone and you "
                   "are not sure you will be here next year. You notice change "
@@ -101,15 +102,15 @@ def build(root, name: str = "Wend") -> World:
             wants=["walk the ridge path as far as it goes, one day"],
         ),
     ]
-    for person in people:
-        world.people[person.id] = person
+    for being in beings:
+        world.beings[being.id] = being
 
     # Who already knows whom, in their own words. One-sided on both sides -
     # and so is the last time they spoke, which both of them can see and
     # neither of them is told what to make of.
     def regard(a: str, b: str, account: str, days_ago: float):
-        world.people[a].regard(b).account = account
-        world.people[a].regard(b).last_seen_at = START_AT - days_ago * HOURS_PER_DAY
+        world.beings[a].regard(b).account = account
+        world.beings[a].regard(b).last_seen_at = START_AT - days_ago * HOURS_PER_DAY
 
     regard("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 1)
     regard("p_eve", "p_adam", "He works too late. Good hands.", 1)
@@ -170,20 +171,20 @@ def build(root, name: str = "Wend") -> World:
 def remember_backstory(world: World, config, transcript=None) -> List:
     """Put the town's history past each person, so the first memories are theirs."""
     made = []
-    here_now = {p.id: p.place for p in world.people.values()}
+    here_now = {p.id: p.place for p in world.beings.values()}
     for event in world.chronicle.all():
         was = world.at
         world.at = event.at
-        for person in world.people.values():
-            if person.id not in event.reached:
+        for being in world.beings.values():
+            if being.id not in event.reached:
                 continue
-            person.place = event.place or person.place
-            trace = agents.perceive(world, person, event, config, transcript)
+            being.place = event.place or being.place
+            trace = agents.perceive(world, being, event, config, transcript)
             if trace is not None:
                 made.append(trace)
         world.at = was
-    for person in world.people.values():
-        person.place = here_now[person.id]
+    for being in world.beings.values():
+        being.place = here_now[being.id]
     return made
 
 

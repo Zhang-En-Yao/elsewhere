@@ -40,7 +40,7 @@ speaker's.
 | file | what it owns |
 | --- | --- |
 | [`world/chronicle.py`](../src/elsewhere/world/chronicle.py) | `Event`, `Chronicle` — the one thing that is true |
-| [`world/entities.py`](../src/elsewhere/world/entities.py) | `Person`, `Place`, `Regard` (one person's account of another, one-way), `Belief` |
+| [`world/entities.py`](../src/elsewhere/world/entities.py) | `Being`, `Place`, `Regard` (one being's account of another, one-way), `Belief` |
 | [`world/memories.py`](../src/elsewhere/world/memories.py) | `Trace`, `TraceStore` |
 | [`world/store.py`](../src/elsewhere/world/store.py) | `World`, save/load, `tick_lock`, the calendar (`season_of`, phases) |
 | [`schemas.py`](../src/elsewhere/schemas.py) | the seven answer shapes, used both as a decoding grammar and as an inbound check |

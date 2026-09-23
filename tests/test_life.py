@@ -86,9 +86,9 @@ class TestDirector(Town):
                                  "happens": True})
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.occurrence.event_id)
-        self.assertEqual(sorted(event.reached), sorted(self.world.people))
+        self.assertEqual(sorted(event.reached), sorted(self.world.beings))
         perceived = sorted(c.about for c in self.calls("perceive"))
-        self.assertEqual(perceived, sorted(self.world.people))
+        self.assertEqual(perceived, sorted(self.world.beings))
         lilith = next(c for c in self.calls("perceive") if c.about == "p_lilith")
         self.assertIn("word of it reached you", lilith.user)
 
@@ -107,7 +107,7 @@ class TestRecall(Town):
     def setUp(self):
         super().setUp()
         for pid in ("p_adam", "p_eve"):
-            self.world.people[pid].place = "yard"
+            self.world.beings[pid].place = "yard"
         self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
                            trace="the water in the doorway before I could move anything",
                            feeling="fear", salience=0.95, tags=["flood"], touched_at=68 * 24)
@@ -165,7 +165,7 @@ class TestReflect(Town):
         self.stub.set("reflect", {"thought": "nobody went down", "belief": "Nobody here will ever leave",
                                   "belief_from": "1", "want": "go before winter", "mood": "restless"})
         self.reckoning()
-        lilith = self.world.people["p_lilith"]
+        lilith = self.world.beings["p_lilith"]
         belief = next(b for b in lilith.beliefs if "leave" in b.belief)
         self.assertEqual(belief.origin, ["mem9100"])
         self.assertEqual(lilith.wants[0], "go before winter")
@@ -186,7 +186,7 @@ class TestReflect(Town):
                                   "belief_from": "1"})
         self.reckoning()
 
-        beliefs = [b for b in self.world.people["p_lilith"].beliefs
+        beliefs = [b for b in self.world.beings["p_lilith"].beliefs
                    if "leave" in b.belief.lower()]
         self.assertEqual(len(beliefs), 1)
         self.assertEqual(beliefs[0].belief, "Nobody here will ever leave", "the first wording stays")
@@ -197,7 +197,7 @@ class TestReflect(Town):
         self.world.traces("p_lilith").add(self.today)
         self.stub.set("reflect", {"belief": "Nobody here will ever leave", "belief_from": "1"})
         self.reckoning()
-        lilith = self.world.people["p_lilith"]
+        lilith = self.world.beings["p_lilith"]
         self.today.salience = 0.15            # it did not, in the end, weigh much
         self.world.at += 400 * 24
         belief = next(b for b in lilith.beliefs if "leave" in b.belief)

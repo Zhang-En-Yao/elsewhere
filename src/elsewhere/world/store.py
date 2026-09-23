@@ -2,9 +2,9 @@
 
     <world>/
       world.json            clock, places, counters
-      people/<id>.json      one card per person
+      beings/<id>.json      one card per being
       chronicle.jsonl       append-only history
-      memories/<id>.jsonl   one file per person
+      memories/<id>.jsonl   one file per being
       transcript/<day>.jsonl every question put to a mind, and its answer
       tick.lock             held while a tick is running
 """
@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 
 from .. import HOURS_PER_DAY, SCHEMA_VERSION
 from .chronicle import Chronicle, Event
-from .entities import Person, Place
+from .entities import Being, Place
 from .memories import TraceStore
 
 DAYS_PER_SEASON = 30
@@ -60,7 +60,7 @@ class World:
     name: str = "Elsewhere"
     at: float = 0.0                       # hours since the world began
     places: Dict[str, Place] = field(default_factory=dict)
-    people: Dict[str, Person] = field(default_factory=dict)
+    beings: Dict[str, Being] = field(default_factory=dict)
     counters: Dict[str, int] = field(default_factory=dict)
     closed: bool = False
     closed_on: Optional[int] = None
@@ -114,23 +114,23 @@ class World:
         return f"{prefix}{n:04d}"
 
     # -- lookups -----------------------------------------------------------
-    def traces(self, person_id: str) -> TraceStore:
-        store = self._traces.get(person_id)
+    def traces(self, being_id: str) -> TraceStore:
+        store = self._traces.get(being_id)
         if store is None:
-            store = TraceStore(self.root / "memories" / f"{person_id}.jsonl")
-            self._traces[person_id] = store
+            store = TraceStore(self.root / "memories" / f"{being_id}.jsonl")
+            self._traces[being_id] = store
         return store
 
-    def people_at(self, place_id: str) -> List[Person]:
-        return [p for p in self.people.values()
+    def beings_at(self, place_id: str) -> List[Being]:
+        return [p for p in self.beings.values()
                 if p.place == place_id and p.present]
 
-    def person_by_name(self, name: str) -> Optional[Person]:
+    def being_by_name(self, name: str) -> Optional[Being]:
         low = name.strip().lower()
-        for p in self.people.values():
+        for p in self.beings.values():
             if p.name.lower() == low or p.id == name:
                 return p
-        for p in self.people.values():
+        for p in self.beings.values():
             if p.name.lower().startswith(low):
                 return p
         return None
@@ -175,8 +175,8 @@ def save(world: World) -> None:
         "road_asked_at": world.road_asked_at, "directed_at": world.directed_at,
         "places": {k: v.to_dict() for k, v in world.places.items()},
     })
-    for person in world.people.values():
-        _atomic_write(world.root / "people" / f"{person.id}.json", person.to_dict())
+    for being in world.beings.values():
+        _atomic_write(world.root / "beings" / f"{being.id}.json", being.to_dict())
     for store in world._traces.values():
         store.save()
 
@@ -209,9 +209,9 @@ def load(root) -> World:
         places={k: Place.from_dict(v) for k, v in meta.get("places", {}).items()},
     )
     world.chronicle = Chronicle(root / "chronicle.jsonl")
-    for path in sorted((root / "people").glob("*.json")):
-        person = Person.from_dict(json.loads(path.read_text(encoding="utf-8")))
-        world.people[person.id] = person
+    for path in sorted((root / "beings").glob("*.json")):
+        being = Being.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        world.beings[being.id] = being
     return world
 
 

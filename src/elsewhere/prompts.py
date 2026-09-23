@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from . import HOURS_PER_DAY
-from .world.entities import Person
+from .world.entities import Being
 from .world.memories import Trace
 from .world.store import clock_at, day_of
 
@@ -20,24 +20,17 @@ def _when(at: float) -> str:
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
-def person_block(person: Person) -> str:
-    lines = [f"You are {person.name}."]
-    if person.card:
-        lines.append(person.card)
-    facts = []
-    if person.age:
-        facts.append(f"{person.age} years old")
-    if person.occupation:
-        facts.append(person.occupation)
-    if facts:
-        lines.append(", ".join(facts).capitalize() + ".")
-    if getattr(person, "voice", ""):
-        lines.append(f"How you talk: {person.voice}")
-    lines.append(f"Right now you feel {person.mood}.")
-    if person.wants:
-        lines.append("What you want at the moment: " + "; ".join(person.wants) + ".")
-    if person.beliefs:
-        held = sorted(person.beliefs, key=lambda b: -b.confidence)[:3]
+def being_block(being: Being) -> str:
+    lines = [f"You are {being.name}."]
+    if being.card:
+        lines.append(being.card)
+    if being.voice:
+        lines.append(f"How you talk: {being.voice}")
+    lines.append(f"Right now you feel {being.mood}.")
+    if being.wants:
+        lines.append("What you want at the moment: " + "; ".join(being.wants) + ".")
+    if being.beliefs:
+        held = sorted(being.beliefs, key=lambda b: -b.confidence)[:3]
         lines.append("What you hold to be true: " +
                      " ".join(f"{b.belief}." for b in held))
     return "\n".join(lines)
@@ -74,7 +67,7 @@ def _since(regard, at: float) -> str:
     return f" You last spoke {days} days ago."
 
 
-def regards_block(person: Person, others: Sequence[Person], at: float) -> str:
+def regards_block(being: Being, others: Sequence[Being], at: float) -> str:
     """Who is here, as this person would account for them.
 
     Knowing somebody is having something to say about them - not a number
@@ -85,7 +78,7 @@ def regards_block(person: Person, others: Sequence[Person], at: float) -> str:
         return "You are alone."
     lines = ["Who is here:"]
     for other in others:
-        regard = person.regards.get(other.id)
+        regard = being.regards.get(other.id)
         if regard is None or not regard.account:
             lines.append(f"  - {other.name}, who you do not know.")
         else:
@@ -164,8 +157,8 @@ PERCEIVE_EXAMPLE_TRACES = (
 )
 
 
-def perceive_user(person: Person, what_happened: str, where: str, when: str,
-                  at: float, others: Sequence[Person], traces: Sequence[Trace],
+def perceive_user(being: Being, what_happened: str, where: str, when: str,
+                  at: float, others: Sequence[Being], traces: Sequence[Trace],
                   part_of_it: bool, vantage: str = "") -> str:
     """Scene first, person last.
 
@@ -179,10 +172,10 @@ def perceive_user(person: Person, what_happened: str, where: str, when: str,
         + what_happened,
         (f"You were {vantage}. That is where you stood, not what you noticed - "
          f"do not reuse its words.") if vantage else "",
-        regards_block(person, others, at).replace("Who is here:", "Who else was there:"),
+        regards_block(being, others, at).replace("Who is here:", "Who else was there:"),
         traces_block(traces),
-        person_block(person),
-        f"Now answer as {person.name}, and only as {person.name}: how much of this "
+        being_block(being),
+        f"Now answer as {being.name}, and only as {being.name}: how much of this "
         f"do you carry? For some people it is everything; for others, nothing at all.",
     ]
     return "\n\n".join(part for part in parts if part)
@@ -257,11 +250,11 @@ Four people, another town, another day - the form, not the content:
      "action": "go", "target": "the well"}"""
 
 
-def act_user(person: Person, when: str, at: float, place, others: Sequence[Person],
+def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
              reachable: Sequence[str], traces: Sequence[Trace],
              home_name: str = "", may_leave: bool = False) -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
-    if place and person.home == place.id:
+    if place and being.home == place.id:
         where = f"You are at home, {place.name}. {place.description}".strip()
     else:
         where = f"You are at {place.name}. {place.description}".strip() if place else ""
@@ -274,10 +267,10 @@ def act_user(person: Person, when: str, at: float, place, others: Sequence[Perso
         f"From here you can go to: {', '.join(reachable) if reachable else 'nowhere'}.",
         ("From here the road also goes out of the town. You could take it "
          "today and not come back.") if may_leave else "",
-        regards_block(person, others, at) if others else "",
+        regards_block(being, others, at) if others else "",
         traces_block(traces),
-        person_block(person),
-        f"Now decide as {person.name}: what do you do for the next few hours?",
+        being_block(being),
+        f"Now decide as {being.name}: what do you do for the next few hours?",
     ]
     return "\n\n".join(part for part in parts if part)
 
@@ -309,9 +302,9 @@ Three people, another town - the form, not the content:
     {"about": "nothing in particular", "line": "River's high. Mind your feet."}"""
 
 
-def speak_user(person: Person, listener: Person, when: str, place_name: str,
+def speak_user(being: Being, listener: Being, when: str, place_name: str,
                topics: Sequence[Trace]) -> str:
-    regard = person.regards.get(listener.id)
+    regard = being.regards.get(listener.id)
     knows = f" {regard.account}" if regard and regard.account else ""
     lines = [
         f"It is {when}, at {place_name}.",
@@ -324,8 +317,8 @@ def speak_user(person: Person, listener: Person, when: str, place_name: str,
             lines.append(f"  {i}. {t.trace}{extra}")
     else:
         lines.append("On your mind: nothing in particular.")
-    lines.append(person_block(person))
-    lines.append(f"What does {person.name} say to {listener.name}?")
+    lines.append(being_block(being))
+    lines.append(f"What does {being.name} say to {listener.name}?")
     return "\n\n".join(lines)
 
 
@@ -381,20 +374,20 @@ def direct_user(world, recent) -> str:
     places = "Places: " + "; ".join(
         f"{p.name} ({p.description})" if p.description else p.name
         for p in world.places.values())
-    people = ["People:"]
-    for person in sorted(world.people.values(), key=lambda p: p.name):
-        if not person.present:
+    beings = ["People:"]
+    for being in sorted(world.beings.values(), key=lambda p: p.name):
+        if not being.present:
             continue
-        place = world.places.get(person.place)
-        wants = f" Lately after: {'; '.join(person.wants)}." if person.wants else ""
-        people.append(f"  - {person.name}, {person.occupation or 'no trade'}, "
-                      f"at {place.name if place else 'nowhere'}.{wants}")
+        place = world.places.get(being.place)
+        wants = f" Lately after: {'; '.join(being.wants)}." if being.wants else ""
+        beings.append(f"  - {being.name}, at "
+                      f"{place.name if place else 'nowhere'}.{wants}")
     record = ["Lately, in the record:"]
     record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,
-        "\n".join(people),
+        "\n".join(beings),
         "\n".join(record),
         "Does anything happen to this town today?",
     ])
@@ -410,12 +403,12 @@ Most days nobody does. A town this size might take somebody in once in a year,
 and half of those turn out to be somebody's cousin.
 
 why_now: first, what about this town right now would bring a person to it -
-work nobody has done since somebody left, a trade it has been short of, a
-season, a road that goes somewhere else as well.
+work nobody has done since somebody left, a season, a road that goes
+somewhere else as well.
 
-name, from_where, trade, age: then who they are, plainly. A name that belongs
-in the same world as the names already here. Somewhere they came from that is
-not this town.
+name, from_where: then who they are, plainly. A name that belongs in the same
+world as the names already here. Somewhere they came from that is not this
+town.
 
 card: who they are, written to them as "you", two or three sentences - what
 they do, what they are like to be near, and the thing they have brought with
@@ -433,33 +426,31 @@ Two mornings, another town - the form, not the content:
   has run it since. Late summer.
     {"why_now": "the ferry has sat on the bank since Pell went",
      "name": "Hesper", "from_where": "downriver, past the weir",
-     "trade": "boatman", "age": 38,
      "card": "You came for the ferry and you are good on water. You do not ask for much and you do not explain yourself.",
      "voice": "Few words, and none of them about yourself.",
      "comes": true}
 
   The same town, a week later. Hesper has the ferry.
     {"why_now": "nothing here is short of anybody", "name": "", "from_where": "",
-     "trade": "", "age": 0, "card": "", "voice": "", "comes": false}"""
+     "card": "", "voice": "", "comes": false}"""
 
 
 def arrive_user(world, recent) -> str:
-    here = [p for p in world.people.values() if p.present]
-    gone = [p for p in world.people.values() if not p.present]
+    here = [p for p in world.beings.values() if p.present]
+    gone = [p for p in world.beings.values() if not p.present]
     places = "Places: " + "; ".join(p.name for p in world.places.values())
-    people = [f"Who lives here ({len(here)}):"]
-    for person in sorted(here, key=lambda p: p.name):
-        people.append(f"  - {person.name}, {person.occupation or 'no trade'}.")
+    beings = [f"Who lives here ({len(here)}):"]
+    for being in sorted(here, key=lambda p: p.name):
+        beings.append(f"  - {being.name}.")
     if gone:
-        people.append("Who has gone, and what went with them: " + "; ".join(
-            f"{p.name}, {p.occupation}" if p.occupation else p.name
-            for p in sorted(gone, key=lambda p: p.name)) + ".")
+        beings.append("Who has gone: " + "; ".join(
+            p.name for p in sorted(gone, key=lambda p: p.name)) + ".")
     record = ["Lately, in the record:"]
     record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,
-        "\n".join(people),
+        "\n".join(beings),
         "\n".join(record),
         "Does anybody come up the road into this town today?",
     ])
@@ -494,7 +485,7 @@ Two people, another town - the form, not the content:
      "belief_from": "1", "want": "find out who sent him", "mood": "wary"}"""
 
 
-def reflect_user(person: Person, today: Sequence[Trace],
+def reflect_user(being: Being, today: Sequence[Trace],
                  older: Sequence[Trace]) -> str:
     lines = []
     if today:
@@ -503,8 +494,8 @@ def reflect_user(person: Person, today: Sequence[Trace],
             extra = f" ({t.means})" if t.means else ""
             lines.append(f"  {i}. {t.trace}{extra}")
     lines.append(traces_block(older, "Older things you can still bring to mind"))
-    lines.append(person_block(person))
-    lines.append(f"It is night. What is {person.name} left with?")
+    lines.append(being_block(being))
+    lines.append(f"It is night. What is {being.name} left with?")
     return "\n\n".join(lines)
 
 
@@ -546,11 +537,11 @@ def clarity(reach_value: float) -> str:
     return "barely there"
 
 
-def recall_user(person: Person, trace: Trace, age_days: int, reach_value: float) -> str:
+def recall_user(being: Being, trace: Trace, age_days: int, reach_value: float) -> str:
     was = f'"{trace.trace}"' + (f" (what it meant: {trace.means})" if trace.means else "")
     told = {0: "never told", 1: "told once"}.get(trace.recalls, f"told {trace.recalls} times")
     return "\n\n".join([
         f"The memory, {age_days} days old, {clarity(reach_value)}, {told}. It was: {was}",
-        person_block(person),
-        f"How does it come back to {person.name} now?",
+        being_block(being),
+        f"How does it come back to {being.name} now?",
     ])

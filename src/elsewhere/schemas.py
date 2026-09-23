@@ -146,8 +146,6 @@ ARRIVE = {
         "why_now": {"type": "string"},
         "name": {"type": "string"},
         "from_where": {"type": "string"},
-        "trade": {"type": "string"},
-        "age": {"type": "number"},
         "card": {"type": "string"},
         "voice": {"type": "string"},
         "comes": {"type": "boolean"},
@@ -238,7 +236,7 @@ def grammar(name: str) -> dict:
     return schema
 
 
-def act_grammar(places: List[str], people: List[str],
+def act_grammar(places: List[str], beings: List[str],
                 may_leave: bool = False) -> dict:
     """ACT with its target narrowed to what is actually there.
 
@@ -251,7 +249,7 @@ def act_grammar(places: List[str], people: List[str],
     model cannot walk somebody out of the world from their own kitchen.
     """
     schema = grammar("act")
-    options = [""] + sorted(set(places) | set(people))
+    options = [""] + sorted(set(places) | set(beings))
     schema["properties"]["target"] = {"type": "string", "enum": options}
     schema["properties"]["action"] = {
         "type": "string", "enum": ACTIONS + ([LEAVE] if may_leave else [])}
@@ -266,11 +264,11 @@ def speak_grammar(topics: int) -> dict:
     return schema
 
 
-def direct_grammar(places: List[str], people: List[str]) -> dict:
+def direct_grammar(places: List[str], beings: List[str]) -> dict:
     """DIRECT with where/who narrowed to what exists in this town."""
     schema = grammar("direct")
     schema["properties"]["where"] = {"type": "string", "enum": sorted(places)}
-    schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(people)}
+    schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(beings)}
     return schema
 
 

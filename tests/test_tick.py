@@ -39,8 +39,8 @@ class TownTest(unittest.TestCase):
     def say(self, call, answer):
         self.stub.set(call, answer)
 
-    def acts(self, **by_person):
-        for pid, answer in by_person.items():
+    def acts(self, **by_being):
+        for pid, answer in by_being.items():
             self.stub.answers[f"act|{pid}"] = answer
 
     def calls_for(self, name):
@@ -61,13 +61,13 @@ class TestTime(TownTest):
     def test_everyone_is_asked_once(self):
         tick_mod.tick(self.world, config())
         asked = sorted(c.about for c in self.calls_for("act"))
-        self.assertEqual(asked, sorted(self.world.people))
+        self.assertEqual(asked, sorted(self.world.beings))
 
     def test_a_mind_that_gives_nothing_stays_put(self):
         self.acts(p_eve="I would rather not say")
-        before = self.world.people["p_eve"].place
+        before = self.world.beings["p_eve"].place
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.people["p_eve"].place, before)
+        self.assertEqual(self.world.beings["p_eve"].place, before)
         self.assertEqual(report.silent, 1)
 
 
@@ -83,7 +83,7 @@ class TestChoices(TownTest):
         self.acts(p_eve={"because": "the seedbed can wait", "action": "go",
                          "target": "The Shelter"})
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.people["p_eve"].place, "shelter")
+        self.assertEqual(self.world.beings["p_eve"].place, "shelter")
         self.assertIn(("p_eve", "garden", "shelter"), report.moves)
         self.assertEqual(report.decisions["p_eve"].because, "the seedbed can wait")
 
@@ -92,7 +92,7 @@ class TestConversation(TownTest):
     def setUp(self):
         super().setUp()
         for pid in ("p_eve", "p_adam"):
-            self.world.people[pid].place = "yard"
+            self.world.beings[pid].place = "yard"
         self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
                            trace="the water in the doorway before I could move anything",
                            means="", feeling="fear", salience=0.95,
@@ -144,9 +144,9 @@ class TestConversation(TownTest):
         report = tick_mod.tick(self.world, config())
         self.assertEqual(report.talks, [])
         self.assertIn(("p_eve", "p_adam"), report.missed)
-        self.assertIn("who had gone", self.world.people["p_eve"].last_action)
+        self.assertIn("who had gone", self.world.beings["p_eve"].doing)
 
-    def test_two_people_reaching_for_each_other_have_one_conversation(self):
+    def test_two_beings_reaching_for_each_other_have_one_conversation(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"},
                   p_adam={"because": "", "action": "talk", "target": "Eve"})
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
@@ -158,7 +158,7 @@ class TestConversation(TownTest):
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
         tick_mod.tick(self.world, config())
         for a, b in (("p_adam", "p_eve"), ("p_eve", "p_adam")):
-            self.assertEqual(self.world.people[a].regards[b].last_seen_at,
+            self.assertEqual(self.world.beings[a].regards[b].last_seen_at,
                              self.world.at)
 
 
@@ -178,12 +178,12 @@ class TestStayingPut(TownTest):
             "action": "stay", "target": ""}
         tick_mod.tick(self.world, config())
         self.assertEqual(
-            self.world.people["p_eve"].last_action,
+            self.world.beings["p_eve"].doing,
             "sitting in the doorway with the seed trays, not sorting them")
 
     def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
         tick_mod.tick(self.world, config())      # the stub's doing is ""
-        self.assertEqual(self.world.people["p_eve"].last_action,
+        self.assertEqual(self.world.beings["p_eve"].doing,
                          "stayed where they were")
 
 
@@ -195,7 +195,7 @@ class TestCategories(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         world = seed.build(Path(tmp.name) / "world")
         for pid in ("p_adam", "p_eve"):
-            world.people[pid].place = "shelter"
+            world.beings[pid].place = "shelter"
         stub = StubBackend({"act": STAY, "perceive": {"weight": "nothing"},
                             "direct": {"happens": False}, "reflect": {},
                             "arrive": {"comes": False},

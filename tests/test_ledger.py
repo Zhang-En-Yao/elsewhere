@@ -37,8 +37,8 @@ class TestWorldStore(unittest.TestCase):
         back = store.load(self.root)
         self.assertEqual(back.name, world.name)
         self.assertEqual(back.at, world.at)
-        self.assertEqual(len(back.people), len(world.people))
-        self.assertEqual(back.people["p_eve"].card, world.people["p_eve"].card)
+        self.assertEqual(len(back.beings), len(world.beings))
+        self.assertEqual(back.beings["p_eve"].card, world.beings["p_eve"].card)
         self.assertEqual(len(back.traces("p_eve")), 1)
         self.assertEqual(len(back.chronicle), len(world.chronicle))
 

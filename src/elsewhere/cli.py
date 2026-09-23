@@ -53,9 +53,9 @@ def cmd_init(args) -> None:
                         transcript=tape)
     world.last_tick_at = time.time()
     store.save(world)
-    remembered = sum(len(world.traces(p.id)) for p in world.people.values())
+    remembered = sum(len(world.traces(p.id)) for p in world.beings.values())
     print(f"{world.name} exists. {world.label()}")
-    print(f"  {len(world.people)} people, {len(world.places)} places, "
+    print(f"  {len(world.beings)} people, {len(world.places)} places, "
           f"{len(world.chronicle)} events already behind them")
     print(f"  {remembered} of those events left a mark on somebody "
           f"({time.time() - started:.1f}s)")
@@ -69,64 +69,64 @@ def cmd_status(args) -> None:
     print(f"{world.name} - {world.label()}")
     print(f"  chronicle: {len(world.chronicle)} events")
     for place in world.places.values():
-        here = world.people_at(place.id)
+        here = world.beings_at(place.id)
         if not here:
             continue
         print(f"  {place.name}: " +
-              ", ".join(f"{p.name} ({p.last_action or 'just here'})" for p in here))
-    gone = [p for p in world.people.values() if not p.present]
+              ", ".join(f"{p.name} ({p.doing or 'just here'})" for p in here))
+    gone = [p for p in world.beings.values() if not p.present]
     if gone:
         print("  gone: " + ", ".join(
             f"{p.name} ({when(p.left_at)})" if p.left_at else p.name
             for p in sorted(gone, key=lambda p: p.left_at or 0)))
     total = 0
-    for person in world.people.values():
-        store_ = world.traces(person.id)
+    for being in world.beings.values():
+        store_ = world.traces(being.id)
         # Somebody who left is counted as they were the moment they went. The
         # world has no idea what has happened to them since and will not
         # pretend to by going on fading things nobody here can see.
-        at = world.at if person.present else (person.left_at or world.at)
+        at = world.at if being.present else (being.left_at or world.at)
         live = [t for t in store_ if not retrieval.dormant(t, at)]
         total += len(store_)
-        mark = "" if person.present else "  (left)"
-        print(f"  {person.name:<8} {len(live)} within reach, "
+        mark = "" if being.present else "  (left)"
+        print(f"  {being.name:<8} {len(live)} within reach, "
               f"{len(store_) - len(live)} out of reach{mark}")
     print(f"  {total} traces in total")
 
 
-def cmd_person(args) -> None:
+def cmd_being(args) -> None:
     world = open_world(args)
-    person = world.person_by_name(args.name)
-    if person is None:
+    being = world.being_by_name(args.name)
+    if being is None:
         sys.exit(f"Nobody here is called {args.name!r}")
-    print(heading(f"{person.name}, {person.age}, {person.occupation}"))
-    print(f"  {person.card}")
-    at = world.at if person.present else (person.left_at or world.at)
-    if not person.present:
+    print(heading(being.name))
+    print(f"  {being.card}")
+    at = world.at if being.present else (being.left_at or world.at)
+    if not being.present:
         print(f"\n  Left on {when(at)}. What follows is how they stood "
               f"then; nothing here has touched it since.")
     else:
-        print(f"\n  mood: {person.mood}   at: "
-              f"{world.places[person.place].name if person.place in world.places else '-'}")
-    if person.arrived_at:
-        print(f"  came up the road on {when(person.arrived_at)}")
-    if person.wants:
-        print("  wants: " + "; ".join(person.wants))
-    if person.beliefs:
+        print(f"\n  mood: {being.mood}   at: "
+              f"{world.places[being.place].name if being.place in world.places else '-'}")
+    if being.arrived_at:
+        print(f"  came up the road on {when(being.arrived_at)}")
+    if being.wants:
+        print("  wants: " + "; ".join(being.wants))
+    if being.beliefs:
         print("\n  holds to be true")
-        store = world.traces(person.id)
-        for b in sorted(person.beliefs, key=lambda b: -b.confidence):
+        store = world.traces(being.id)
+        for b in sorted(being.beliefs, key=lambda b: -b.confidence):
             lost = ("  (cannot say why any more)"
                     if retrieval.on_faith(b, store, at) else "")
             print(f"    [{b.confidence:.2f}] {b.belief}{lost}")
-    known = [(world.people[i], t) for i, t in
-             sorted(person.regards.items(), key=lambda kv: -kv[1].last_seen_at)
-             if i in world.people]
+    known = [(world.beings[i], t) for i, t in
+             sorted(being.regards.items(), key=lambda kv: -kv[1].last_seen_at)
+             if i in world.beings]
     print("\n  who they know" if known else "\n  they know nobody here yet")
     for other, regard in known:
         gone = "  (gone)" if not other.present else ""
         print(f"    {other.name:<8} {regard.account or '-'}{gone}")
-    traces = list(world.traces(person.id))
+    traces = list(world.traces(being.id))
     within = retrieval.recallable(traces, at, limit=args.limit)
     print(f"\n  memory: {len(traces)} traces, "
           f"{sum(1 for t in traces if retrieval.dormant(t, at))} out of reach")
@@ -157,16 +157,16 @@ def cmd_event(args) -> None:
     print(f"  History says:  {event.account}")
     print(f"  cues: {', '.join(event.cues) or '-'}")
     print("\n  What it left in people:")
-    for person in world.people.values():
-        traces = world.traces(person.id).about_event(event.id)
+    for being in world.beings.values():
+        traces = world.traces(being.id).about_event(event.id)
         if not traces:
-            if person.id in event.reached:
-                print(f"    {person.name:<8} - nothing. They were there.")
+            if being.id in event.reached:
+                print(f"    {being.name:<8} - nothing. They were there.")
             continue
         for t in traces:
             state = ("out of reach" if retrieval.dormant(t, world.at)
                      else f"reach {retrieval.reach(t, world.at):.2f}")
-            print(f"    {person.name:<8} \"{t.trace}\"")
+            print(f"    {being.name:<8} \"{t.trace}\"")
             if t.means:
                 print(f"    {'':<8}   {t.feeling}: {t.means}")
             print(f"    {'':<8}   ({state}, weight {t.salience:.2f})")
@@ -216,20 +216,20 @@ def cmd_remember(args) -> None:
     config = config_mod.load(world.root)
     transcript = transcript_for(world)
     made = agents.perceive_all(world, event, config, transcript)
-    for person in world.people.values():
-        world.traces(person.id).save()
+    for being in world.beings.values():
+        world.traces(being.id).save()
     store.save(world)
     print(f"{len(made)} of {len(event.reached)} people kept something.")
     for trace in made:
-        print(f"  {world.people[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
+        print(f"  {world.beings[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
 
 
 # --------------------------------------------------------------------------
 # time passing
 
 def _name(world, pid: str) -> str:
-    person = world.people.get(pid)
-    return person.name if person else pid
+    being = world.beings.get(pid)
+    return being.name if being else pid
 
 
 def print_report(world, report) -> None:
@@ -246,20 +246,20 @@ def print_report(world, report) -> None:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     for d in report.departures:
         event = world.chronicle.get(d.event_id)
-        print(f"  - {event.account if event else _name(world, d.person_id) + ' left.'}")
+        print(f"  - {event.account if event else _name(world, d.being_id) + ' left.'}")
         if d.because:
             print(f'      "{d.because}"')
         for tr in d.kept:
             print(f"      {_name(world, tr.owner)} kept [{tr.feeling}] {tr.trace}")
     talked = {t.speaker for t in report.talks} | {t.listener for t in report.talks}
-    talked |= {d.person_id for d in report.departures}
+    talked |= {d.being_id for d in report.departures}
     for pid, d in sorted(report.decisions.items()):
-        person = world.people[pid]
+        being = world.beings[pid]
         if pid in talked:
             continue
-        what = person.last_action or d.doing or d.action
+        what = being.doing or d.doing or d.action
         why = f'  - "{d.because}"' if d.because else ("  (no answer)" if not d.answered else "")
-        print(f"  {person.name:<7} {what:<34}{why}")
+        print(f"  {being.name:<7} {what:<34}{why}")
     for t in report.talks:
         print(f"  {_name(world, t.speaker):<7} to {_name(world, t.listener)}: \"{t.line}\"")
         if t.reshaped:
@@ -367,12 +367,12 @@ def cmd_news(args) -> None:
             for t in world.traces(pid).about_event(e.id):
                 print(f"      {_name(world, pid)} kept [{t.feeling}] {t.trace}")
     print("\n  Now:")
-    for person in sorted(world.people.values(), key=lambda p: p.name):
-        if not person.present:
+    for being in sorted(world.beings.values(), key=lambda p: p.name):
+        if not being.present:
             continue
-        place = world.places.get(person.place)
-        print(f"    {person.name:<7} at {place.name if place else '-':<20} "
-              f"{person.last_action or ''}")
+        place = world.places.get(being.place)
+        print(f"    {being.name:<7} at {place.name if place else '-':<20} "
+              f"{being.doing or ''}")
     if not args.peek:
         world.news_seen = len(world.chronicle)
         store.save(world)
@@ -399,7 +399,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("person", help="who someone is now")
     p.add_argument("name")
     p.add_argument("--limit", type=int, default=8)
-    p.set_defaults(func=cmd_person)
+    p.set_defaults(func=cmd_being)
 
     p = sub.add_parser("timeline", help="what happened")
     p.add_argument("--limit", type=int, default=30)

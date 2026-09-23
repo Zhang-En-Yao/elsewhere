@@ -40,7 +40,8 @@ class Regard:
 @dataclass
 class Belief:
     belief: str
-    confidence: float = 0.4
+    confidence: float = 0.4        # only ever rises: holding it again tightens
+                                   # the grip, and nothing loosens it
     origin: List[str] = field(default_factory=list)   # trace ids, at most 3
 
     def to_dict(self) -> dict:
@@ -53,28 +54,53 @@ class Belief:
 
 
 @dataclass
-class Person:
+class Being:
+    """Someone the world holds a place for. Not necessarily a person.
+
+    The fields are grouped by who writes them, because that is the division
+    the rest of the engine is built on: a mind says who it is and what it is
+    carrying, and the engine keeps only what it needs to run the next step.
+    Nothing below is read by the engine to decide what a being would do.
+    """
+
+    # Which being this is. Set when they are made and not touched again.
     id: str
     name: str
-    card: str = ""                 # who they are, in prose; the model may revise it
-    voice: str = ""                # how they talk - a small model cannot infer this from a biography
-    age: Optional[int] = None
-    occupation: str = ""
-    place: str = ""
-    home: str = ""
+    kind: str = "person"           # person | companion | presence
+    mind: str = "model"            # model | player - whose answers these are
+    premise: str = ""              # why this being is in the world at all:
+                                   # the author's reason, never shown to them
+
+    # What a mind is handed before it is asked anything. Prose, because the
+    # thing that reads it is a language model. Written at seed or on arrival;
+    # nothing rewrites either of them yet.
+    card: str = ""                 # who they are, written to them as "you"
+    voice: str = ""                # how they talk - a small model cannot
+                                   # infer this from a biography
+
+    # What a mind says about itself. All of it comes back changed from
+    # `reflect`, except regards, which so far only the seed writes.
     mood: str = "even"             # a word, not a number
     wants: List[str] = field(default_factory=list)
-    regards: Dict[str, Regard] = field(default_factory=dict)
     beliefs: List[Belief] = field(default_factory=list)
-    kind: str = "person"           # person | companion | presence
-    note: str = ""                 # why this being is in the world at all
-    mind: str = "model"            # model | player
-    present: bool = True
-    arrived_at: Optional[float] = None  # None: they were here when it started
-    left_at: Optional[float] = None     # when they took the road; None: still here
+    regards: Dict[str, Regard] = field(default_factory=dict)   # by being id
+
+    # Where they are. Both are place ids, and the engine owns both.
+    place: str = ""                # moved on a `go`, and nowhere else
+    home: str = ""                 # where they sleep; "" for a newcomer, and
+                                   # nothing has given anyone one yet
+
+    # What the engine keeps in order to run the next step.
+    present: bool = True           # in the world at all
+    doing: str = ""                # what they are doing now: their words when
+                                   # they chose it, the engine's when it moved
+                                   # them
+
+    # Hours into the world, never days - see the note on the clock in
+    # `elsewhere/__init__`.
+    arrived_at: Optional[float] = None    # None: they were here when it started
+    left_at: Optional[float] = None       # when they took the road; None: still here
     reflected_at: Optional[float] = None  # when they last went over a day of their own
-    last_action: str = ""
-    last_created_day: int = 0
 
     def regard(self, other_id: str) -> Regard:
         r = self.regards.get(other_id)
@@ -90,22 +116,20 @@ class Person:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Person":
+    def from_dict(cls, d: dict) -> "Being":
         return cls(
             id=d["id"], name=d["name"], card=d.get("card", ""),
-            voice=d.get("voice", ""), age=d.get("age"),
-            occupation=d.get("occupation", ""), place=d.get("place", ""),
+            voice=d.get("voice", ""), place=d.get("place", ""),
             home=d.get("home", ""), mood=d.get("mood", "even"),
             wants=list(d.get("wants", [])),
             regards={k: Regard.from_dict(v)
                      for k, v in d.get("regards", {}).items()},
             beliefs=[Belief.from_dict(b) for b in d.get("beliefs", [])],
-            kind=d.get("kind", "person"), note=d.get("note", ""),
+            kind=d.get("kind", "person"), premise=d.get("premise", ""),
             mind=d.get("mind", "model"), present=bool(d.get("present", True)),
             arrived_at=d.get("arrived_at"), left_at=d.get("left_at"),
             reflected_at=d.get("reflected_at"),
-            last_action=d.get("last_action", ""),
-            last_created_day=int(d.get("last_created_day", 0)),
+            doing=d.get("doing", ""),
         )
 
 

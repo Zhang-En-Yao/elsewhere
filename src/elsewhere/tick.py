@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Tuple
 from . import agents, schemas
 from .backends import Transcript
 from .world.chronicle import CONVERSATION
-from .world.entities import Person
+from .world.entities import Being
 from .world.memories import Trace
 
 #: How much world time one step covers. Everyone decides once per step, so
@@ -46,7 +46,7 @@ class Occurrence:
 
 @dataclass
 class Arrival:
-    person_id: str
+    being_id: str
     event_id: str
     account: str
     kept: List[Trace] = field(default_factory=list)
@@ -54,7 +54,7 @@ class Arrival:
 
 @dataclass
 class Departure:
-    person_id: str
+    being_id: str
     event_id: str
     because: str = ""
     kept: List[Trace] = field(default_factory=list)
@@ -74,24 +74,24 @@ class TickReport:
     reflections: Dict[str, dict] = field(default_factory=dict)
 
 
-def _meet(world, a: Person, b: Person) -> None:
+def _meet(world, a: Being, b: Being) -> None:
     """Both of them now know when this was. Nothing else is inferred from it."""
     for x, y in ((a, b), (b, a)):
         x.regard(y.id).last_seen_at = world.at
 
 
-def converse(world, speaker: Person, listener: Person, config,
+def converse(world, speaker: Being, listener: Being, config,
              transcript: Optional[Transcript] = None) -> Optional[Talk]:
     """Someone says something; everyone in earshot keeps their own version."""
     line, drawn = agents.speak(world, speaker, listener, config, transcript)
     _meet(world, speaker, listener)
     if line is None:
-        speaker.last_action = f"sat with {listener.name}, saying little"
-        listener.last_action = f"sat with {speaker.name}"
+        speaker.doing = f"sat with {listener.name}, saying little"
+        listener.doing = f"sat with {speaker.name}"
         return None
 
     place = world.places.get(speaker.place)
-    here = [p.id for p in world.people_at(speaker.place)]
+    here = [p.id for p in world.beings_at(speaker.place)]
     vantage = {pid: (f"face to face with {speaker.name}" if pid == listener.id
                      else f"nearby, within earshot of {speaker.name} and {listener.name}")
                for pid in here if pid != speaker.id}
@@ -105,8 +105,8 @@ def converse(world, speaker: Person, listener: Person, config,
         data={"speaker": speaker.id, "listener": listener.id, "line": line,
               "drawn_on": drawn.id if drawn else None, "vantage": vantage},
     )
-    speaker.last_action = f"talked with {listener.name}"
-    listener.last_action = f"listened to {speaker.name}"
+    speaker.doing = f"talked with {listener.name}"
+    listener.doing = f"listened to {speaker.name}"
 
     # Telling it changes it. The speaker's own memory comes back reshaped.
     reshaped = None
@@ -120,7 +120,7 @@ def converse(world, speaker: Person, listener: Person, config,
     for pid in here:
         if pid == speaker.id:
             continue
-        trace = agents.perceive(world, world.people[pid], event, config, transcript)
+        trace = agents.perceive(world, world.beings[pid], event, config, transcript)
         if trace is not None:
             kept.append(trace)
     return Talk(speaker.id, listener.id, line, event.id, kept, reshaped)
@@ -147,64 +147,64 @@ def tick(world, config, transcript: Optional[Transcript] = None,
             kept = agents.perceive_all(world, event, config, transcript)
             report.arrival = Arrival(event.involved[0], event.id, event.account, kept)
 
-    minds = sorted((p for p in world.people.values()
+    minds = sorted((p for p in world.beings.values()
                     if p.present and p.mind == "model"), key=lambda p: p.id)
 
     # 1. Everyone decides, from where they stand, before anyone moves.
-    for person in minds:
-        decision = agents.act(world, person, config, transcript)
-        report.decisions[person.id] = decision
+    for being in minds:
+        decision = agents.act(world, being, config, transcript)
+        report.decisions[being.id] = decision
         if not decision.answered:
             report.silent += 1
 
     # 2. Movement, and whoever is not coming back. Someone who leaves is gone
     #    before the conversations, so a person who went to find them finds the
     #    road instead.
-    for person in minds:
-        d = report.decisions[person.id]
+    for being in minds:
+        d = report.decisions[being.id]
         if d.action == schemas.LEAVE:
-            event, kept = agents.depart(world, person, d.because, config, transcript)
-            report.departures.append(Departure(person.id, event.id, d.because, kept))
+            event, kept = agents.depart(world, being, d.because, config, transcript)
+            report.departures.append(Departure(being.id, event.id, d.because, kept))
         elif d.action == "go" and d.target is not None and d.target in world.places:
-            before = person.place
-            person.place = d.target
-            person.last_action = f"walked to {world.places[d.target].name}"
-            report.moves.append((person.id, before, d.target))
+            before = being.place
+            being.place = d.target
+            being.doing = f"walked to {world.places[d.target].name}"
+            report.moves.append((being.id, before, d.target))
         elif d.action != "talk":
             # Nothing moved, so what this looked like is whatever they said it
             # looked like. The engine has nothing to add and does not try.
-            person.last_action = d.doing or "stayed where they were"
+            being.doing = d.doing or "stayed where they were"
 
     # 3. Conversations, among people still in the same place.
     minds = [p for p in minds if p.present]
     engaged = set()
-    for person in minds:
-        d = report.decisions[person.id]
-        if d.action != "talk" or person.id in engaged:
+    for being in minds:
+        d = report.decisions[being.id]
+        if d.action != "talk" or being.id in engaged:
             continue
-        other = world.people.get(d.target or "")
+        other = world.beings.get(d.target or "")
         if other is None:
             continue
-        if not other.present or other.place != person.place:
-            person.last_action = f"went looking for {other.name}, who had gone"
-            report.missed.append((person.id, other.id))
+        if not other.present or other.place != being.place:
+            being.doing = f"went looking for {other.name}, who had gone"
+            report.missed.append((being.id, other.id))
             continue
         if other.id in engaged:
-            person.last_action = f"waited to speak with {other.name}"
+            being.doing = f"waited to speak with {other.name}"
             continue
-        talk = converse(world, person, other, config, transcript)
-        engaged |= {person.id, other.id}
+        talk = converse(world, being, other, config, transcript)
+        engaged |= {being.id, other.id}
         if talk is not None:
             report.talks.append(talk)
 
     # 4. Whoever is a day on from their own last reckoning goes over it. Not
     #    everyone at once, and not because it got dark.
-    for person in minds:
-        if not agents.may_reflect(world, person):
+    for being in minds:
+        if not agents.may_reflect(world, being):
             continue
-        answer = agents.reflect(world, person, config, transcript)
+        answer = agents.reflect(world, being, config, transcript)
         if answer is not None:
-            report.reflections[person.id] = answer
+            report.reflections[being.id] = answer
 
     return report
 

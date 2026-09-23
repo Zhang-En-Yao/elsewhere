@@ -14,7 +14,7 @@ from . import prompts, retrieval, schemas
 from .backends import Call, Settings, Transcript, ask, get as get_backend
 from .world.chronicle import (ARRIVAL, CONVERSATION, DEPARTURE, Event,
                               OCCURRENCE, PRESENCE_CHANGES)
-from .world.entities import Person
+from .world.entities import Being
 from .world.memories import Trace
 from . import HOURS_PER_DAY
 from .world.store import clock_at, season_at
@@ -29,17 +29,17 @@ def _settings(config, name: str) -> Settings:
     return config[name]
 
 
-def _others_here(world, person: Person) -> List[Person]:
-    return [p for p in world.people_at(person.place) if p.id != person.id]
+def _others_here(world, being: Being) -> List[Being]:
+    return [p for p in world.beings_at(being.place) if p.id != being.id]
 
 
-def _heavy_today(world, person: Person) -> int:
-    store = world.traces(person.id)
+def _heavy_today(world, being: Being) -> int:
+    store = world.traces(being.id)
     return sum(1 for t in store
                if world.at - t.at < HOURS_PER_DAY and t.salience >= HEAVY)
 
 
-def vantage(world, person: Person, event: Event) -> str:
+def vantage(world, being: Being, event: Event) -> str:
     """Where this person stood when it happened. World state, not interpretation.
 
     Nobody perceives "the water reached the waterline". They perceive what
@@ -47,13 +47,13 @@ def vantage(world, person: Person, event: Event) -> str:
     seen from the ridge, a story the next morning. The engine knows where
     people were; saying so is its job. What they make of it is not.
     """
-    told = (event.data.get("vantage") or {}).get(person.id)
+    told = (event.data.get("vantage") or {}).get(being.id)
     if told:
         return told
-    if person.id in event.involved:
+    if being.id in event.involved:
         return "in the middle of it"
     place = world.places.get(event.place or "")
-    here = world.places.get(person.place)
+    here = world.places.get(being.place)
     if place and here and here.id == place.id:
         return f"right there, at {place.name}"
     if here:
@@ -61,11 +61,11 @@ def vantage(world, person: Person, event: Event) -> str:
     return "nearby"
 
 
-def perceive(world, person: Person, event: Event, config,
+def perceive(world, being: Being, event: Event, config,
              transcript: Optional[Transcript] = None) -> Optional[Trace]:
     """Ask what this event leaves in this person. Usually the answer is nothing."""
     settings = _settings(config, "perceive")
-    store = world.traces(person.id)
+    store = world.traces(being.id)
     cues = retrieval.cues_from(event.cues, [event.place or ""])
     context = retrieval.recallable(store, world.at, cues)
 
@@ -74,19 +74,19 @@ def perceive(world, person: Person, event: Event, config,
         name="perceive",
         system=prompts.PERCEIVE_SYSTEM,
         user=prompts.perceive_user(
-            person=person,
+            being=being,
             what_happened=event.account,
             where=place.name if place else "nowhere in particular",
             when=f"{clock_at(event.at)} in {season_at(event.at)}",
             at=world.at,
-            vantage=vantage(world, person, event),
-            others=[world.people[pid] for pid in event.reached
-                    if pid != person.id and pid in world.people],
+            vantage=vantage(world, being, event),
+            others=[world.beings[pid] for pid in event.reached
+                    if pid != being.id and pid in world.beings],
             traces=context,
-            part_of_it=person.id in event.involved,
+            part_of_it=being.id in event.involved,
         ),
         schema=schemas.grammar("perceive"),
-        about=person.id,
+        about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     if answer is None:
@@ -100,23 +100,23 @@ def perceive(world, person: Person, event: Event, config,
         return None
 
     salience = schemas.weight_to_salience(answer.get("weight"))
-    if salience >= HEAVY and _heavy_today(world, person) >= HEAVY_PER_DAY:
+    if salience >= HEAVY and _heavy_today(world, being) >= HEAVY_PER_DAY:
         # They have already had their day. This one keeps its words and loses
         # its claim on the rest of their life.
         salience = 0.5
 
     trace = Trace(
         id=world.next_id("mem"),
-        owner=person.id,
+        owner=being.id,
         at=world.at,
         trace=text,
         means=(answer.get("means") or "").strip(),
         feeling=answer.get("feeling", "none"),
         salience=salience,
         tags=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:6],
-        source="witnessed" if person.id in event.reached else "told",
+        source="witnessed" if being.id in event.reached else "told",
         event_id=event.id,
-        about=[w for w in event.involved if w != person.id],
+        about=[w for w in event.involved if w != being.id],
         place=event.place,
         touched_at=world.at,
     )
@@ -128,10 +128,10 @@ def perceive_all(world, event: Event, config,
                  transcript: Optional[Transcript] = None) -> List[Trace]:
     """Hand the event to everyone who was there, one mind at a time."""
     out = []
-    for person in world.people.values():
-        if not person.present or person.id not in event.reached:
+    for being in world.beings.values():
+        if not being.present or being.id not in event.reached:
             continue
-        trace = perceive(world, person, event, config, transcript)
+        trace = perceive(world, being, event, config, transcript)
         if trace is not None:
             out.append(trace)
     return out
@@ -145,7 +145,7 @@ from dataclasses import dataclass as _dataclass
 
 @_dataclass
 class Decision:
-    person_id: str
+    being_id: str
     action: str = "stay"
     target: Optional[str] = None      # place id or person id, resolved
     because: str = ""
@@ -166,34 +166,34 @@ def when_label(world) -> str:
     return f"{world.clock} and {light}, {world.season}, day {doy}"
 
 
-def act(world, person: Person, config,
+def act(world, being: Being, config,
         transcript: Optional[Transcript] = None) -> Decision:
     """Ask what this person does next. The grammar only offers what exists."""
     settings = _settings(config, "act")
-    place = world.places.get(person.place)
-    others = _others_here(world, person)
+    place = world.places.get(being.place)
+    others = _others_here(world, being)
     reachable = [world.places[n] for n in (place.neighbours if place else [])
                  if n in world.places]
-    store = world.traces(person.id)
-    cues = retrieval.cues_from(place.tags if place else [], [person.place])
+    store = world.traces(being.id)
+    cues = retrieval.cues_from(place.tags if place else [], [being.place])
     context = retrieval.recallable(store, world.at, cues, limit=4)
 
-    going = may_leave(world, person)
+    going = may_leave(world, being)
     call = Call(
         name="act",
         system=prompts.ACT_SYSTEM,
-        user=prompts.act_user(person, when_label(world), world.at, place, others,
+        user=prompts.act_user(being, when_label(world), world.at, place, others,
                               [p.name for p in reachable], context,
-                              home_name=(world.places[person.home].name
-                                         if person.home in world.places else ""),
+                              home_name=(world.places[being.home].name
+                                         if being.home in world.places else ""),
                               may_leave=going),
         schema=schemas.act_grammar([p.name for p in reachable],
                                    [o.name for o in others], may_leave=going),
-        about=person.id,
+        about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     if answer is None:
-        return Decision(person.id, "stay", None, "", answered=False)
+        return Decision(being.id, "stay", None, "", answered=False)
 
     action = answer.get("action", "stay")
     name = (answer.get("target") or "").strip()
@@ -213,13 +213,13 @@ def act(world, person: Person, config,
         # Likewise: nobody walks out of the world from somewhere the road
         # does not go, however the answer got here.
         action = "stay"
-    return Decision(person.id, action, target, because, doing)
+    return Decision(being.id, action, target, because, doing)
 
 
 # --------------------------------------------------------------------------
 # speak
 
-def speak(world, speaker: Person, listener: Person, config,
+def speak(world, speaker: Being, listener: Being, config,
           transcript: Optional[Transcript] = None):
     """One thing said out loud. Returns (line, trace drawn on) or (None, None).
 
@@ -297,12 +297,12 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     settings = _settings(config, "direct")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
-    people = {p.name: p for p in world.people.values() if p.present}
+    beings = {p.name: p for p in world.beings.values() if p.present}
     call = Call(
         name="direct",
         system=prompts.DIRECT_SYSTEM,
         user=prompts.direct_user(world, recent),
-        schema=schemas.direct_grammar(list(places), list(people)),
+        schema=schemas.direct_grammar(list(places), list(beings)),
         about="town",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -312,7 +312,7 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     if not what:
         return None
 
-    who = people.get(answer.get("who") or "")
+    who = beings.get(answer.get("who") or "")
     place = places.get(answer.get("where") or "")
     if who is not None:
         # Something that happens to someone happens where they are standing.
@@ -320,11 +320,11 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     if place is None:
         return None
 
-    here = [p.id for p in world.people_at(place.id)]
+    here = [p.id for p in world.beings_at(place.id)]
     if answer.get("reach") == "the whole town":
-        reached = [p.id for p in world.people.values() if p.present]
+        reached = [p.id for p in world.beings.values() if p.present]
         vantage = {pid: (f"right there, at {place.name}" if pid in here
-                         else f"at {world.places[world.people[pid].place].name}, "
+                         else f"at {world.places[world.beings[pid].place].name}, "
                               f"and word of it reached you there")
                    for pid in reached}
     else:
@@ -370,7 +370,7 @@ def leaving_place(world):
     return None
 
 
-def may_leave(world, person: Person) -> bool:
+def may_leave(world, being: Being) -> bool:
     """Whether this person could walk out of the world right now.
 
     Three facts, none of them about what they want, and none of them about
@@ -380,16 +380,16 @@ def may_leave(world, person: Person) -> bool:
     kind of thing that should differ from one person to the next, so it is
     theirs to answer, in "because".
     """
-    place = world.places.get(person.place)
+    place = world.places.get(being.place)
     if place is None or "leaving" not in place.tags:
         return False
-    if sum(1 for p in world.people.values() if p.present) <= TOWN_FLOOR:
+    if sum(1 for p in world.beings.values() if p.present) <= TOWN_FLOOR:
         return False
     last = _last_at_of(world, (DEPARTURE,))
     return last is None or world.at - last >= DEPARTURE_MIN_GAP
 
 
-def depart(world, person: Person, because: str, config,
+def depart(world, being: Being, because: str, config,
            transcript: Optional[Transcript] = None):
     """Somebody takes the road. Returns (event, what it left in people).
 
@@ -398,30 +398,30 @@ def depart(world, person: Person, because: str, config,
     anything again - but what they have stays where it is, and so does every
     note the people they left behind wrote about them.
     """
-    place = world.places.get(person.place)
+    place = world.places.get(being.place)
     where = place.name if place else "the road"
-    reached = [p.id for p in world.people.values() if p.present]
+    reached = [p.id for p in world.beings.values() if p.present]
     vantage = {}
     for pid in reached:
-        if pid == person.id:
+        if pid == being.id:
             vantage[pid] = f"on the road out of {world.name}, looking back"
-        elif world.people[pid].place == person.place:
+        elif world.beings[pid].place == being.place:
             vantage[pid] = f"right there, at {where}"
         else:
-            other = world.places.get(world.people[pid].place)
+            other = world.places.get(world.beings[pid].place)
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     event = world.record(
         DEPARTURE,
-        f"{person.name} took the road out of {world.name} and did not come back.",
-        place=person.place, involved=[person.id], reached=reached,
+        f"{being.name} took the road out of {world.name} and did not come back.",
+        place=being.place, involved=[being.id], reached=reached,
         cues=["leaving", "road"],
-        data={"because": because, "person": person.id, "vantage": vantage},
+        data={"because": because, "person": being.id, "vantage": vantage},
     )
     kept = perceive_all(world, event, config, transcript)
-    person.present = False
-    person.left_at = world.at
-    person.last_action = "took the road out of town"
+    being.present = False
+    being.left_at = world.at
+    being.doing = "took the road out of town"
     return event, kept
 
 
@@ -443,7 +443,7 @@ def _road_anchor(world) -> float:
 
 def short_of_somebody(world) -> bool:
     """Has this town lost more people than it has taken in?"""
-    lost = sum(1 for p in world.people.values() if not p.present)
+    lost = sum(1 for p in world.beings.values() if not p.present)
     taken = sum(1 for e in world.chronicle.all() if e.category == ARRIVAL)
     return lost > taken
 
@@ -457,17 +457,17 @@ def may_arrive(world) -> bool:
     deciding how often the question is worth the asking, and the two bounds
     within which a town is still a town.
     """
-    here = sum(1 for p in world.people.values() if p.present)
+    here = sum(1 for p in world.beings.values() if p.present)
     if here >= TOWN_CEILING:
         return False
     gap = ARRIVAL_MIN_GAP if short_of_somebody(world) else ARRIVAL_SETTLED_GAP
     return world.at - _road_anchor(world) >= gap
 
 
-def _free_person_id(world, name: str) -> str:
+def _free_being_id(world, name: str) -> str:
     slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
     candidate, n = f"p_{slug}", 2
-    while candidate in world.people:
+    while candidate in world.beings:
         candidate, n = f"p_{slug}{n}", n + 1
     return candidate
 
@@ -489,22 +489,18 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         return None
 
     name = (answer.get("name") or "").strip()
-    if not name or any(p.name.lower() == name.lower() for p in world.people.values()):
+    if not name or any(p.name.lower() == name.lower() for p in world.beings.values()):
         return None
     place = leaving_place(world) or next(iter(world.places.values()), None)
     if place is None:
         return None
 
-    age = answer.get("age")
-    trade = (answer.get("trade") or "").strip()
     came_from = (answer.get("from_where") or "").strip()
-    person = Person(
-        id=_free_person_id(world, name),
+    being = Being(
+        id=_free_being_id(world, name),
         name=name,
         card=(answer.get("card") or "").strip(),
         voice=(answer.get("voice") or "").strip(),
-        age=int(age) if isinstance(age, (int, float)) and 0 < age < 120 else None,
-        occupation=trade,
         place=place.id,
         # Nowhere of their own yet. Somewhere to sleep is a thing they will
         # have to come by here, like anyone else.
@@ -512,31 +508,29 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         mood="unsettled",
         arrived_at=world.at,
     )
-    world.people[person.id] = person
+    world.beings[being.id] = being
 
-    said = f"{person.name}"
-    if trade:
-        said += f", a {trade}"
+    said = being.name
     if came_from:
-        said += f" from {came_from}"
-    said += f", came up the road into {world.name}."
+        said += f", from {came_from},"
+    said += f" came up the road into {world.name}."
 
-    reached = [p.id for p in world.people.values() if p.present]
+    reached = [p.id for p in world.beings.values() if p.present]
     vantage = {}
     for pid in reached:
-        if pid == person.id:
+        if pid == being.id:
             vantage[pid] = f"at the top of the road, seeing {world.name} for the first time"
-        elif world.people[pid].place == place.id:
+        elif world.beings[pid].place == place.id:
             vantage[pid] = f"right there, at {place.name}"
         else:
-            other = world.places.get(world.people[pid].place)
+            other = world.places.get(world.beings[pid].place)
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     return world.record(
-        ARRIVAL, said, place=place.id, involved=[person.id], reached=reached,
+        ARRIVAL, said, place=place.id, involved=[being.id], reached=reached,
         cues=["arrival", "road", "stranger"],
         data={"why_now": (answer.get("why_now") or "").strip(),
-              "from_where": came_from, "person": person.id, "vantage": vantage},
+              "from_where": came_from, "person": being.id, "vantage": vantage},
     )
 
 
@@ -547,7 +541,7 @@ MAX_BELIEFS = 6
 REFLECT_EVERY = HOURS_PER_DAY   # roughly once a day each, on their own clock
 
 
-def may_reflect(world, person: Person) -> bool:
+def may_reflect(world, being: Being) -> bool:
     """Whether this person is due to go over a day of their own.
 
     This used to be "everyone, at night". Now it is a rolling day per person,
@@ -555,10 +549,10 @@ def may_reflect(world, person: Person) -> bool:
     goes over their day at noon, and the town does not all fall quiet at once
     because the engine said the hour for it had come.
     """
-    if (person.reflected_at is not None
-            and world.at - person.reflected_at < REFLECT_EVERY):
+    if (being.reflected_at is not None
+            and world.at - being.reflected_at < REFLECT_EVERY):
         return False
-    return any(world.at - t.at < REFLECT_EVERY for t in world.traces(person.id))
+    return any(world.at - t.at < REFLECT_EVERY for t in world.traces(being.id))
 
 _STOP_WORDS = {"the", "and", "that", "with", "from", "into", "still", "this",
               "there", "their", "were", "was", "had", "have", "then", "they",
@@ -577,11 +571,11 @@ def _same_belief(a: str, b: str) -> bool:
     return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.5
 
 
-def reflect(world, person: Person, config,
+def reflect(world, being: Being, config,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
     """What this person is left with, after a day of their own."""
-    store = world.traces(person.id)
-    person.reflected_at = world.at
+    store = world.traces(being.id)
+    being.reflected_at = world.at
     today = [t for t in store if world.at - t.at < REFLECT_EVERY]
     if not today:
         return None
@@ -591,9 +585,9 @@ def reflect(world, person: Person, config,
     call = Call(
         name="reflect",
         system=prompts.REFLECT_SYSTEM,
-        user=prompts.reflect_user(person, today, older),
+        user=prompts.reflect_user(being, today, older),
         schema=schemas.reflect_grammar(len(today)),
-        about=person.id,
+        about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     if answer is None:
@@ -605,7 +599,7 @@ def reflect(world, person: Person, config,
     if text:
         from .world.entities import Belief
 
-        existing = next((b for b in person.beliefs if _same_belief(b.belief, text)), None)
+        existing = next((b for b in being.beliefs if _same_belief(b.belief, text)), None)
         if existing is not None:
             # Holding it again: the old wording stays, the grip tightens.
             existing.confidence = min(0.95, existing.confidence + 0.1)
@@ -613,24 +607,24 @@ def reflect(world, person: Person, config,
                 if trace_id not in existing.origin and len(existing.origin) < 3:
                     existing.origin.append(trace_id)
         else:
-            person.beliefs.append(Belief(belief=text, confidence=0.5, origin=origin))
-            if len(person.beliefs) > MAX_BELIEFS:
-                person.beliefs.sort(key=lambda b: -b.confidence)
-                del person.beliefs[MAX_BELIEFS:]
+            being.beliefs.append(Belief(belief=text, confidence=0.5, origin=origin))
+            if len(being.beliefs) > MAX_BELIEFS:
+                being.beliefs.sort(key=lambda b: -b.confidence)
+                del being.beliefs[MAX_BELIEFS:]
 
     want = (answer.get("want") or "").strip().rstrip(".")
-    if want and (not person.wants or person.wants[0] != want):
-        person.wants = [want] + [w for w in person.wants if w != want][:1]
+    if want and (not being.wants or being.wants[0] != want):
+        being.wants = [want] + [w for w in being.wants if w != want][:1]
     mood = (answer.get("mood") or "").strip().lower()
     if mood and len(mood.split()) <= 3:
-        person.mood = mood
+        being.mood = mood
     return answer
 
 
 # --------------------------------------------------------------------------
 # recall
 
-def recall(world, person: Person, trace: Trace, config,
+def recall(world, being: Being, trace: Trace, config,
            transcript: Optional[Transcript] = None) -> bool:
     """The trace has just been brought up; ask how it comes back now.
 
@@ -642,9 +636,9 @@ def recall(world, person: Person, trace: Trace, config,
     call = Call(
         name="recall",
         system=prompts.RECALL_SYSTEM,
-        user=prompts.recall_user(person, trace, age, retrieval.reach(trace, world.at)),
+        user=prompts.recall_user(being, trace, age, retrieval.reach(trace, world.at)),
         schema=schemas.grammar("recall"),
-        about=person.id,
+        about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     if answer is None:
@@ -656,5 +650,5 @@ def recall(world, person: Person, trace: Trace, config,
                   feeling=answer.get("feeling") or "")
     # rewrite() counts a recall; speak() already counted this one.
     trace.recalls -= 1
-    world.traces(person.id).touch()
+    world.traces(being.id).touch()
     return True
