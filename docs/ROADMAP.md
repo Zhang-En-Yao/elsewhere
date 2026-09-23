@@ -156,7 +156,7 @@ once the world is long enough for the summary to say something.
 
 ## Documentation
 
-[`v2-ARCHITECTURE.md`](v2-ARCHITECTURE.md) now exists and explains the
+[`ARCHITECTURE.md`](ARCHITECTURE.md) now exists and explains the
 division the rewrite is for: the engine keeps the ledger and decides
 reachability, a mind decides meaning, and the two never cross. Keep it
 current as each item below lands, rather than letting it drift the way the

@@ -558,11 +558,9 @@ The goal is to build a world that feels worth returning to.
 > said — was made by a formula. In v2 the engine keeps the ledger and decides
 > only what can be *reached*; a language model decides what any of it meant.
 > The town now lives on its own and remembers. It does not yet make anything,
-> and you cannot yet live in it. See [Roadmap](#-roadmap) for the honest state
-> of each piece, [docs/v2-ARCHITECTURE.md](docs/v2-ARCHITECTURE.md) for how
-> this engine is put together, and
-> [docs/v0.1-ARCHITECTURE.md](docs/v0.1-ARCHITECTURE.md) for the engine that
-> came before this one.
+> and you cannot yet live in it. [What It Does](#-what-it-does) is the honest
+> list, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how this engine is put
+> together, and [docs/ROADMAP.md](docs/ROADMAP.md) is what is left.
 
 The engine is Python 3.10+ with no dependencies. Everything that thinks needs a
 model it can reach — by default one running on the same machine.
@@ -706,7 +704,7 @@ its context will always say yes.
 
 ### The road runs both ways
 
-People can leave, and the town does not get them back. Leaving is a sixth verb
+People can leave, and the town does not get them back. Leaving is a fourth verb
 that `act` is only offered where the road actually goes out of the town, in a
 town that can spare somebody, and not in the same season as the last one who
 went — three facts the engine checks before the word is even in the vocabulary.
@@ -767,91 +765,62 @@ reach code that runs.
 Every exchange is appended to a transcript, which is how a run is explained
 after the fact — there is no random seed to hold on to any more. The test
 suite's own reproducibility comes from a stub backend instead: `make test` is
-80 tests and no model.
+the whole suite and no model.
 
-[docs/v2-ARCHITECTURE.md](docs/v2-ARCHITECTURE.md) has how this engine is put
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has how this engine is put
 together. What has not been built is written down in
-[docs/v2-ROADMAP.md](docs/v2-ROADMAP.md).
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 
-## ⛯ Roadmap
+## ⛯ What It Does
 
-A checked box means it works today. Several of these were checked in
-v0.1 and have not been carried across the rewrite yet; those say so.
-[docs/v2-ROADMAP.md](docs/v2-ROADMAP.md) has what is left, in the order it
-would get built.
+### The world
 
-### The World
+- One clock, and only one: hours since it began. Days, seasons and the reading
+  on a clock face are worked out from it and never stored, and nothing anywhere
+  stores a named part of the day.
+- Six real hours to a step, so a day here is a day there. `elsewhere catchup`
+  lives whatever the wall clock says is owed.
+- Places, and a town that is asked about once a day whether anything happens
+  to it.
+- A population that moves both ways. People take the road out and do not come
+  back; sometimes somebody comes up it, knowing nobody.
+- An append-only chronicle of what happened, and a transcript of every question
+  ever put to a mind.
 
-- [x] A persistent world
-- [x] Passage of time — one clock, running; six real hours to the step
-- [x] Places
-- [ ] Communities — there is no structure above the individual yet
-- [x] Events — about once a day the town is asked whether anything happens to it
-- [x] A living timeline
-- [x] People arriving and leaving — a population that moves both ways
+### The people
 
-### People
-
-- [x] Distinct personalities — a paragraph and a voice, not five floats
-- [x] Relationships — one-sided by construction: each person's own note on the other
-- [x] Goals and desires — wants, rewritten in the night
-- [x] Autonomous behavior — everyone decides at once, then the world settles what is physically so
-- [x] Conversations — what was said is an event, and everyone in earshot keeps their own version
-- [x] Changing perspectives
+- A paragraph and a voice, not five floats.
+- Regards that are one-way by construction: each being's own account of
+  another, which never has to agree with the account coming back.
+- Wants, rewritten in the night, and a mood in whatever word they used for it.
+- Everyone decides at once, from where they stand, and then the world settles
+  what is physically so.
+- Conversations. What was said is an event, and everyone in earshot keeps their
+  own version of it — sometimes the wrong one.
 
 ### Memory
 
-- [x] Experiences
-- [x] Selective memories — the mind decides what stuck; the engine only records that it did
-- [x] Forgetting — a dormant trace is simply not handed over
-- [x] Memory reinforcement — bringing something up in conversation keeps it in reach
-- [x] Reflection — each person on their own day, not all at one nightfall
-- [x] Changing beliefs — a belief can outlive every memory that produced it
-- [x] Long-term influence
+- The mind decides what stuck and what it was worth. The engine only records
+  that it did.
+- Forgetting is the engine declining to hand something over, on a decay curve
+  that runs on the same continuous clock as everything else.
+- Bringing something up in conversation keeps it in reach, and can change the
+  words it comes back in.
+- Each being goes over their own day, about a day after they last did — not the
+  whole town at one nightfall.
+- Beliefs that outlive their reasons: still held as firmly as ever, with
+  nothing left they can point at for why.
 
-### Art
+### Watching it
 
-Nothing here is in v2 yet. v0.1 had all of it. The action vocabulary is
-deliberately five verbs wide (`stay`, `go`, `talk`, `work`, `rest`) until
-making something can be a real answer.
+- `elsewhere status`, `person`, `timeline`, `event`, `news`.
+- A launchd agent that can be left to run the world at a day per day.
 
-- [ ] Paintings
-- [ ] Stories
-- [ ] Poetry
-- [ ] Music
-- [ ] Personal styles
-- [ ] Cultural artifacts
-
-### You
-
-- [x] Watching — `status`, `person`, `timeline`, `event`, `news`
-- [ ] Living in it — `mind: player` exists in the data model; the tick only moves minds marked `model`
-- [ ] Ending it — nothing can close a world from outside yet
-
-### Real Life
-
-- [ ] Personal memories — v2's `remember` re-runs an event the world already has; it cannot yet admit a new one
-- [ ] Travel experiences
-- [ ] Real-world places
-- [ ] Photographs as sources of memory
-- [ ] Real experiences becoming art
-- [ ] A personal presence within the world — `kind: companion | presence` is in the model; nothing writes it
-
-### Culture
-
-Traditions and festivals were in v0.1 and are not in v2. The rest has never
-existed.
-
-- [ ] Communities
-- [ ] Organizations
-- [ ] Traditions
-- [ ] Religion
-- [ ] Festivals
-- [ ] Artistic movements
-- [ ] Generational memory — no longer blocked: people come and go now
-- [ ] Cultural evolution
+What is not here yet — living in it, making anything, or anything above the
+individual — is in [docs/ROADMAP.md](docs/ROADMAP.md), in the order it would
+get built.
 
 ---
 
@@ -916,7 +885,7 @@ stand, what gets said is heard imperfectly, and going over a day changes what
 people hold. A launchd agent can be left to run it at a day per day.
 
 What it does not do yet: let you live in it, let anyone make anything, or grow
-anything above the individual. See [Roadmap](#-roadmap).
+anything above the individual. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 

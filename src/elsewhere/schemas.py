@@ -41,7 +41,7 @@ WEIGHTS = ["nothing", "faint", "ordinary", "stays", "marks"]
 # the world and so the engine does have to know them apart.
 ACTIONS = ["stay", "go", "talk"]
 
-# Not a sixth everyday verb. Leaving is added to the grammar only where the
+# Not a fourth everyday verb. Leaving is added to the grammar only where the
 # road actually goes out and only when the town can spare somebody, so a model
 # that picks it has been standing somewhere that means it. See agents.may_leave.
 LEAVE = "leave"      # a fourth, offered only where the road goes out

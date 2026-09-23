@@ -293,7 +293,7 @@ scripted answers, no model, no latency.
 The one remaining engine-side judgement that is written but unused is
 `retrieval.cued_return` (above). Everything larger than that is a matter of
 what has and has not been built yet, and is tracked in
-[`v2-ROADMAP.md`](v2-ROADMAP.md) rather than here: letting a person be played
+[`ROADMAP.md`](ROADMAP.md) rather than here: letting a person be played
 rather than modelled (P2), making things (P5), any structure above the
 individual (P6), admitting a memory from outside the world rather than
 re-running one already in it, and ending a world at all.
