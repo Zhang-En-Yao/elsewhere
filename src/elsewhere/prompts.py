@@ -20,13 +20,25 @@ def _when(at: float) -> str:
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
-def being_block(being: Being) -> str:
+def being_block(being: Being, with_thought: bool = True) -> str:
+    """Who this person is, as they would be told it.
+
+    `with_thought` is off in one place, `perceive`, and for a reason that is
+    about the shape of an answer rather than about privacy. `thought` is a
+    short first-person fragment in their own voice, which is exactly what
+    `perceive` asks to be given - and unlike their memories, which are many
+    and differ, it is one sentence that is the same at every event. Left in,
+    it is a constant standing where the answer goes, and a small model hands
+    it straight back: three fresh worlds each way, 77% of what got written
+    was a copy of something with it there, 20% without, and not one copy of
+    it in the second run.
+    """
     lines = [f"You are {being.name}."]
     if being.card:
         lines.append(being.card)
     if being.voice:
         lines.append(f"How you talk: {being.voice}")
-    if being.thought:
+    if being.thought and with_thought:
         lines.append(f"What you keep coming back to: {being.thought}")
     if being.wants:
         lines.append("What you want at the moment: " + "; ".join(being.wants) + ".")
@@ -180,7 +192,7 @@ def perceive_user(being: Being, what_happened: str, where: str, when: str,
          f"do not reuse its words.") if vantage else "",
         regards_block(being, others, at).replace("Who is here:", "Who else was there:"),
         traces_block(traces),
-        being_block(being),
+        being_block(being, with_thought=False),
         f"Now answer as {being.name}, and only as {being.name}: how much of this "
         f"do you carry? For some people it is everything; for others, nothing at all.",
     ]

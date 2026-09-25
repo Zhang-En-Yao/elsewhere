@@ -6,10 +6,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import retrieval, schemas, seed
+from elsewhere import prompts, retrieval, schemas, seed
 from elsewhere.backends import Call, Settings, Transcript, ask, extract_json
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import store
+from elsewhere.world.entities import Being
 from elsewhere.world.memories import Trace
 
 
@@ -182,3 +183,26 @@ class TestAnswers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheAnswerIsNotInTheQuestion(unittest.TestCase):
+    """`perceive` asks for a short fragment in their own voice. So is `thought`."""
+
+    def being(self):
+        return Being(id="p_adam", name="Adam", card="You build what holds.",
+                     thought="The roof is not finished and the rains are not waiting",
+                     wants=["finish the roof"])
+
+    def test_perceive_is_not_shown_the_one_sentence_shaped_like_its_answer(self):
+        being = self.being()
+        asked = prompts.perceive_user(
+            being=being, what_happened="The shelter came down in the night.",
+            where="The Shelter", when="02:00 in spring", at=200 * 24,
+            others=[], traces=[], part_of_it=True)
+        self.assertNotIn(being.thought, asked)
+        self.assertIn("You build what holds.", asked)     # who they are stays
+
+    def test_every_other_call_still_is(self):
+        being = self.being()
+        self.assertIn(being.thought, prompts.being_block(being))
+        self.assertIn(being.thought, prompts.reflect_user(being, [], []))
