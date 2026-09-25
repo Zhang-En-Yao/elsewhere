@@ -157,23 +157,20 @@ PERCEIVE_EXAMPLE_TRACES = (
 
 
 def perceive_user(being: Being, what_happened: str, where: str, when: str,
-                  at: float, others: Sequence[Being],
+                  at: float, others: Sequence[Being], traces: Sequence[Trace],
                   part_of_it: bool, vantage: str = "") -> str:
-    """Scene first, person last, and nothing they already remember.
+    """Scene first, person last.
 
     A small model weights the end of a prompt far more than the start. With the
     character card at the top, by the time it reaches the question the card
     has been drowned by the scene - and everyone answers as the same narrator.
 
-    What is deliberately absent is their own memories. Laying four of them in
-    front of somebody and then asking what this new thing leaves in them is
-    asking to be handed one of the four back, and it was: with them in the
-    prompt, two in five answers were word-for-word copies of a memory the
-    person already had, every one of them weighed "stays", and three people
-    between them used five words for how anything felt. Without them: four in
-    five answers new, and nine words for a feeling. Who they are is still
-    here - the card, what they want, where they were standing. What has gone
-    is the nearest thing to copy.
+    Their own memories are here, and taking them out was tried and put back.
+    They do get copied - but they are many and they differ, and with them gone
+    the model does not stop copying, it copies the one thing left in the prompt
+    shaped like a memory, which is `thought`, and `thought` is the same
+    sentence at every event. Three fresh worlds each way: with them, 22% of
+    what got written was a copy of something; without them, 52%.
     """
     parts = [
         f"It was {when}, at {where}.",
@@ -182,6 +179,7 @@ def perceive_user(being: Being, what_happened: str, where: str, when: str,
         (f"You were {vantage}. That is where you stood, not what you noticed - "
          f"do not reuse its words.") if vantage else "",
         regards_block(being, others, at).replace("Who is here:", "Who else was there:"),
+        traces_block(traces),
         being_block(being),
         f"Now answer as {being.name}, and only as {being.name}: how much of this "
         f"do you carry? For some people it is everything; for others, nothing at all.",
