@@ -144,7 +144,7 @@ class TestGoing(Road):
         self.world.traces("p_lilith").add(Trace(
             id="mem9001", owner="p_lilith", at=self.world.at,
             trace="the valley disappearing under the water", salience=0.9,
-            touched_at=self.world.at))
+            touched_at=self.world.at, told=[self.world.at]))
         self.send_lilith_away()
         kept = list(self.world.traces("p_lilith"))
         self.assertIn("mem9001", [t.id for t in kept])
@@ -347,7 +347,7 @@ class TestReading(Road):
         self.world.traces("p_lilith").add(Trace(
             id="mem9001", owner="p_lilith", at=self.world.at,
             trace="the valley disappearing under the water", salience=0.5,
-            touched_at=self.world.at))
+            touched_at=self.world.at, told=[self.world.at]))
         self.send_lilith_away()
         left_at = self.lilith.left_at
         self.world.at += 4000 * 24                 # long enough to lose anything

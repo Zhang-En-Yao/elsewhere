@@ -135,6 +135,7 @@ def perceive(world, being: Being, event: Event, config,
         about=[w for w in event.involved if w != being.id],
         place=event.place,
         touched_at=world.at,
+        told=[world.at],
     )
     store.add(trace)
     return trace
@@ -275,7 +276,7 @@ def speak(world, speaker: Being, listener: Being, config,
     if about.isdigit() and 1 <= int(about) <= len(topics):
         drawn = topics[int(about) - 1]
         drawn.touched_at = world.at
-        drawn.recalls += 1
+        drawn.came_up(world.at)
         store.touch()
     return line, drawn
 
@@ -667,7 +668,7 @@ def recall(world, being: Being, trace: Trace, config,
     trace.rewrite(new, world.at, means=(answer.get("means") or "").strip(),
                   feeling=answer.get("feeling") or "",
                   embedding=_placed(config, new))
-    # rewrite() counts a recall; speak() already counted this one.
-    trace.recalls -= 1
+    # rewrite() logs the occasion; speak() already logged this one.
+    del trace.told[-1:]
     world.traces(being.id).touch()
     return True

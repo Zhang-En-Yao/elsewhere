@@ -17,7 +17,7 @@ from elsewhere.world.memories import Trace
 def trace(**kw):
     base = dict(id="m1", owner="p", at=100 * 24, trace="the water rose over the fields",
                 means="I was frightened", feeling="fear", salience=0.7,
-                place="waterline", touched_at=100 * 24)
+                place="waterline", touched_at=100 * 24, told=[100 * 24])
     base.update(kw)
     return Trace(**base)
 
@@ -63,9 +63,25 @@ class TestWorldStore(unittest.TestCase):
 
 
 class TestRetrieval(unittest.TestCase):
-    def test_what_mattered_stays_in_reach_for_a_year(self):
-        t = trace(salience=0.95)
-        self.assertFalse(retrieval.dormant(t, (100 + 365) * 24))
+    def test_what_mattered_stays_a_year_if_anybody_ever_mentions_it(self):
+        # The ladder this world runs on is the mentioned one. Laid down and
+        # never spoken of again, even what marked somebody goes quiet inside
+        # four months - which is what changed when the curve stopped being an
+        # exponential fitted by hand and became a borrowed power law.
+        never = trace(salience=0.95)
+        self.assertTrue(retrieval.dormant(never, (100 + 365) * 24))
+        self.assertFalse(retrieval.dormant(never, (100 + 100) * 24))
+        once = trace(salience=0.95, told=[100 * 24, 101 * 24])
+        self.assertFalse(retrieval.dormant(once, (100 + 365) * 24))
+
+    def test_when_it_was_told_matters_and_not_only_how_often(self):
+        # Three tellings in one week and three a year apart leave a memory in
+        # very different places. A tally cannot tell them apart; `told` can.
+        week = trace(told=[100 * 24, 101 * 24, 103 * 24, 106 * 24])
+        spread = trace(told=[100 * 24, 465 * 24, 830 * 24])
+        self.assertEqual(week.recalls, 3)
+        self.assertNotEqual(retrieval.reach(week, 1200 * 24),
+                            retrieval.reach(spread, 1200 * 24))
 
     def test_an_ordinary_day_does_not(self):
         t = trace(salience=0.15)
@@ -93,7 +109,7 @@ class TestRetrieval(unittest.TestCase):
         # somebody the memory - it costs them only the pull towards it.
         no_vector = trace(id="a", salience=0.9)
         placed = trace(id="b", salience=0.2, embedding=[1.0, 0.0])
-        got = retrieval.recallable([no_vector, placed], 110 * 24, near=[1.0, 0.0])
+        got = retrieval.recallable([no_vector, placed], 101 * 24, near=[1.0, 0.0])
         self.assertEqual({t.id for t in got}, {"a", "b"})
 
     def test_nearness_survives_a_change_of_embedder(self):

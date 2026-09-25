@@ -28,30 +28,77 @@ from . import HOURS_PER_DAY
 from .world.entities import Belief
 from .world.memories import Trace
 
-HALF_LIFE = 45.0          # days, before the hold of an intense memory is applied
-FLOOR = 0.06              # below this a trace is out of reach
+#: Anderson & Schooler (1991), "Reflections of the Environment in Memory":
+#: the decay exponent of base-level activation. Human forgetting is a power
+#: law, not an exponential - steep early, and a long tail afterwards - and
+#: this is the published value, not one fitted here.
+DECAY = 0.5
+
+#: ACT-R's logistic retrieval noise, which turns an activation into the
+#: chance of the thing coming to mind at all.
+NOISE = 0.4
+
+#: Below this it does not come to mind. A probability now, and readable as
+#: one: less than one chance in sixteen.
+FLOOR = 0.06
+
 CONTEXT_TRACES = 6        # how many can be laid in front of a mind at once
 
+#: The one number in this file that belongs to this world rather than to the
+#: literature: how long a memory lasts, in days, once somebody has brought it
+#: up. The ladder is the one v2 already ran on, so a memory its owner called
+#: `stays` that has been mentioned once still goes quiet after about nine
+#: months, and `faint` after a fortnight.
+#:
+#: Anchoring on the mentioned case rather than the unmentioned one is the
+#: whole argument. In ACT-R a memory laid down once and never retrieved is a
+#: very weak thing; holding *that* to nine months forces the constant up and
+#: then every retrieval multiplies from an inflated base, which is how an
+#: earlier draft of this had three tellings lasting eleven years. Anchored
+#: here, the same law says what this world already believed: what nobody ever
+#: speaks of lasts about a season.
+LASTS_ONCE_TOLD = 480.0
+BY_WEIGHT = 1.72
 
-def hold(trace: Trace) -> float:
-    """How well this trace resists time.
 
-    Weight is what its owner said it was worth; rehearsal counts for less than
-    the original charge, which is why a strong memory can survive years of not
-    being spoken about while an ordinary Tuesday cannot survive a season.
+def lasts(salience: float) -> float:
+    """Days a memory of this weight survives, once it has been mentioned."""
+    return LASTS_ONCE_TOLD * max(salience, 1e-6) ** BY_WEIGHT
+
+
+def _base(salience: float) -> float:
+    """ACT-R's base-level constant, set by what its owner said it was worth.
+
+    Solved rather than chosen: whatever makes a memory of this weight, laid
+    down and mentioned once the next day, fall below `FLOOR` at `lasts()`.
     """
-    return 0.25 + 3.6 * (trace.salience ** 1.5) + 0.35 * math.log1p(trace.recalls)
+    span = lasts(salience)
+    mentioned = span ** -DECAY + max(span - 1.0, 1.0 / 24.0) ** -DECAY
+    return NOISE * math.log(FLOOR / (1.0 - FLOOR)) - math.log(mentioned)
 
 
 def reach(trace: Trace, at: float) -> float:
-    """How reachable this is, now.
+    """The chance this comes to mind now: ACT-R base-level activation.
 
-    `at` is hours into the world, and so is the trace's own clock, so decay is
-    continuous: a memory is slightly further away at dusk than it was at noon,
-    instead of standing still and then dropping four times a day.
+        B = base + ln( sum over every time it came up of (now - then) ** -d )
+        P = 1 / (1 + exp(-B / noise))
+
+    One term per occasion, which is why `Trace.told` keeps the occasions and
+    not a tally: three tellings in one week and three a year apart are not
+    the same memory afterwards, and a count cannot tell them apart.
+
+    `at` is hours into the world and so are the occasions, so this moves
+    continuously - a memory is slightly further away at dusk than at noon.
     """
-    age = max(0.0, (at - trace.touched_at) / HOURS_PER_DAY)
-    return trace.salience * math.exp(-age / (HALF_LIFE * hold(trace)))
+    told = trace.told or [trace.at]
+    total = 0.0
+    for then in told:
+        days = max((at - then) / HOURS_PER_DAY, 1.0 / 24.0)
+        total += days ** -DECAY
+    if total <= 0.0:
+        return 0.0
+    activation = _base(trace.salience) + math.log(total)
+    return 1.0 / (1.0 + math.exp(-activation / NOISE))
 
 
 def dormant(trace: Trace, at: float) -> bool:

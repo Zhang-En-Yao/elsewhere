@@ -37,9 +37,28 @@ class Trace:
     about: List[str] = field(default_factory=list)   # person ids in it
     place: Optional[str] = None
     touched_at: float = 0.0
-    recalls: int = 0
+
+    #: Every hour it has come up, its own laying-down first, newest last.
+    #: A count is not enough: three tellings in one week and three a year
+    #: apart leave a memory in very different places, and the decay in
+    #: `retrieval.py` sums a term per occasion rather than reading a number.
+    #: Capped at the most recent few, which are the ones that carry weight -
+    #: the oldest term in the sum is always the smallest.
+    told: List[float] = field(default_factory=list)
     heard: Optional[str] = None    # the words they think they were given
     history: List[str] = field(default_factory=list)  # earlier wordings, newest last
+
+    #: How many times it has been brought up, not counting being laid down.
+    #: Derived, because `told` is what decay reads and two answers to the
+    #: same question drift apart.
+    @property
+    def recalls(self) -> int:
+        return max(0, len(self.told) - 1)
+
+    def came_up(self, at: float, limit: int = 24) -> None:
+        """It was brought up now. The occasion is kept, not a tally."""
+        self.told.append(at)
+        del self.told[:-limit]
 
     def rewrite(self, new_trace: str, at: float, means: str = "",
                 feeling: str = "", embedding: Optional[List[float]] = None) -> None:
@@ -58,13 +77,14 @@ class Trace:
         if feeling:
             self.feeling = feeling
         self.touched_at = at
-        self.recalls += 1
+        self.came_up(at)
 
     def to_dict(self) -> dict:
         d = asdict(self)
         # Five places. The vector is only ever compared with other vectors,
         # and full repr costs 14KB a memory for digits nothing can use.
         d["embedding"] = [round(x, 5) for x in self.embedding]
+        d["told"] = [round(x, 2) for x in self.told]
         return {k: v for k, v in d.items()
                 if v not in (None, [], "") or k in ("id", "owner", "at", "trace")}
 
@@ -78,7 +98,7 @@ class Trace:
             source=d.get("source", "witnessed"), event_id=d.get("event_id"),
             about=list(d.get("about", [])), place=d.get("place"),
             touched_at=float(d.get("touched_at", d["at"])),
-            recalls=int(d.get("recalls", 0)), heard=d.get("heard"),
+            told=[float(x) for x in d.get("told", [])], heard=d.get("heard"),
             history=list(d.get("history", [])),
         )
 

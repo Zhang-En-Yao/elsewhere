@@ -106,7 +106,7 @@ class TestRecall(Town):
         super().setUp()
         for pid in ("p_adam", "p_eve"):
             self.world.beings[pid].place = "yard"
-        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
+        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
                            trace="the water in the doorway before I could move anything",
                            feeling="fear", salience=0.95, touched_at=68 * 24)
         self.world.traces("p_eve").add(self.flood)
@@ -145,6 +145,7 @@ class TestReflect(Town):
     def setUp(self):
         super().setUp()
         self.today = Trace(id="mem9100", owner="p_lilith", at=self.world.at,
+                           told=[self.world.at],
                            trace="the valley disappearing under the water", feeling="unease",
                            salience=0.7,
                            touched_at=self.world.at)
@@ -179,7 +180,7 @@ class TestReflect(Town):
         self.world.at += 1 * 24
         self.world.traces("p_lilith").add(Trace(
             id="mem9101", owner="p_lilith", at=self.world.at, trace="the road again",
-            salience=0.4, touched_at=self.world.at))
+            salience=0.4, touched_at=self.world.at, told=[self.world.at]))
         self.stub.set("reflect", {"belief": "nobody here will ever leave this town",
                                   "belief_from": "1"})
         self.reckoning()

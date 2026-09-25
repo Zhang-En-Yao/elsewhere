@@ -93,7 +93,7 @@ class TestConversation(TownTest):
         super().setUp()
         for pid in ("p_eve", "p_adam"):
             self.world.beings[pid].place = "yard"
-        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
+        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
                            trace="the water in the doorway before I could move anything",
                            means="", feeling="fear", salience=0.95,
                            touched_at=68 * 24)

@@ -104,24 +104,49 @@ the engine, not a mind, decides something about a person's inner life: how
 reachable a trace still is.
 
 ```
-hold(trace)       = 0.25 + 3.6 · salience^1.5 + 0.35 · ln(1 + recalls)
-reach(trace, day) = salience · exp(-age / (45 · hold))
+base(salience)    = solved, so a memory of this weight mentioned once lasts
+                    480 · salience^1.72 days
+reach(trace, at)  = 1 / (1 + exp(-B / 0.4))
+       where  B   = base + ln( Σ over every hour it came up of (now-then)^-0.5 )
 dormant           = reach < 0.06
 ```
 
+This is ACT-R's base-level activation — Anderson & Schooler (1991) — and the
+two exponents are theirs, not this project's: `0.5` is the published decay,
+`0.4` the usual retrieval noise. `reach` is therefore a probability now, and
+reads as one: the chance the thing comes to mind at all, with `dormant` at
+less than one chance in sixteen. Human forgetting is a power law, steep in
+the first days and long-tailed afterwards, which the exponential it replaced
+had backwards — under that curve a memory lost less than 1% of its
+reachability on its first day.
+
 `salience` is the mind's own weighting of the trace — one of five words
 (`nothing`/`faint`/`ordinary`/`stays`/`marks`, from `schemas.WEIGHTS`) mapped
-onto a number the engine can sort by (`schemas.weight_to_salience`). Age is
-days since the trace was last touched, not days since it was laid down —
-bringing something up resets the clock. For a trace that is never mentioned
-again, this works out to roughly:
+onto a number the engine can sort by (`schemas.weight_to_salience`) — and it
+enters as ACT-R's per-chunk base-level constant.
 
-| weight the mind gave it | out of reach after (never recalled) |
-| --- | --- |
-| marks (0.95) | ~445 days |
-| stays (0.70) | ~260 days |
-| ordinary (0.40) | ~99 days |
-| faint (0.15) | ~19 days |
+`Trace.told` holds the hour of every occasion the memory came up, its own
+laying-down first, and the sum runs one term per occasion. A count would not
+do: three tellings in a week and three a year apart leave a memory in very
+different places, and only the occasions can tell them apart.
+
+The one number here that is this world's rather than the literature's is what
+a memory *mentioned once* is worth, and the ladder is the one v2 already ran
+on. Anchoring there rather than on the never-mentioned case is deliberate: in
+ACT-R a memory laid down once and never retrieved is a weak thing, and
+holding *that* to nine months forces the constant up until every later
+telling multiplies from an inflated base — an earlier draft of this had three
+tellings lasting eleven years.
+
+| weight the mind gave it | never mentioned | mentioned once | told three times in a week |
+| --- | --- | --- | --- |
+| marks (0.95) | ~110 days | ~440 days | ~1760 days |
+| stays (0.70) | ~65 days | ~260 days | ~1040 days |
+| ordinary (0.40) | ~25 days | ~99 days | ~400 days |
+| faint (0.15) | ~4 days | ~18 days | ~74 days |
+
+So what nobody ever speaks of lasts about a season, and `speak` — the only
+call site that rehearses anything — is what keeps a life in reach.
 
 Below the floor a trace is **dormant, not deleted**: it stays on disk, but
 `retrieval.recallable` — the function every call site actually uses to build
