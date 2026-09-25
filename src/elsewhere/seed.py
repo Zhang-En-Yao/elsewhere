@@ -22,9 +22,10 @@ START_DAY = 121          # year 2, day 1: the town already has a past
 START_AT = (START_DAY - 1) * HOURS_PER_DAY + 8.0      # and it starts mid-morning
 
 
-def _place(world: World, pid: str, name: str, description: str, tags, neighbours):
+def _place(world: World, pid: str, name: str, description: str, neighbours,
+           road_out: bool = False):
     world.places[pid] = Place(id=pid, name=name, description=description,
-                              tags=list(tags), neighbours=list(neighbours))
+                              neighbours=list(neighbours), road_out=road_out)
 
 
 def _clear(root: Path) -> None:
@@ -51,22 +52,22 @@ def build(root, name: str = "Wend") -> World:
 
     _place(world, "garden", "The Garden",
            "What survived on the higher ground, replanted twice since the water came.",
-           ["home", "quiet"], ["shelter", "waterline"])
+           ["shelter", "waterline"])
     _place(world, "shelter", "The Shelter",
            "Raised on posts now, so the next flood has somewhere to leave them alone.",
-           ["public", "gathering", "town"], ["garden", "waterline", "yard", "ridge"])
+           ["garden", "waterline", "yard", "ridge"])
     _place(world, "waterline", "The Waterline",
            "Where the water reached, and where it stopped. The mark is still on the rock.",
-           ["public", "water", "quiet"], ["garden", "shelter", "ridge"])
+           ["garden", "shelter", "ridge"])
     _place(world, "yard", "Adam's Yard",
            "Timber stacked higher than it needs to be. He says that is the point.",
-           ["builder", "work"], ["shelter", "garden"])
+           ["shelter", "garden"])
     _place(world, "ridge", "The Ridge Path",
            "The last dry ground you can see the valley from.",
-           ["quiet", "view", "leaving"], ["shelter", "waterline", "grove"])
+           ["shelter", "waterline", "grove"], road_out=True)
     _place(world, "grove", "The Far Grove",
            "Apart from everything else. She likes it that way.",
-           ["quiet", "wild"], ["ridge", "waterline"])
+           ["ridge", "waterline"])
 
     beings = [
         Being(

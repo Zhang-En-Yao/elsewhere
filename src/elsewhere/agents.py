@@ -384,7 +384,7 @@ def _last_at_of(world, kinds: Collection[str]) -> Optional[float]:
 def leaving_place(world):
     """Where the road goes out. A fact about the map, not about anybody."""
     for place in world.places.values():
-        if "leaving" in place.tags:
+        if place.road_out:
             return place
     return None
 
@@ -400,7 +400,7 @@ def may_leave(world, being: Being) -> bool:
     theirs to answer, in "because".
     """
     place = world.places.get(being.place)
-    if place is None or "leaving" not in place.tags:
+    if place is None or not place.road_out:
         return False
     if sum(1 for p in world.beings.values() if p.present) <= TOWN_FLOOR:
         return False

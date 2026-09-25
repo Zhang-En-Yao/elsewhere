@@ -71,7 +71,7 @@ class TestDirector(Town):
                                  "reach": "the people there",                                  "happens": True})
         self.stub.answers["perceive|p_adam"] = {"trace": "the crack before the dust",
                                                 "means": "", "feeling": "fear",
-                                                "tags": ["roof"], "weight": "stays"}
+                                                "weight": "stays"}
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")

@@ -138,17 +138,28 @@ class Being:
 
 @dataclass
 class Place:
+    """Somewhere in the town. Prose for the mind, two facts for the engine.
+
+    What a place is like is in its description, because that is the part a
+    mind reads. There used to be tags as well - quiet, public, work - and
+    nothing ever read them: they said a second time, and more poorly, what
+    the description already said.
+    """
     id: str
     name: str
     description: str = ""
     neighbours: List[str] = field(default_factory=list)
-    tags: List[str] = field(default_factory=list)
+    road_out: bool = False         # the road out of the world leaves from
+                                   # here, and comes in here too
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict) -> "Place":
+        # A world written before this was its own field carried it as one tag
+        # among ten that nothing read.
         return cls(id=d["id"], name=d["name"], description=d.get("description", ""),
                    neighbours=list(d.get("neighbours", [])),
-                   tags=list(d.get("tags", [])))
+                   road_out=bool(d.get("road_out",
+                                       "leaving" in d.get("tags", []))))

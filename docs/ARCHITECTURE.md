@@ -215,9 +215,11 @@ split as everything else, but the facts checked are about the map and the
 calendar, not about anyone's wants:
 
 - `agents.may_leave(world, person)` — is there a road out from where they
-  stand (`"leaving"` in the place's tags), is it daylight, is the town above
-  `TOWN_FLOOR` (2), and has it been long enough since the last departure. Only
-  if all four hold does `leave` even enter the grammar `act` is asked under.
+  stand (`place.road_out`), is the town above `TOWN_FLOOR` (2), and has it been
+  long enough since the last departure. Only if all three hold does `leave`
+  even enter the grammar `act` is asked under. There used to be a fourth — not
+  at night — and it was the engine deciding that nobody here is the sort of
+  person who leaves in the dark, so it is theirs to answer instead.
 - `agents.may_arrive(world)` — is the town at or above `TOWN_CEILING` (8), in
   which case the road is never worth asking; otherwise, has enough time passed
   since the road was last asked or answered (`world.road_asked_on`, via
