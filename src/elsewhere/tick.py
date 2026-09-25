@@ -101,7 +101,6 @@ def converse(world, speaker: Being, listener: Being, config,
         place=speaker.place,
         involved=[speaker.id, listener.id],
         reached=here,
-        cues=list(drawn.tags) if drawn else ["talk"],
         data={"speaker": speaker.id, "listener": listener.id, "line": line,
               "drawn_on": drawn.id if drawn else None, "vantage": vantage},
     )

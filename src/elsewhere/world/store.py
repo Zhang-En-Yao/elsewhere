@@ -149,11 +149,11 @@ class World:
     def record(self, category: str, account: str, *, place: Optional[str] = None,
                involved: Optional[List[str]] = None,
                reached: Optional[List[str]] = None,
-               cues: Optional[List[str]] = None, data: Optional[dict] = None) -> Event:
+               data: Optional[dict] = None) -> Event:
         event = Event(id=self.next_id("ev"), at=self.at,
                       category=category, account=account, place=place,
                       involved=list(involved or []), reached=list(reached or []),
-                      cues=list(cues or []), data=dict(data or {}))
+                      data=dict(data or {}))
         return self.chronicle.append(event)
 
 
@@ -194,7 +194,8 @@ def load(root) -> World:
         # There is no conversion, on purpose. Each bump here is a world that
         # worked differently - schema 3 kept time as whole days and named
         # quarters of them, schema 4 scored how close two people were,
-        # schema 6 gave everyone one word for how they went to sleep - and
+        # schema 6 gave everyone one word for how they went to sleep,
+        # schema 7 matched memories by words they had in common - and
         # filling in the difference would silently invent history nobody
         # lived. Worlds that old are read as a record, not resumed.
         raise ValueError(

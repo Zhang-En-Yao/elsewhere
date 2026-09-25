@@ -108,8 +108,6 @@ still the feeling they had, and "relief that came out wrong" is a better
 answer than the nearest word off a list. Empty, or "none", when there is
 nothing.
 
-tags: two to four short tags for what it was about.
-
 weight, last: how much of that survives in this person.
   nothing  - it is gone by tomorrow
   faint    - it might come back if something pointed at it
@@ -138,16 +136,16 @@ Three people, another town, another day - the form, not the content:
 
   Mira, who minds the neighbours' children. At her door, forty paces off.
     {"trace": "its eye was open the whole time they were deciding",
-     "means": "", "feeling": "grief", "tags": ["horse", "river"], "weight": "stays"}
+     "means": "", "feeling": "grief", "weight": "stays"}
 
   Oskar, a trader who counts everything. Behind the cart, holding his own horse.
     {"trace": "two sacks of flour split open in the mud",
      "means": "someone is paying for that, and it is not me",
-     "feeling": "unease", "tags": ["cart", "trade"], "weight": "faint"}
+     "feeling": "unease", "weight": "faint"}
 
   Pell, an old ferryman who has seen it before. On the far bank.
     {"trace": "a cart on its side", "means": "", "feeling": "none",
-     "tags": ["river"], "weight": "nothing"}"""
+     "weight": "nothing"}"""
 
 
 #: The example traces above, so the eval can tell a copied example from a memory.
@@ -367,18 +365,18 @@ Three mornings, another town - the form, not the content:
     {"why_now": "weeks without rain and the river is low",
      "what": "The ferry ran aground in the shallows and would not come free.",
      "where": "the ferry house", "who": "Pell", "reach": "the people there",
-     "tags": ["river", "ferry", "drought"], "happens": true}
+     "happens": true}
 
   Autumn. Oskar has been owed money since the cart went over.
     {"why_now": "a debt nobody has settled",
      "what": "A man from upriver came to the ford asking for Oskar by name.",
      "where": "the ford", "who": "Oskar", "reach": "the people there",
-     "tags": ["stranger", "debt"], "happens": true}
+     "happens": true}
 
   Autumn, the next day. Yesterday a stranger came.
     {"why_now": "yesterday was already enough",
      "what": "", "where": "the ford", "who": "", "reach": "the people there",
-     "tags": [], "happens": false}"""
+     "happens": false}"""
 
 
 def direct_user(world, recent) -> str:

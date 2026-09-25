@@ -96,7 +96,7 @@ class TestConversation(TownTest):
         self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
                            trace="the water in the doorway before I could move anything",
                            means="", feeling="fear", salience=0.95,
-                           tags=["flood", "waterline"], touched_at=68 * 24)
+                           touched_at=68 * 24)
         self.world.traces("p_eve").add(self.flood)
 
     def test_something_said_is_something_someone_else_can_keep(self):
@@ -105,7 +105,7 @@ class TestConversation(TownTest):
         self.say("speak", {"about": "1", "line": "You were up there. Could you feel it?"})
         self.stub.answers["perceive|p_adam"] = {
             "trace": "she asked if I could feel it", "means": "", "feeling": "unease",
-            "tags": ["flood"], "weight": "ordinary"}
+            "weight": "ordinary"}
 
         report = tick_mod.tick(self.world, config())
 

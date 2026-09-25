@@ -14,7 +14,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Optional
+from typing import List, Optional
 
 from . import Call
 
@@ -57,6 +57,10 @@ class OllamaBackend:
         payload.update(extra or {})
         data = _post(f"{self.base}/api/chat", payload)
         return (data.get("message") or {}).get("content", "")
+
+    def embed(self, texts: List[str], model: str) -> List[List[float]]:
+        data = _post(f"{self.base}/api/embed", {"model": model, "input": list(texts)})
+        return [[float(x) for x in v] for v in data.get("embeddings", [])]
 
 
 class OpenAICompatBackend:

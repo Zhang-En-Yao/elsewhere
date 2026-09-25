@@ -133,7 +133,6 @@ def build(root, name: str = "Wend") -> World:
                  "of them ate under it before the roof was even on.",
                  place="shelter", involved=["p_adam", "p_eve"],
                  reached=["p_adam", "p_eve", "p_lilith"],
-                 cues=["gathering", "building"],
                  data={"vantage": {
                      "p_adam": "up on the frame, tying the crossbeams",
                      "p_eve": "on the ground, passing the rope up",
@@ -145,7 +144,6 @@ def build(root, name: str = "Wend") -> World:
                  "not go down for three days.",
                  place="waterline", involved=[],
                  reached=["p_adam", "p_eve", "p_lilith"],
-                 cues=["flood", "loss"],
                  data={"vantage": {
                      "p_adam": "on the roof of his own yard, watching the water take the floor below him",
                      "p_eve": "in the garden, on the last dry rise, holding what she could carry",
@@ -157,7 +155,6 @@ def build(root, name: str = "Wend") -> World:
                  "timber that had not finished drying.",
                  place="shelter", involved=["p_adam"],
                  reached=["p_adam", "p_lilith", "p_eve"],
-                 cues=["building", "work"],
                  data={"vantage": {
                      "p_adam": "on the new posts, driving them deeper than anyone asked him to",
                      "p_lilith": "on the path down from the ridge, back for the day",

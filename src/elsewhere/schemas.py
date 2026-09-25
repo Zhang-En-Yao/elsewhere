@@ -56,7 +56,6 @@ PERCEIVE = {
         "trace": {"type": "string"},
         "means": {"type": "string"},
         "feeling": {"type": "string"},
-        "tags": {"type": "array", "items": {"type": "string"}},
         "weight": {"type": "string", "enum": WEIGHTS},
     },
     # One decision in one field. An earlier version also asked for a boolean
@@ -130,7 +129,6 @@ DIRECT = {
         "where": {"type": "string"},
         "who": {"type": "string"},
         "reach": {"type": "string", "enum": REACH},
-        "tags": {"type": "array", "items": {"type": "string"}},
         "happens": {"type": "boolean"},
     },
     "required": ["happens"],

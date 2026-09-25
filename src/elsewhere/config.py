@@ -28,6 +28,15 @@ from .backends import Settings
 # and swapping between them every tick costs more than it saves.
 LOCAL = {"backend": "ollama", "model": "phi4-mini"}        # ~2.5GB at Q4_K_M
 
+# Not a mind: the thing that says where a memory reads from, so that what
+# comes back to somebody is what this moment is about rather than what they
+# happened to type the same word for. Tested against the memories of a real
+# world - nomic ranked all four probes right with a spread of 0.32, while
+# multilingual-e5-large put everything between 0.79 and 0.84 and could barely
+# tell two memories apart. Nothing breaks if it is missing: retrieval falls
+# back on how reachable a memory is, which is what it used before.
+EMBED = {"backend": "ollama", "model": "nomic-embed-text"}  # ~274MB, 768 dims
+
 DEFAULTS: Dict[str, dict] = {
     "act":      {**LOCAL, "temperature": 0.9},
     "perceive": {**LOCAL, "temperature": 0.7},
@@ -36,6 +45,7 @@ DEFAULTS: Dict[str, dict] = {
     "reflect":  {**LOCAL, "temperature": 0.8},
     "direct":   {**LOCAL, "temperature": 1.0},
     "arrive":   {**LOCAL, "temperature": 1.0},
+    "embed":    dict(EMBED),
 }
 
 NOTES = [

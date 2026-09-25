@@ -26,7 +26,12 @@ class Trace:
     means: str = ""                # what they think it meant
     feeling: str = "none"
     salience: float = 0.4          # the mind's own weighting, never the engine's
-    tags: List[str] = field(default_factory=list)
+
+    #: Where this reads from, as a vector, written once when the words are.
+    #: Not a summary and not for a reader - the only thing that ever looks at
+    #: it is `retrieval.nearness`. Empty when no embedder could be reached,
+    #: and then retrieval simply falls back on how reachable the memory is.
+    embedding: List[float] = field(default_factory=list)
     source: str = "witnessed"      # witnessed | told | made | seen | carried_in
     event_id: Optional[str] = None
     about: List[str] = field(default_factory=list)   # person ids in it
@@ -37,12 +42,17 @@ class Trace:
     history: List[str] = field(default_factory=list)  # earlier wordings, newest last
 
     def rewrite(self, new_trace: str, at: float, means: str = "",
-                feeling: str = "") -> None:
+                feeling: str = "", embedding: Optional[List[float]] = None) -> None:
         """A mind has looked at this again and it came back different."""
         if new_trace and new_trace != self.trace:
             self.history.append(self.trace)
             del self.history[:-4]
             self.trace = new_trace
+            # The words moved, so where they read from moved with them. An
+            # embedder that could not be reached leaves the old vector rather
+            # than none: stale is nearer the truth than absent.
+            if embedding:
+                self.embedding = list(embedding)
         if means:
             self.means = means
         if feeling:
@@ -52,6 +62,9 @@ class Trace:
 
     def to_dict(self) -> dict:
         d = asdict(self)
+        # Five places. The vector is only ever compared with other vectors,
+        # and full repr costs 14KB a memory for digits nothing can use.
+        d["embedding"] = [round(x, 5) for x in self.embedding]
         return {k: v for k, v in d.items()
                 if v not in (None, [], "") or k in ("id", "owner", "at", "trace")}
 
@@ -60,7 +73,8 @@ class Trace:
         return cls(
             id=d["id"], owner=d["owner"], at=float(d["at"]), trace=d["trace"],
             means=d.get("means", ""), feeling=d.get("feeling", "none"),
-            salience=float(d.get("salience", 0.4)), tags=list(d.get("tags", [])),
+            salience=float(d.get("salience", 0.4)),
+            embedding=[float(x) for x in d.get("embedding", [])],
             source=d.get("source", "witnessed"), event_id=d.get("event_id"),
             about=list(d.get("about", [])), place=d.get("place"),
             touched_at=float(d.get("touched_at", d["at"])),

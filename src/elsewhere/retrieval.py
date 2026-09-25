@@ -22,7 +22,7 @@ fourth one.
 from __future__ import annotations
 
 import math
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Iterable, List, Optional, Sequence
 
 from . import HOURS_PER_DAY
 from .world.entities import Belief
@@ -75,34 +75,62 @@ def on_faith(belief: Belief, store, at: float) -> bool:
                    for t in (store.get(i) for i in belief.origin))
 
 
-def relevance(trace: Trace, cues: Set[str]) -> float:
-    if not cues:
+def nearness(a: Sequence[float], b: Sequence[float]) -> float:
+    """Cosine between two places in meaning. 0.0 when either is missing."""
+    if not a or not b or len(a) != len(b):
         return 0.0
-    tags = set(trace.tags) | ({trace.place} if trace.place else set())
-    if not tags:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(x * x for x in b))
+    if na == 0.0 or nb == 0.0:
         return 0.0
-    return len(tags & cues) / len(tags | cues)
+    return dot / (na * nb)
 
 
-def score(trace: Trace, at: float, cues: Set[str]) -> float:
-    return reach(trace, at) * (1.0 + 2.0 * relevance(trace, cues))
-
-
-def recallable(traces: Iterable[Trace], at: float, cues: Optional[Set[str]] = None,
+def recallable(traces: Iterable[Trace], at: float,
+               near: Optional[Sequence[float]] = None,
                limit: int = CONTEXT_TRACES) -> List[Trace]:
     """What this person has within reach, most available first.
 
     Anything not in this list is, for the purposes of the next thought,
     forgotten - whether or not it is still on disk.
+
+    `near` is where the moment reads from - the room, the person being spoken
+    to - and it pulls what is like it forward. It is compared against the
+    live set rather than against a number, because a raw cosine has no fixed
+    meaning: this embedder puts two unrelated sentences at 0.45 and two close
+    ones at 0.72, so a threshold would be a constant chosen to suit one model
+    and silently wrong for the next. Spread across whatever this person can
+    actually reach, the question becomes the answerable one - of the things
+    still in reach, which are nearest to right now - and it survives changing
+    the embedder underneath it.
     """
-    cues = set(cues or ())
     live = [t for t in traces if not dormant(t, at)]
-    live.sort(key=lambda t: score(t, at, cues), reverse=True)
-    return live[:limit]
+    if not live:
+        return []
+    weights = [0.0] * len(live)
+    if near:
+        raw = [nearness(t.embedding, near) for t in live]
+        lo, hi = min(raw), max(raw)
+        if hi - lo > 1e-9:
+            weights = [(s - lo) / (hi - lo) for s in raw]
+    ranked = sorted(zip(live, weights),
+                    key=lambda p: reach(p[0], at) * (1.0 + 2.0 * p[1]),
+                    reverse=True)
+    return [t for t, _ in ranked[:limit]]
 
 
-def cued_return(traces: Iterable[Trace], at: float, cues: Set[str]) -> Optional[Trace]:
-    """Something out of reach that this exact place or word points straight at.
+#: How near something already out of reach has to be before this moment counts
+#: as pointing straight at it. Unlike `recallable`, this one cannot be spread
+#: across a set: the question is about one memory and the answer has to be no
+#: most of the time, so there is a number here and it belongs to the embedder
+#: in use. Nothing in the engine calls `cued_return` yet - see ARCHITECTURE.
+DIRECT_HIT = 0.7
+
+
+def cued_return(traces: Iterable[Trace], at: float,
+                near: Sequence[float]) -> Optional[Trace]:
+    """Something out of reach that this exact moment points straight at.
 
     'A memory that unexpectedly returns years later.' It has to be a direct
     hit: general similarity is not enough to raise something already gone.
@@ -111,17 +139,10 @@ def cued_return(traces: Iterable[Trace], at: float, cues: Set[str]) -> Optional[
     for trace in traces:
         if not dormant(trace, at):
             continue
-        overlap = relevance(trace, set(cues))
-        if overlap < 0.34:
+        how_near = nearness(trace.embedding, near)
+        if how_near < DIRECT_HIT:
             continue
-        value = overlap * trace.salience
+        value = how_near * trace.salience
         if value > best_score:
             best, best_score = trace, value
     return best
-
-
-def cues_from(*sources: Sequence[str]) -> Set[str]:
-    out: Set[str] = set()
-    for source in sources:
-        out |= {s for s in source if s}
-    return out

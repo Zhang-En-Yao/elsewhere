@@ -16,7 +16,7 @@ from elsewhere.world.memories import Trace
 def trace(**kw):
     base = dict(id="m1", owner="p", at=100 * 24, trace="the water rose over the fields",
                 means="I was frightened", feeling="fear", salience=0.7,
-                tags=["flood", "town"], place="waterline", touched_at=100 * 24)
+                place="waterline", touched_at=100 * 24)
     base.update(kw)
     return Trace(**base)
 
@@ -77,18 +77,37 @@ class TestRetrieval(unittest.TestCase):
         self.assertEqual(len(got), 6)
         self.assertEqual(got[0].id, "m0")          # freshest first, all else equal
 
-    def test_a_cue_pulls_its_own_subject_forward(self):
-        plain = trace(id="a", salience=0.5, tags=["garden"])
-        cued = trace(id="b", salience=0.4, tags=["flood"])
-        got = retrieval.recallable([plain, cued], 110 * 24, cues={"flood"}, limit=2)
-        self.assertEqual(got[0].id, "b")
+    def test_what_the_moment_is_about_pulls_its_own_subject_forward(self):
+        here, elsewhere = [1.0, 0.0], [0.0, 1.0]
+        plain = trace(id="a", salience=0.5, embedding=elsewhere)
+        cued = trace(id="b", salience=0.4, embedding=here)
+        self.assertEqual(
+            retrieval.recallable([plain, cued], 110 * 24, near=here, limit=2)[0].id, "b")
+        # and with nothing to be about, the stronger memory is simply nearer
+        self.assertEqual(
+            retrieval.recallable([plain, cued], 110 * 24, limit=2)[0].id, "a")
+
+    def test_a_memory_with_no_vector_is_ranked_not_dropped(self):
+        # An embedder that was down when this was written must not cost
+        # somebody the memory - it costs them only the pull towards it.
+        no_vector = trace(id="a", salience=0.9)
+        placed = trace(id="b", salience=0.2, embedding=[1.0, 0.0])
+        got = retrieval.recallable([no_vector, placed], 110 * 24, near=[1.0, 0.0])
+        self.assertEqual({t.id for t in got}, {"a", "b"})
+
+    def test_nearness_survives_a_change_of_embedder(self):
+        # Vectors of different width are not comparable, and saying so is
+        # better than a number nobody can interpret.
+        self.assertEqual(retrieval.nearness([1.0, 0.0], [1.0, 0.0, 0.0]), 0.0)
+        self.assertEqual(retrieval.nearness([], [1.0]), 0.0)
+        self.assertAlmostEqual(retrieval.nearness([1.0, 0.0], [1.0, 0.0]), 1.0)
 
     def test_something_out_of_reach_can_still_be_pointed_at(self):
-        t = trace(salience=0.9, tags=["flood"])
+        t = trace(salience=0.9, embedding=[1.0, 0.0])
         at = (100 + 900) * 24
         self.assertTrue(retrieval.dormant(t, at))
-        self.assertIsNone(retrieval.cued_return([t], at, {"harvest"}))
-        self.assertIs(retrieval.cued_return([t], at, {"flood", "town", "waterline"}), t)
+        self.assertIsNone(retrieval.cued_return([t], at, [0.0, 1.0]))
+        self.assertIs(retrieval.cued_return([t], at, [1.0, 0.0]), t)
 
     def test_rewriting_keeps_the_older_wording(self):
         t = trace()

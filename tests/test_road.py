@@ -21,7 +21,7 @@ from elsewhere.world.memories import Trace
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": ""}
 QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
-         "reach": "the people there", "tags": [], "happens": False}
+         "reach": "the people there", "happens": False}
 GOING = {"because": "I said I would go before the rains", "action": "leave",
          "target": ""}
 NOBODY = {"comes": False}
@@ -144,7 +144,7 @@ class TestGoing(Road):
         self.world.traces("p_lilith").add(Trace(
             id="mem9001", owner="p_lilith", at=self.world.at,
             trace="the valley disappearing under the water", salience=0.9,
-            tags=["flood"], touched_at=self.world.at))
+            touched_at=self.world.at))
         self.send_lilith_away()
         kept = list(self.world.traces("p_lilith"))
         self.assertIn("mem9001", [t.id for t in kept])
@@ -347,7 +347,7 @@ class TestReading(Road):
         self.world.traces("p_lilith").add(Trace(
             id="mem9001", owner="p_lilith", at=self.world.at,
             trace="the valley disappearing under the water", salience=0.5,
-            tags=["flood"], touched_at=self.world.at))
+            touched_at=self.world.at))
         self.send_lilith_away()
         left_at = self.lilith.left_at
         self.world.at += 4000 * 24                 # long enough to lose anything

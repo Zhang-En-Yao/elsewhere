@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Collection, List, Optional, Sequence
 
 from . import prompts, retrieval, schemas
-from .backends import Call, Settings, Transcript, ask, get as get_backend
+from .backends import (Call, Settings, Transcript, ask, get as get_backend,
+                       place as place_in_meaning)
 from .world.chronicle import (ARRIVAL, CONVERSATION, DEPARTURE, Event,
                               OCCURRENCE, PRESENCE_CHANGES)
 from .world.entities import Being
@@ -27,6 +28,21 @@ HEAVY = 0.7
 
 def _settings(config, name: str) -> Settings:
     return config[name]
+
+
+def _placed(config, text: str) -> List[float]:
+    """Where this reads from, or nothing at all.
+
+    Nothing here is required to work. An embedder that is missing or down
+    gives back an empty vector, `recallable` falls through to how reachable
+    a memory is, and the world carries on slightly less pointedly - which is
+    how it worked before there was an embedder.
+    """
+    settings = config.get("embed")
+    if settings is None or not text.strip():
+        return []
+    got = place_in_meaning([text], settings)
+    return got[0] if got else []
 
 
 def _others_here(world, being: Being) -> List[Being]:
@@ -110,7 +126,7 @@ def perceive(world, being: Being, event: Event, config,
         means=(answer.get("means") or "").strip(),
         feeling=answer.get("feeling", "none"),
         salience=salience,
-        tags=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:6],
+        embedding=_placed(config, text),
         source="witnessed" if being.id in event.reached else "told",
         event_id=event.id,
         about=[w for w in event.involved if w != being.id],
@@ -172,8 +188,8 @@ def act(world, being: Being, config,
     reachable = [world.places[n] for n in (place.neighbours if place else [])
                  if n in world.places]
     store = world.traces(being.id)
-    cues = retrieval.cues_from(place.tags if place else [], [being.place])
-    context = retrieval.recallable(store, world.at, cues, limit=4)
+    near = _placed(config, f"{place.name}. {place.description}" if place else "")
+    context = retrieval.recallable(store, world.at, near, limit=4)
 
     going = may_leave(world, being)
     call = Call(
@@ -225,11 +241,15 @@ def speak(world, speaker: Being, listener: Being, config,
     """
     settings = _settings(config, "speak")
     store = world.traces(speaker.id)
-    cues = retrieval.cues_from([listener.id], [speaker.place])
-    for t in store:
-        if listener.id in t.about:
-            cues |= set(t.tags)
-    topics = retrieval.recallable(store, world.at, cues, limit=3)
+    # Who is in front of them, in words, which is the first time this has
+    # reached anything: the cue used to be the listener's id, matched against
+    # tags a mind had typed, so it never once hit a memory about that person.
+    regard = speaker.regards.get(listener.id)
+    near = _placed(config, " ".join(x for x in (
+        listener.name, regard.account if regard else "",
+        world.places[speaker.place].name if speaker.place in world.places else "",
+    ) if x))
+    topics = retrieval.recallable(store, world.at, near, limit=3)
     place = world.places.get(speaker.place)
 
     call = Call(
@@ -331,7 +351,6 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         OCCURRENCE, what, place=place.id,
         involved=[who.id] if who is not None else [],
         reached=reached,
-        cues=[t.strip().lower() for t in (answer.get("tags") or []) if t.strip()][:5],
         data={"why_now": (answer.get("why_now") or "").strip(),
               "reach": answer.get("reach"), "vantage": vantage},
     )
@@ -412,7 +431,6 @@ def depart(world, being: Being, because: str, config,
         DEPARTURE,
         f"{being.name} took the road out of {world.name} and did not come back.",
         place=being.place, involved=[being.id], reached=reached,
-        cues=["leaving", "road"],
         data={"because": because, "person": being.id, "vantage": vantage},
     )
     kept = perceive_all(world, event, config, transcript)
@@ -526,7 +544,6 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
                             if other else "and word of it reached you")
     return world.record(
         ARRIVAL, said, place=place.id, involved=[being.id], reached=reached,
-        cues=["arrival", "road", "stranger"],
         data={"why_now": (answer.get("why_now") or "").strip(),
               "from_where": came_from, "person": being.id, "vantage": vantage},
     )
@@ -645,7 +662,8 @@ def recall(world, being: Being, trace: Trace, config,
     if not new or new == trace.trace:
         return False
     trace.rewrite(new, world.at, means=(answer.get("means") or "").strip(),
-                  feeling=answer.get("feeling") or "")
+                  feeling=answer.get("feeling") or "",
+                  embedding=_placed(config, new))
     # rewrite() counts a recall; speak() already counted this one.
     trace.recalls -= 1
     world.traces(being.id).touch()

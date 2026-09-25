@@ -137,8 +137,7 @@ def cmd_being(args) -> None:
         if t.means:
             print(f"          ~ {t.means}")
         print(f"          weight {t.salience:.2f}  reach "
-              f"{retrieval.reach(t, at):.2f}  "
-              f"tags {', '.join(t.tags) or '-'}")
+              f"{retrieval.reach(t, at):.2f}")
 
 
 def cmd_timeline(args) -> None:
@@ -157,7 +156,6 @@ def cmd_event(args) -> None:
     print(heading(f"{event.id} - {when(event.at)}, {event.category}, "
                   f"at {place.name if place else '-'}"))
     print(f"  History says:  {event.account}")
-    print(f"  cues: {', '.join(event.cues) or '-'}")
     print("\n  What it left in people:")
     for being in world.beings.values():
         traces = world.traces(being.id).about_event(event.id)
@@ -188,6 +186,8 @@ def cmd_doctor(args) -> None:
     }
     seen = {}
     for name, settings in config.items():
+        if name == "embed":
+            continue                      # not a mind; probed on its own below
         key = (settings.backend, settings.model)
         if key in seen:
             print(f"  {name:<9} {settings.backend}/{settings.model:<18} (same model as above)")
@@ -206,6 +206,19 @@ def cmd_doctor(args) -> None:
             verdict = f"unreachable: {type(exc).__name__}: {exc}"
         seen[key] = verdict
         print(f"  {name:<9} {settings.backend}/{settings.model:<18} {verdict}")
+    embed = config.get("embed")
+    if embed is not None:
+        print(heading("Where a memory reads from"))
+        from .backends import place as place_in_meaning
+        started = time.time()
+        got = place_in_meaning(["the water came up over the waterline"], embed)
+        if got:
+            print(f"  embed     {embed.backend}/{embed.model:<18} "
+                  f"ok ({len(got[0])} dims, {time.time() - started:.1f}s)")
+        else:
+            print(f"  embed     {embed.backend}/{embed.model:<18} "
+                  f"unreachable - retrieval falls back on how reachable a "
+                  f"memory is, which still works")
     print("\n  Set ELSEWHERE_BACKEND=stub to run without any of this.")
 
 

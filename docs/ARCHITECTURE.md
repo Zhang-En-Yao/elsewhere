@@ -129,10 +129,22 @@ a prompt — will not offer it. Whatever is not in that list is, for the
 purposes of the next thought, forgotten, whether or not it is still there to
 be read by a human running `elsewhere person`.
 
+What pulls one memory in front of another, among those still in reach, is
+how near it is to what the moment is about — the room somebody is standing
+in, the person they have turned to — as a cosine between embeddings, written
+once when the words are. It used to be tag overlap, which meant retrieval
+only worked when a mind happened to type the same word twice, and never
+worked at all for `speak`, whose cue was the listener's id matched against
+words a mind had typed. Nearness is spread across whatever that person can
+currently reach rather than compared with a threshold, because a raw cosine
+has no fixed meaning between one embedder and the next.
+
 `retrieval.py` also defines `cued_return`, a direct-hit lookup meant for "a
-memory that unexpectedly returns years later" when a place or word points
+memory that unexpectedly returns years later" when this moment points
 straight at something dormant — but nothing in `agents.py` or `tick.py` calls
 it yet. It is written, tested in isolation, and not wired into any call site.
+It is also the one place with a bare cosine threshold, because a question
+about one memory cannot be spread across a set.
 That is an honest gap, not a subtlety worth reading into.
 
 ## Scarcity the engine supplies

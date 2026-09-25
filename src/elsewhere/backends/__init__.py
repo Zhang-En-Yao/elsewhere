@@ -18,7 +18,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Protocol
+from typing import Dict, List, Optional, Protocol
 
 from ..schemas import validate
 
@@ -41,6 +41,21 @@ class Backend(Protocol):
     def complete(self, call: Call, model: str, temperature: float,
                  extra: Optional[dict] = None) -> str:
         """Return the raw text of one answer. Must not raise on model nonsense."""
+        ...
+
+
+class Embedder(Protocol):
+    """A backend that can also place text somewhere, rather than answer about it.
+
+    This is the only thing in Elsewhere a model is asked for that is not an
+    answer. It exists because the alternative was a tag vocabulary that every
+    mind had to keep spelling the same way for the engine to match on, and a
+    person does not file their own memories.
+    """
+    name: str
+
+    def embed(self, texts: List[str], model: str) -> List[List[float]]:
+        """One vector per text, in order. Must not raise on nonsense input."""
         ...
 
 
@@ -160,6 +175,26 @@ def ask(backend: Backend, call: Call, settings: Settings,
             return clean
         user = f"{call.user}\n\n{REPAIR.format(complaint=complaint or error)}"
     return None
+
+
+def place(texts: List[str], settings: Settings) -> List[List[float]]:
+    """Where these read from, as vectors. An empty list back means: no idea.
+
+    A backend that cannot embed, or one that is down, is not an error here.
+    Retrieval falls back on how reachable something is and nothing else,
+    which is what it did before any of this existed.
+    """
+    if not texts:
+        return []
+    backend = get(settings.backend)
+    embed = getattr(backend, "embed", None)
+    if embed is None:
+        return []
+    try:
+        out = embed(list(texts), settings.model)
+    except Exception:
+        return []
+    return out if len(out) == len(texts) else []
 
 
 def probe(settings: Settings) -> tuple:

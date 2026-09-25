@@ -72,10 +72,6 @@ class Event:
     involved: List[str] = field(default_factory=list)
     reached: List[str] = field(default_factory=list)
 
-    #: Keys for retrieval, not categories for a reader. These are what a later
-    #: memory is matched against to decide whether this is still in reach.
-    cues: List[str] = field(default_factory=list)
-
     #: Whatever only this category needs: who spoke, why they went, where each
     #: person was standing. Nothing here is required and nothing is promised.
     data: dict = field(default_factory=dict)
@@ -89,7 +85,7 @@ class Event:
                    account=d["account"], place=d.get("place"),
                    involved=list(d.get("involved", [])),
                    reached=list(d.get("reached", [])),
-                   cues=list(d.get("cues", [])), data=dict(d.get("data", {})))
+                   data=dict(d.get("data", {})))
 
 
 class Chronicle:

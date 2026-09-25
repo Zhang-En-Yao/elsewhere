@@ -16,7 +16,7 @@ from elsewhere.world.memories import Trace
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": ""}
 QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
-         "reach": "the people there", "tags": [], "happens": False}
+         "reach": "the people there", "happens": False}
 
 
 def config():
@@ -68,8 +68,7 @@ class TestDirector(Town):
     def test_something_happening_to_someone_happens_where_they_are(self):
         self.stub.set("direct", {"why_now": "the roof", "what": "A beam cracked overhead.",
                                  "where": "The Ridge Path", "who": "Adam",
-                                 "reach": "the people there", "tags": ["roof"],
-                                 "happens": True})
+                                 "reach": "the people there",                                  "happens": True})
         self.stub.answers["perceive|p_adam"] = {"trace": "the crack before the dust",
                                                 "means": "", "feeling": "fear",
                                                 "tags": ["roof"], "weight": "stays"}
@@ -82,8 +81,7 @@ class TestDirector(Town):
     def test_something_the_whole_town_notices_reaches_everyone(self):
         self.stub.set("direct", {"why_now": "", "what": "A storm broke over the town.",
                                  "where": "The Shelter", "who": "",
-                                 "reach": "the whole town", "tags": ["storm"],
-                                 "happens": True})
+                                 "reach": "the whole town",                                  "happens": True})
         report = tick_mod.tick(self.world, config())
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(sorted(event.reached), sorted(self.world.beings))
@@ -95,7 +93,7 @@ class TestDirector(Town):
     def test_the_town_gets_quiet_days_between_happenings(self):
         self.stub.set("direct", {"why_now": "", "what": "A goat got loose.",
                                  "where": "The Shelter", "who": "",
-                                 "reach": "the people there", "tags": [], "happens": True})
+                                 "reach": "the people there", "happens": True})
         tick_mod.tick(self.world, config())
         for _ in range(4):                       # a whole day further on
             tick_mod.tick(self.world, config())
@@ -110,7 +108,7 @@ class TestRecall(Town):
             self.world.beings[pid].place = "yard"
         self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24,
                            trace="the water in the doorway before I could move anything",
-                           feeling="fear", salience=0.95, tags=["flood"], touched_at=68 * 24)
+                           feeling="fear", salience=0.95, touched_at=68 * 24)
         self.world.traces("p_eve").add(self.flood)
         self.stub.answers["act|p_eve"] = {"because": "", "action": "talk", "target": "Adam"}
         self.stub.set("speak", {"about": "1", "line": "That night."})
@@ -148,7 +146,7 @@ class TestReflect(Town):
         super().setUp()
         self.today = Trace(id="mem9100", owner="p_lilith", at=self.world.at,
                            trace="the valley disappearing under the water", feeling="unease",
-                           salience=0.7, tags=["flood", "leaving"],
+                           salience=0.7,
                            touched_at=self.world.at)
 
     def reckoning(self):
@@ -181,7 +179,7 @@ class TestReflect(Town):
         self.world.at += 1 * 24
         self.world.traces("p_lilith").add(Trace(
             id="mem9101", owner="p_lilith", at=self.world.at, trace="the road again",
-            salience=0.4, tags=["leaving"], touched_at=self.world.at))
+            salience=0.4, touched_at=self.world.at))
         self.stub.set("reflect", {"belief": "nobody here will ever leave this town",
                                   "belief_from": "1"})
         self.reckoning()

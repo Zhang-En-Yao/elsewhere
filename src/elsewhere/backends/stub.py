@@ -30,6 +30,21 @@ DEFAULTS: Dict[str, dict] = {
 class StubBackend:
     name = "stub"
 
+    #: Deterministic, offline, and meaningless on purpose. The tests need
+    #: vectors that are stable and that make identical text identical, so the
+    #: wiring can be checked without a model; they are not meant to put two
+    #: memories about water anywhere near each other. Anything asserting that
+    #: wants a real embedder.
+    def embed(self, texts, model: str = "stub"):
+        import hashlib
+        out = []
+        for text in texts:
+            digest = hashlib.sha256(text.encode("utf-8")).digest()
+            v = [b / 127.5 - 1.0 for b in digest[:32]]
+            norm = sum(x * x for x in v) ** 0.5 or 1.0
+            out.append([x / norm for x in v])
+        return out
+
     def __init__(self, answers: Optional[Dict[str, object]] = None,
                  script_from_env: bool = False):
         #: keyed by "<call>|<person id>" or just "<call>". The value may be a
