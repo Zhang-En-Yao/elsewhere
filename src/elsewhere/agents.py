@@ -66,8 +66,6 @@ def perceive(world, being: Being, event: Event, config,
     """Ask what this event leaves in this person. Usually the answer is nothing."""
     settings = _settings(config, "perceive")
     store = world.traces(being.id)
-    cues = retrieval.cues_from(event.cues, [event.place or ""])
-    context = retrieval.recallable(store, world.at, cues)
 
     place = world.places.get(event.place or "")
     call = Call(
@@ -82,7 +80,6 @@ def perceive(world, being: Being, event: Event, config,
             vantage=vantage(world, being, event),
             others=[world.beings[pid] for pid in event.reached
                     if pid != being.id and pid in world.beings],
-            traces=context,
             part_of_it=being.id in event.involved,
         ),
         schema=schemas.grammar("perceive"),
