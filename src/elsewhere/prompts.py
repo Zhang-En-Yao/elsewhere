@@ -36,8 +36,8 @@ def being_block(being: Being, with_thought: bool = True) -> str:
     lines = [f"You are {being.name}."]
     if being.card:
         lines.append(being.card)
-    if being.voice:
-        lines.append(f"How you talk: {being.voice}")
+    if being.manner:
+        lines.append(f"How you talk: {being.manner}")
     if being.thought and with_thought:
         lines.append(f"What you keep coming back to: {being.thought}")
     if being.wants:
@@ -434,7 +434,11 @@ they do, what they are like to be near, and the thing they have brought with
 them that they would not bring up themselves. A person, not a mystery and not
 a plot.
 
-voice: how they talk, in one line.
+manner: what they do when they open their mouth, in one line, as a fact about
+them rather than a style - "you say as little as will do", "you ask questions
+you already know the answer to", "you talk around a thing for a while first".
+Not "terse", not "warm", not "short sentences": those describe the writing,
+and this is a person.
 
 comes: last. Say false unless this town, today, really would take somebody in.
 Nobody is the usual answer.
@@ -446,12 +450,12 @@ Two mornings, another town - the form, not the content:
     {"why_now": "the ferry has sat on the bank since Pell went",
      "name": "Hesper", "from_where": "downriver, past the weir",
      "card": "You came for the ferry and you are good on water. You do not ask for much and you do not explain yourself.",
-     "voice": "Few words, and none of them about yourself.",
+     "manner": "You say as little as will do, and never about yourself.",
      "comes": true}
 
   The same town, a week later. Hesper has the ferry.
     {"why_now": "nothing here is short of anybody", "name": "", "from_where": "",
-     "card": "", "voice": "", "comes": false}"""
+     "card": "", "manner": "", "comes": false}"""
 
 
 def arrive_user(world, recent) -> str:

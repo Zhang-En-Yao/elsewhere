@@ -235,7 +235,7 @@ still present, exactly like any other happening, then marked `present=False`
 and never asked anything again. What they had, and every note anyone wrote
 about them, stays exactly as it was the day they went — `elsewhere person
 <name>` reads them frozen. Whoever arrives is built from the model's own
-`arrive` answer (name, card, voice, trade, where they came from), dropped at
+`arrive` answer (name, card, manner, trade, where they came from), dropped at
 the place the road comes in with no `home` of their own yet, and lives the
 day they arrived like anyone else.
 

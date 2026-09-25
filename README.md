@@ -791,7 +791,7 @@ together. What has not been built is written down in
 
 ### The people
 
-- A paragraph and a voice, not five floats.
+- A paragraph and a way of speaking, not five floats.
 - Regards that are one-way by construction: each being's own account of
   another, which never has to agree with the account coming back.
 - Wants, rewritten in the night, and the one thing from the day that keeps

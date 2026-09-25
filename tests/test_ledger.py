@@ -206,3 +206,29 @@ class TestTheAnswerIsNotInTheQuestion(unittest.TestCase):
         being = self.being()
         self.assertIn(being.thought, prompts.being_block(being))
         self.assertIn(being.thought, prompts.reflect_user(being, [], []))
+
+
+class TestMannerIsAFactNotASpecification(unittest.TestCase):
+    """What survives a change of model is a fact about a person."""
+
+    def test_the_seed_says_what_they_do_not_what_the_output_should_look_like(self):
+        # "short sentences" is a note to whoever is rendering them, and would
+        # have to be deleted out of every saved being the day the model gets
+        # better. "you say as little as will do" is true of somebody.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        world = seed.build(Path(tmp.name) / "world")
+        spec = ("sentence", "short", "terse", "brief", "plain and", "words,")
+        for being in world.beings.values():
+            self.assertTrue(being.manner, f"{being.name} has no manner")
+            self.assertTrue(being.manner.startswith("You "),
+                            f"{being.name}'s manner is not about them: {being.manner!r}")
+            for word in spec:
+                self.assertNotIn(word, being.manner.lower(),
+                                 f"{being.name}'s manner specifies output: {being.manner!r}")
+
+    def test_it_is_a_line_of_its_own_because_that_is_what_worked(self):
+        being = Being(id="p", name="Eve", card="You tend the garden.",
+                      manner="You say as little as will do.")
+        block = prompts.being_block(being)
+        self.assertIn("\nHow you talk: You say as little as will do.", block)

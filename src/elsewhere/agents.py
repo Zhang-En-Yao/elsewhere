@@ -518,7 +518,7 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         id=_free_being_id(world, name),
         name=name,
         card=(answer.get("card") or "").strip(),
-        voice=(answer.get("voice") or "").strip(),
+        manner=(answer.get("manner") or "").strip(),
         place=place.id,
         # Nowhere of their own yet. Somewhere to sleep is a thing they will
         # have to come by here, like anyone else.

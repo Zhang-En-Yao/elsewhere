@@ -28,7 +28,7 @@ NOBODY = {"comes": False}
 SOMEBODY = {"why_now": "nobody has tended the ridge plants since she went",
             "name": "Tam", "from_where": "beyond the ridge",
             "card": "You came for the plants and you keep to them.",
-            "voice": "Dry, and not much of it.", "comes": True}
+            "manner": "You say a thing once.", "comes": True}
 
 
 def config():

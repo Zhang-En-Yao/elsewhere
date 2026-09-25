@@ -75,8 +75,20 @@ class Being:
     # thing that reads it is a language model. Written at seed or on arrival;
     # nothing rewrites either of them yet.
     card: str = ""                 # who they are, written to them as "you"
-    voice: str = ""                # how they talk - a small model cannot
-                                   # infer this from a biography
+
+    #: What they do when they open their mouth, as a fact about them and not
+    #: as a specification for their output: "you say as little as will do",
+    #: not "short sentences". The difference is whether it still means
+    #: anything to a better model. A fact about a person does; a note to the
+    #: renderer is something somebody has to go and delete out of every saved
+    #: being on the day the model improves.
+    #:
+    #: It is a line of its own, and that is load-bearing rather than tidy.
+    #: The same sentence moved into `card` did nothing measurable, in the
+    #: middle of it or at the end; written town-wide into `SPEAK_SYSTEM` it
+    #: made people wordier than no instruction at all. Only a labelled line
+    #: against this person, here, changed anything.
+    manner: str = ""
 
     # What a mind says about itself. All of it comes back changed from
     # `reflect`, except regards, which so far only the seed writes.
@@ -122,7 +134,7 @@ class Being:
     def from_dict(cls, d: dict) -> "Being":
         return cls(
             id=d["id"], name=d["name"], card=d.get("card", ""),
-            voice=d.get("voice", ""), place=d.get("place", ""),
+            manner=d.get("manner", ""), place=d.get("place", ""),
             home=d.get("home", ""), thought=d.get("thought", ""),
             wants=list(d.get("wants", [])),
             regards={k: Regard.from_dict(v)

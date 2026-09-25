@@ -72,7 +72,8 @@ def build(root, name: str = "Wend") -> World:
     beings = [
         Being(
             id="p_adam",
-            voice="Plain and practical.", name="Adam",
+            manner="You answer the question that was asked, and not the one "
+                   "behind it.", name="Adam",
             place="yard", home="yard",
             thought="The roof is not finished and the rains are not waiting",
             card=("You build what holds, and you would rather fix a thing than "
@@ -84,7 +85,8 @@ def build(root, name: str = "Wend") -> World:
         ),
         Being(
             id="p_eve",
-            voice="Short, careful sentences. You leave the important part unsaid.", name="Eve",
+            manner="You say as little as will do, and you leave the important "
+                   "part unsaid.", name="Eve",
             place="garden", home="garden",
             thought="Somebody was at the garden's edge again and I did not look up",
             card=("You tend the garden, and you are good at it, and you do not "
@@ -96,7 +98,7 @@ def build(root, name: str = "Wend") -> World:
         ),
         Being(
             id="p_lilith",
-            voice="Quick and a little sharp. You talk about what things mean for later.", name="Lilith",
+            manner="You are quick, and sharper than you mean to be.", name="Lilith",
             place="ridge", home="grove",
             thought="The ridge path goes somewhere and nobody here has asked where",
             card=("You know the plants on the ridge better than anyone and you "

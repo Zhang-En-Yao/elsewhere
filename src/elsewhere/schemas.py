@@ -144,7 +144,7 @@ ARRIVE = {
         "name": {"type": "string"},
         "from_where": {"type": "string"},
         "card": {"type": "string"},
-        "voice": {"type": "string"},
+        "manner": {"type": "string"},
         "comes": {"type": "boolean"},
     },
     "required": ["comes"],
