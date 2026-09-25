@@ -202,9 +202,14 @@ class TestCategories(unittest.TestCase):
                             "speak": {"about": "nothing in particular", "line": "Cold."}})
         stub.answers["act|p_adam"] = {"because": "", "action": "talk", "target": "Eve"}
         register(stub)
+        # The seed writes each of them a line of their own to sound like, so
+        # count what this step added and not what the world came with.
+        def said():
+            return [e for e in world.chronicle.all()
+                    if e.category == chronicle.CONVERSATION]
+        before = len(said())
         tick_mod.tick(world, config())
-        said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
-        self.assertEqual(len(said), 1)
+        self.assertEqual(len(said()) - before, 1)
 
     def test_the_three_kinds_account_for_everything_the_engine_writes(self):
         # The taxonomy is the point: the world acting on people, a being's

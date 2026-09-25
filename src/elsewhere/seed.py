@@ -14,7 +14,7 @@ from typing import List, Optional
 
 from . import agents, config as config_mod
 from . import HOURS_PER_DAY
-from .world.chronicle import Chronicle
+from .world.chronicle import CONVERSATION, Chronicle
 from .world.entities import Being, Place
 from .world.store import World, save
 
@@ -25,6 +25,23 @@ START_AT = (START_DAY - 1) * HOURS_PER_DAY + 8.0      # and it starts mid-mornin
 def _place(world: World, pid: str, name: str, description: str, tags, neighbours):
     world.places[pid] = Place(id=pid, name=name, description=description,
                               tags=list(tags), neighbours=list(neighbours))
+
+
+def _said(world: World, speaker: str, listener: str, line: str,
+          place: str, cues) -> None:
+    """One thing somebody said, on the first page, in the shape `tick` writes.
+
+    Nobody arrives in a world having never spoken. These are here so that the
+    three of them start with a few lines of their own to sound like, the same
+    way they start with a few things they already think about each other -
+    authored, because somebody has to write the first page, and then never
+    authored again.
+    """
+    a, b = world.beings[speaker], world.beings[listener]
+    world.record(CONVERSATION, f'{a.name} said to {b.name}: "{line}"',
+                 place=place, involved=[speaker, listener],
+                 reached=[speaker, listener], cues=list(cues),
+                 data={"speaker": speaker, "listener": listener, "line": line})
 
 
 def _clear(root: Path) -> None:
@@ -139,6 +156,10 @@ def build(root, name: str = "Wend") -> World:
                      "p_eve": "on the ground, passing the rope up",
                      "p_lilith": "sitting apart, watching them work",
                  }})
+    world.at = 17 * HOURS_PER_DAY + 21.0                        # later that evening
+    _said(world, "p_lilith", "p_eve",
+          "You will have to do all this again. You know that.",
+          "shelter", ["gathering", "building"])
     world.at = 67 * HOURS_PER_DAY + 2.0                         # the small hours
     world.record("flood",
                  "The water came up over the waterline in the night and did "
@@ -151,6 +172,10 @@ def build(root, name: str = "Wend") -> World:
                      "p_eve": "in the garden, on the last dry rise, holding what she could carry",
                      "p_lilith": "on the ridge path, above all of it, watching the valley disappear",
                  }})
+    world.at = 68 * HOURS_PER_DAY + 9.0                         # the morning after
+    _said(world, "p_eve", "p_adam",
+          "The seedbed is gone. I have more seed.",
+          "garden", ["flood", "loss"])
     world.at = 91 * HOURS_PER_DAY + 14.0                        # an afternoon
     world.record("building",
                  "The shelter was raised again, this time on posts, out of "
@@ -163,6 +188,11 @@ def build(root, name: str = "Wend") -> World:
                      "p_lilith": "on the path down from the ridge, back for the day",
                      "p_eve": "in the garden, close enough to hear the hammering",
                  }})
+
+    world.at = 91 * HOURS_PER_DAY + 18.0                        # the same evening
+    _said(world, "p_adam", "p_lilith",
+          "It will hold. I put them deeper than they need.",
+          "shelter", ["building", "work"])
 
     world.at = START_AT
     # The town starts settled: nobody is owed, so the road waits a year before

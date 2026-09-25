@@ -20,7 +20,7 @@ def _when(at: float) -> str:
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
-def being_block(being: Being) -> str:
+def being_block(being: Being, said: Sequence[str] = ()) -> str:
     lines = [f"You are {being.name}."]
     if being.card:
         lines.append(being.card)
@@ -34,6 +34,10 @@ def being_block(being: Being) -> str:
         held = sorted(being.beliefs, key=lambda b: -b.confidence)[:3]
         lines.append("What you hold to be true: " +
                      " ".join(f"{b.belief}." for b in held))
+    if said:
+        lines.append("The last things you said out loud - this is how you "
+                     "sound, not what to say next:")
+        lines += [f'  - "{s}"' for s in said]
     return "\n".join(lines)
 
 
@@ -160,7 +164,8 @@ PERCEIVE_EXAMPLE_TRACES = (
 
 def perceive_user(being: Being, what_happened: str, where: str, when: str,
                   at: float, others: Sequence[Being], traces: Sequence[Trace],
-                  part_of_it: bool, vantage: str = "") -> str:
+                  part_of_it: bool, vantage: str = "",
+                  said: Sequence[str] = ()) -> str:
     """Scene first, person last.
 
     A small model weights the end of a prompt far more than the start. With the
@@ -175,7 +180,7 @@ def perceive_user(being: Being, what_happened: str, where: str, when: str,
          f"do not reuse its words.") if vantage else "",
         regards_block(being, others, at).replace("Who is here:", "Who else was there:"),
         traces_block(traces),
-        being_block(being),
+        being_block(being, said),
         f"Now answer as {being.name}, and only as {being.name}: how much of this "
         f"do you carry? For some people it is everything; for others, nothing at all.",
     ]
@@ -254,7 +259,8 @@ Four people, another town, another day - the form, not the content:
 
 def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
              reachable: Sequence[str], traces: Sequence[Trace],
-             home_name: str = "", may_leave: bool = False) -> str:
+             home_name: str = "", may_leave: bool = False,
+             said: Sequence[str] = ()) -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
     if place and being.home == place.id:
         where = f"You are at home, {place.name}. {place.description}".strip()
@@ -271,7 +277,7 @@ def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
          "today and not come back.") if may_leave else "",
         regards_block(being, others, at) if others else "",
         traces_block(traces),
-        being_block(being),
+        being_block(being, said),
         f"Now decide as {being.name}: what do you do for the next few hours?",
     ]
     return "\n\n".join(part for part in parts if part)
@@ -305,7 +311,7 @@ Three people, another town - the form, not the content:
 
 
 def speak_user(being: Being, listener: Being, when: str, place_name: str,
-               topics: Sequence[Trace]) -> str:
+               topics: Sequence[Trace], said: Sequence[str] = ()) -> str:
     regard = being.regards.get(listener.id)
     knows = f" {regard.account}" if regard and regard.account else ""
     lines = [
@@ -319,7 +325,7 @@ def speak_user(being: Being, listener: Being, when: str, place_name: str,
             lines.append(f"  {i}. {t.trace}{extra}")
     else:
         lines.append("On your mind: nothing in particular.")
-    lines.append(being_block(being))
+    lines.append(being_block(being, said))
     lines.append(f"What does {being.name} say to {listener.name}?")
     return "\n\n".join(lines)
 
@@ -486,7 +492,7 @@ Two people, another town - the form, not the content:
 
 
 def reflect_user(being: Being, today: Sequence[Trace],
-                 older: Sequence[Trace]) -> str:
+                 older: Sequence[Trace], said: Sequence[str] = ()) -> str:
     lines = []
     if today:
         lines.append("Today, what stayed with you:")
@@ -494,7 +500,7 @@ def reflect_user(being: Being, today: Sequence[Trace],
             extra = f" ({t.means})" if t.means else ""
             lines.append(f"  {i}. {t.trace}{extra}")
     lines.append(traces_block(older, "Older things you can still bring to mind"))
-    lines.append(being_block(being))
+    lines.append(being_block(being, said))
     lines.append(f"It is night. What is {being.name} left with?")
     return "\n\n".join(lines)
 
@@ -537,11 +543,12 @@ def clarity(reach_value: float) -> str:
     return "barely there"
 
 
-def recall_user(being: Being, trace: Trace, age_days: int, reach_value: float) -> str:
+def recall_user(being: Being, trace: Trace, age_days: int, reach_value: float,
+                said: Sequence[str] = ()) -> str:
     was = f'"{trace.trace}"' + (f" (what it meant: {trace.means})" if trace.means else "")
     told = {0: "never told", 1: "told once"}.get(trace.recalls, f"told {trace.recalls} times")
     return "\n\n".join([
         f"The memory, {age_days} days old, {clarity(reach_value)}, {told}. It was: {was}",
-        being_block(being),
+        being_block(being, said),
         f"How does it come back to {being.name} now?",
     ])
