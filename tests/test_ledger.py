@@ -248,3 +248,19 @@ class TestMannerIsAFactNotASpecification(unittest.TestCase):
                       manner="You say as little as will do.")
         block = prompts.being_block(being)
         self.assertIn("\nHow you talk: You say as little as will do.", block)
+
+
+class TestAnOccasionThatHasNotHappened(unittest.TestCase):
+    def test_a_later_telling_does_not_reach_back_and_hold_it_up(self):
+        # `max(age, an hour)` would have made a telling from day 1000 the
+        # freshest thing about this memory when asked on day 10.
+        later = trace(told=[100 * 24, 1100 * 24])
+        alone = trace(told=[100 * 24])
+        self.assertEqual(retrieval.reach(later, 110 * 24),
+                         retrieval.reach(alone, 110 * 24))
+        # and once it has happened, it counts
+        self.assertGreater(retrieval.reach(later, 1200 * 24),
+                           retrieval.reach(alone, 1200 * 24))
+
+    def test_nothing_has_happened_yet_at_all(self):
+        self.assertEqual(retrieval.reach(trace(told=[500 * 24]), 100 * 24), 0.0)

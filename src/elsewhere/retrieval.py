@@ -93,6 +93,12 @@ def reach(trace: Trace, at: float) -> float:
     told = trace.told or [trace.at]
     total = 0.0
     for then in told:
+        if then > at:
+            # Not yet. The clock runs backwards over events already written -
+            # see `seed.remember_backstory` - and an occasion that has not
+            # happened cannot be why something comes to mind. Clamping its
+            # age to an hour instead would make it the freshest thing there.
+            continue
         days = max((at - then) / HOURS_PER_DAY, 1.0 / 24.0)
         total += days ** -DECAY
     if total <= 0.0:
