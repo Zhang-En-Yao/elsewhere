@@ -163,13 +163,13 @@ class TestReflect(Town):
     def test_a_belief_remembers_where_it_came_from(self):
         self.world.traces("p_lilith").add(self.today)
         self.stub.set("reflect", {"thought": "nobody went down", "belief": "Nobody here will ever leave",
-                                  "belief_from": "1", "want": "go before winter", "mood": "restless"})
+                                  "belief_from": "1", "want": "go before winter"})
         self.reckoning()
         lilith = self.world.beings["p_lilith"]
         belief = next(b for b in lilith.beliefs if "leave" in b.belief)
         self.assertEqual(belief.origin, ["mem9100"])
         self.assertEqual(lilith.wants[0], "go before winter")
-        self.assertEqual(lilith.mood, "restless")
+        self.assertEqual(lilith.thought, "nobody went down")
 
     def test_the_same_belief_twice_is_held_harder_not_written_twice(self):
         self.world.traces("p_lilith").add(self.today)

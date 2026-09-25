@@ -106,8 +106,10 @@ def cmd_being(args) -> None:
         print(f"\n  Left on {when(at)}. What follows is how they stood "
               f"then; nothing here has touched it since.")
     else:
-        print(f"\n  mood: {being.mood}   at: "
+        print(f"\n  at: "
               f"{world.places[being.place].name if being.place in world.places else '-'}")
+        if being.thought:
+            print(f"  keeps coming back to: {being.thought}")
     if being.arrived_at:
         print(f"  came up the road on {when(being.arrived_at)}")
     if being.wants:

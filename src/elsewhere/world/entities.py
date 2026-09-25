@@ -80,7 +80,10 @@ class Being:
 
     # What a mind says about itself. All of it comes back changed from
     # `reflect`, except regards, which so far only the seed writes.
-    mood: str = "even"             # a word, not a number
+    thought: str = ""              # the one thing from the day that keeps
+                                   # coming back, in their words. Not a word
+                                   # for how they feel - the thing itself,
+                                   # which carries the feeling and its cause
     wants: List[str] = field(default_factory=list)
     beliefs: List[Belief] = field(default_factory=list)
     regards: Dict[str, Regard] = field(default_factory=dict)   # by being id
@@ -120,7 +123,7 @@ class Being:
         return cls(
             id=d["id"], name=d["name"], card=d.get("card", ""),
             voice=d.get("voice", ""), place=d.get("place", ""),
-            home=d.get("home", ""), mood=d.get("mood", "even"),
+            home=d.get("home", ""), thought=d.get("thought", ""),
             wants=list(d.get("wants", [])),
             regards={k: Regard.from_dict(v)
                      for k, v in d.get("regards", {}).items()},

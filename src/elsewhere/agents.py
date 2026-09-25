@@ -505,7 +505,8 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         # Nowhere of their own yet. Somewhere to sleep is a thing they will
         # have to come by here, like anyone else.
         home="",
-        mood="unsettled",
+        # Nothing keeping them awake yet either. They have not had a night
+        # here, and the engine does not get to say what is on their mind.
         arrived_at=world.at,
     )
     world.beings[being.id] = being
@@ -615,9 +616,9 @@ def reflect(world, being: Being, config,
     want = (answer.get("want") or "").strip().rstrip(".")
     if want and (not being.wants or being.wants[0] != want):
         being.wants = [want] + [w for w in being.wants if w != want][:1]
-    mood = (answer.get("mood") or "").strip().lower()
-    if mood and len(mood.split()) <= 3:
-        being.mood = mood
+    thought = (answer.get("thought") or "").strip()
+    if thought:
+        being.thought = thought
     return answer
 
 

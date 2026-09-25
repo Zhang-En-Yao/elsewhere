@@ -20,9 +20,9 @@ from typing import Any, Dict, List, Optional, Tuple
 # of them or sorts by one. It was a vocabulary a person had to squeeze into
 # for the engine's convenience, and the engine had no convenience in it.
 #
-# Compare `mood` in REFLECT, which has never been constrained and is a word
-# somebody picked for how they are going to sleep. Both are the same kind of
-# thing. The unconstrained one was right.
+# Compare `thought` in REFLECT, which has never been constrained and is
+# whatever the day left somebody holding. Both are the same kind of thing.
+# The unconstrained one was right.
 
 # A small ladder instead of a float: a 4B model has no idea what 0.73 means,
 # and neither does a person. The engine maps these onto numbers itself.
@@ -114,7 +114,6 @@ REFLECT = {
         "belief": {"type": "string"},
         "belief_from": {"type": "string"},
         "want": {"type": "string"},
-        "mood": {"type": "string"},
     },
     "required": [],
 }

@@ -794,7 +794,8 @@ together. What has not been built is written down in
 - A paragraph and a voice, not five floats.
 - Regards that are one-way by construction: each being's own account of
   another, which never has to agree with the account coming back.
-- Wants, rewritten in the night, and a mood in whatever word they used for it.
+- Wants, rewritten in the night, and the one thing from the day that keeps
+  coming back, in the words they thought it in.
 - Everyone decides at once, from where they stand, and then the world settles
   what is physically so.
 - Conversations. What was said is an event, and everyone in earshot keeps their

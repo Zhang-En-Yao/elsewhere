@@ -19,7 +19,7 @@ Landed:
 - **P3** — things happen to the town (`direct`, once each morning), and
   telling changes what is told (`recall`, when a trace is brought up).
 - **P4** — nights change what is held (`reflect`): a thought, at most one
-  belief pointing at the memory it came from, a want, a mood.
+  belief pointing at the memory it came from, and a want.
 - **One clock** — `day` and `phase` are gone. The world keeps hours elapsed as
   a single float; days, seasons and a clock reading are worked out from it and
   never stored. A mind is told the time and whether the sun is up, and decides

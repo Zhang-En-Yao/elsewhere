@@ -193,7 +193,8 @@ def load(root) -> World:
     if schema < SCHEMA_VERSION:
         # There is no conversion, on purpose. Each bump here is a world that
         # worked differently - schema 3 kept time as whole days and named
-        # quarters of them, schema 4 scored how close two people were - and
+        # quarters of them, schema 4 scored how close two people were,
+        # schema 6 gave everyone one word for how they went to sleep - and
         # filling in the difference would silently invent history nobody
         # lived. Worlds that old are read as a record, not resumed.
         raise ValueError(

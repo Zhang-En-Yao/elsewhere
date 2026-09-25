@@ -26,7 +26,8 @@ def being_block(being: Being) -> str:
         lines.append(being.card)
     if being.voice:
         lines.append(f"How you talk: {being.voice}")
-    lines.append(f"Right now you feel {being.mood}.")
+    if being.thought:
+        lines.append(f"What you keep coming back to: {being.thought}")
     if being.wants:
         lines.append("What you want at the moment: " + "; ".join(being.wants) + ".")
     if being.beliefs:
@@ -213,7 +214,8 @@ down that road for a while, and say so plainly in "because".
 The hour is a fact about the clock, not an instruction about what to do with
 it. It does not mean the same thing to everyone: the same night is nothing for
 one person and everything for another. Read that from who they are, below -
-their card, their mood, what they want - not from what hour it is. Most people
+their card, what they keep coming back to, what they want - not from what
+hour it is. Most people
 are home and settled by night, because most people are; that is a fact about
 most people, not a rule this one has to follow.
 
@@ -470,19 +472,17 @@ in one plain sentence they would say out loud. Usually empty.
 belief_from: the number of the memory it came from, or empty.
 
 want: what they want now, in a few words - the same as before if nothing moved.
-mood: one word for how they go to sleep.
 
 Two people, another town - the form, not the content:
 
   Mira. Today: 1. its eye was open the whole time they were deciding.
     {"thought": "Why did nobody close its eye", "belief": "",
-     "belief_from": "", "want": "keep the children away from the river bend",
-     "mood": "heavy"}
+     "belief_from": "", "want": "keep the children away from the river bend"}
 
   Oskar. Today: 1. a man from upriver asked for me by name.
     {"thought": "He knew my name before he knew my face",
      "belief": "Somebody upriver has been talking about me",
-     "belief_from": "1", "want": "find out who sent him", "mood": "wary"}"""
+     "belief_from": "1", "want": "find out who sent him"}"""
 
 
 def reflect_user(being: Being, today: Sequence[Trace],

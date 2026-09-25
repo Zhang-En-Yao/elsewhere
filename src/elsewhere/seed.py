@@ -72,7 +72,8 @@ def build(root, name: str = "Wend") -> World:
         Being(
             id="p_adam",
             voice="Plain and practical.", name="Adam",
-            place="yard", home="yard", mood="even",
+            place="yard", home="yard",
+            thought="The roof is not finished and the rains are not waiting",
             card=("You build what holds, and you would rather fix a thing than "
                   "discuss it. You are steady to the point of being dull about "
                   "it. You remember what your hands were doing, never how you "
@@ -83,7 +84,8 @@ def build(root, name: str = "Wend") -> World:
         Being(
             id="p_eve",
             voice="Short, careful sentences. You leave the important part unsaid.", name="Eve",
-            place="garden", home="garden", mood="watchful",
+            place="garden", home="garden",
+            thought="Somebody was at the garden's edge again and I did not look up",
             card=("You tend the garden, and you are good at it, and you do not "
                   "much like being watched while you work. You startle easily "
                   "and you know it. You were standing at the garden's edge the "
@@ -94,7 +96,8 @@ def build(root, name: str = "Wend") -> World:
         Being(
             id="p_lilith",
             voice="Quick and a little sharp. You talk about what things mean for later.", name="Lilith",
-            place="ridge", home="grove", mood="restless",
+            place="ridge", home="grove",
+            thought="The ridge path goes somewhere and nobody here has asked where",
             card=("You know the plants on the ridge better than anyone and you "
                   "are not sure you will be here next year. You notice change "
                   "before other people do and it makes you impatient with them. "
