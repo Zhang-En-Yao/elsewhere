@@ -121,37 +121,6 @@ class Chronicle:
                 if line:
                     yield Event.from_dict(json.loads(line))
 
-    def said_by(self, speaker_id: str, limit: int = 3,
-                before: Optional[float] = None) -> List[str]:
-        """The last things this being said out loud, oldest first.
-
-        How somebody talks is not a fact that needs storing. It is already
-        here, in every conversation they were the speaker of, and showing
-        a mind three of its own lines does what a sentence describing them
-        never could - especially a small one, which conditions on an example
-        far harder than on an adjective.
-
-        Distinct, because the point is to show somebody how they sound and
-        three copies of one sentence teaches a tic instead. When a voice has
-        started repeating itself, reaching past the repeats is what widens
-        it again.
-
-        `before` keeps the backstory honest: while a mind is being asked
-        about day 17, it has not yet said the thing it says on day 91.
-        """
-        out: List[str] = []
-        for e in reversed(self.all()):
-            if len(out) >= limit:
-                break
-            if e.category != CONVERSATION or e.data.get("speaker") != speaker_id:
-                continue
-            if before is not None and e.at > before:
-                continue
-            line = (e.data.get("line") or "").strip()
-            if line and line not in out:
-                out.append(line)
-        return list(reversed(out))
-
     def get(self, event_id: str) -> Optional[Event]:
         for e in self.all():
             if e.id == event_id:

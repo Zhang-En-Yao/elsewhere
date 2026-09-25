@@ -6,12 +6,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import prompts, retrieval, schemas, seed
+from elsewhere import retrieval, schemas, seed
 from elsewhere.backends import Call, Settings, Transcript, ask, extract_json
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import store
-from elsewhere.world.chronicle import CONVERSATION, Chronicle, Event
-from elsewhere.world.entities import Being
 from elsewhere.world.memories import Trace
 
 
@@ -165,61 +163,3 @@ class TestAnswers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class TestVoiceIsShownNotDescribed(unittest.TestCase):
-    """How somebody talks is in the chronicle, not in a field about them."""
-
-    def chronicle(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        c = Chronicle(Path(tmp.name) / "chronicle.jsonl")
-        return c
-
-    def say(self, c, speaker, line, at):
-        c.append(Event(id=f"ev{at:.0f}{speaker}", at=at, category=CONVERSATION,
-                       account=f'{speaker} said: "{line}"',
-                       data={"speaker": speaker, "line": line}))
-
-    def test_a_being_is_handed_their_own_last_lines_oldest_first(self):
-        c = self.chronicle()
-        for i, line in enumerate(["It will hold.", "Deeper than it needs.", "No."]):
-            self.say(c, "p_adam", line, 10.0 + i)
-        self.say(c, "p_eve", "Not tonight.", 12.0)
-        self.assertEqual(c.said_by("p_adam"),
-                         ["It will hold.", "Deeper than it needs.", "No."])
-        self.assertEqual(c.said_by("p_eve"), ["Not tonight."])
-        self.assertEqual(c.said_by("p_nobody"), [])
-
-    def test_it_reaches_past_a_repeat_rather_than_teaching_a_tic(self):
-        # Three copies of one sentence shows somebody nothing about how they
-        # sound. The point of the window is variety, so it widens to find it.
-        c = self.chronicle()
-        for i, line in enumerate(["Aye.", "Aye.", "Aye.", "The rains are coming."]):
-            self.say(c, "p_adam", line, 10.0 + i)
-        self.assertEqual(c.said_by("p_adam", limit=2), ["Aye.", "The rains are coming."])
-
-    def test_nobody_is_shown_a_line_they_have_not_said_yet(self):
-        # The backstory runs the clock backwards over events already written.
-        c = self.chronicle()
-        self.say(c, "p_adam", "It will hold.", 91 * 24)
-        self.say(c, "p_adam", "The frame is up.", 17 * 24)
-        self.assertEqual(c.said_by("p_adam", before=20 * 24), ["The frame is up."])
-        self.assertEqual(c.said_by("p_adam", before=5 * 24), [])
-
-    def test_the_lines_reach_the_prompt(self):
-        being = Being(id="p_adam", name="Adam", card="You build what holds.")
-        self.assertNotIn("said out loud", prompts.being_block(being))
-        block = prompts.being_block(being, ["It will hold.", "Deeper than it needs."])
-        self.assertIn("said out loud", block)
-        self.assertIn('"It will hold."', block)
-        self.assertIn('"Deeper than it needs."', block)
-
-    def test_the_seed_gives_everybody_something_to_sound_like(self):
-        # Nobody arrives in a world having never spoken.
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        world = seed.build(Path(tmp.name) / "world")
-        for pid in world.beings:
-            self.assertTrue(world.chronicle.said_by(pid),
-                            f"{pid} starts with no line of their own to sound like")
