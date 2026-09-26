@@ -9,6 +9,7 @@ dependencies = []
 
 [project.optional-dependencies]
 llm = ["anthropic>=0.40"]
+mlx = ["mlx-lm>=0.31", "mlx-embeddings>=0.1", "llguidance>=1.8"]
 dev = ["mypy>=1.8"]
 
 [project.scripts]
@@ -33,4 +34,10 @@ warn_redundant_casts = true
 [[tool.mypy.overrides]]
 # The Claude backend is an optional extra; it is expected to be missing.
 module = ["anthropic", "anthropic.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# So is MLX, which only exists on Apple silicon.
+module = ["mlx", "mlx.*", "mlx_lm", "mlx_lm.*", "mlx_embeddings", "mlx_embeddings.*",
+          "llguidance", "llguidance.*", "huggingface_hub"]
 ignore_missing_imports = true

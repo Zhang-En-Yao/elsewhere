@@ -90,8 +90,8 @@ person simply had nothing, which is allowed.
 | `arrive` | does anybody come up the road, who would they be, and when should you be asked again? | `ARRIVE` |
 
 The schema is the contract. `schemas.grammar(name)` marks every field required
-and is handed to the backend as a decoding constraint (Ollama's `format`,
-vLLM's `guided_json`), so the shortest possible non-answer — an empty string, a
+and is handed to the backend as a decoding constraint (llguidance's token
+mask under MLX, `response_format` on a `/v1` server), so the shortest possible non-answer — an empty string, a
 missing verdict — is unwritable rather than merely undesired.
 `schemas.validate(name, data)` checks the same shape again on the way in,
 leniently, because a backend without grammar support may omit fields.
@@ -343,14 +343,16 @@ str`) and a small registry. The engine never imports a specific backend;
 `agents.py` always goes through `get_backend(settings.backend)`.
 
 - [`backends/open_source/`](../src/elsewhere/backends/open_source/) — open-source models
-  you run yourself, written against `urllib`, so reaching one needs no dependency.
-  - [`ollama.py`](../src/elsewhere/backends/open_source/ollama.py) — `OllamaBackend`
-    (native `/api/chat`, schema as `format`).
+  you run yourself.
+  - [`mlx.py`](../src/elsewhere/backends/open_source/mlx.py) — `MLXBackend`: the
+    model runs in this process on Apple silicon through `mlx-lm`, with the schema
+    compiled by `llguidance` into a per-token mask; embeddings through
+    `mlx-embeddings`. Weights come from the Hugging Face hub and are cached. An
+    optional extra, `pip install -e ".[mlx]"`, imported only when first called.
   - [`openai_compatible.py`](../src/elsewhere/backends/open_source/openai_compatible.py) —
-    `OpenAICompatibleBackend` (any `/v1` server — LM Studio, llama-server — tries
+    `OpenAICompatibleBackend` (any `/v1` server — LM Studio, llama-server, vLLM —
+    written against `urllib`, so it needs no dependency; tries
     `response_format: json_schema` and falls back to plain `json_object`).
-  - [`vllm.py`](../src/elsewhere/backends/open_source/vllm.py) — `VLLMBackend`
-    (`guided_json`).
 - [`backends/closed_source/`](../src/elsewhere/backends/closed_source/) — closed-source models
   somebody else runs, reached with a key.
   - [`claude.py`](../src/elsewhere/backends/closed_source/claude.py) — Claude,

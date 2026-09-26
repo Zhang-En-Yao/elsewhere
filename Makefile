@@ -40,7 +40,7 @@ schedule-status: ## is it running, and can it reach a mind
 doctor:          ## can the configured minds be reached?
 	elsewhere doctor
 
-live:            ## serve a model on this Mac and check every call site can reach it
+live:            ## put a model on this Mac (MLX) and check every call site can reach it
 	./scripts/live.sh
 
 help:

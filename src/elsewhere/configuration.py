@@ -21,31 +21,30 @@ from typing import Dict, Iterable, Optional
 from .backends import Settings
 from .schemas import CallName
 
-# Model names are deliberately left as plain strings: check the exact tag you
-# have with `ollama list` before trusting these.
+# Model names are Hugging Face repositories, fetched on first use and cached
+# in ~/.cache/huggingface; a local directory of MLX weights works too.
 #
 # The defaults below assume the model runs on the same machine as the tick and
 # that machine has about 4GB to spare once the OS has taken its share. That
 # buys a 3-4B model at Q4 and nothing larger - which is a real constraint on
 # quality, not a detail. Gemma 4 E2B in its quantisation-aware build is the
-# newest thing that fits: on an 8GB M1 it stays entirely on the GPU, where
-# the E4B spills half of itself onto the CPU and runs at half the speed. See `notes` in the written configuration for the two ways
-# out: a bigger model on a GPU somewhere (backend "vllm"), or sending the
-# calls that need judgement to a hosted model (backend "claude", "gpt" or "gemini").
+# newest thing that fits: on an 8GB M1 it takes 3.4GB once loaded and peaks
+# near 4.1GB while answering. See `notes` in the written configuration for the
+# two ways out: a bigger model on a GPU somewhere (backend "openai" with its
+# base set), or sending the calls that need judgement to a hosted model
+# (backend "claude", "gpt" or "gemini").
 # One model for every call site. On 8GB two models cannot both stay resident,
-# and swapping between them every tick costs more than it saves.
-# It can think, and would put its JSON in the reasoning field if let.
-LOCAL = {"backend": "ollama", "model": "gemma4:e2b-it-qat",  # ~4.3GB, 1.6GB loaded
-         "extra": {"think": False}}
+# and loading a second one every tick costs more than it saves.
+LOCAL = {"backend": "mlx", "model": "mlx-community/gemma-4-E2B-it-qat-4bit"}  # ~4GB
 
 # Not a mind: the thing that says where a memory reads from, so that what
 # comes back to somebody is what this moment is about rather than what they
-# happened to type the same word for. Tested against the memories of a real
-# world - nomic ranked all four probes right with a spread of 0.32, while
-# multilingual-e5-large put everything between 0.79 and 0.84 and could barely
-# tell two memories apart. Nothing breaks if it is missing: retrieval falls
-# back on how reachable a memory is, which is what it used before.
-EMBED = {"backend": "ollama", "model": "nomic-embed-text"}  # ~274MB, 768 dims
+# happened to type the same word for. Google's EmbeddingGemma, which MLX runs
+# natively. Nothing breaks if it is missing: retrieval falls back on how
+# reachable a memory is, which is what it used before. Vectors from two
+# embedders cannot be compared, so after changing this run
+# `elsewhere reembed`.
+EMBED = {"backend": "mlx", "model": "mlx-community/embeddinggemma-300m-8bit"}  # ~330MB, 768 dims
 
 DEFAULTS: Dict[str, dict] = {
     CallName.ACT:      {**LOCAL, "temperature": 0.9},
@@ -59,30 +58,27 @@ DEFAULTS: Dict[str, dict] = {
 }
 
 NOTES = [
-    "backend: ollama | openai | vllm | claude | gpt | gemini | stub",
-    "base: where the server is; leave it out for the default "
-    "(ollama http://localhost:11434, openai and vllm http://localhost:8000/v1). "
-    "timeout: seconds to wait for one answer, 180 if left out",
+    "backend: mlx | openai | claude | gpt | gemini | stub",
+    "mlx runs the model in this process on Apple silicon: model is a Hugging "
+    "Face repository (fetched once, then cached) or a local directory of MLX "
+    "weights. The schema constrains decoding directly. Needs "
+    "pip install -e '.[mlx]'",
+    "base: where the server is, for openai; http://localhost:8000/v1 if left "
+    "out. timeout: seconds to wait for one answer, 180 if left out",
     "anything with an OpenAI-compatible /v1 works through backend \"openai\" "
-    "with its base set. vllm-mlx: http://localhost:8000/v1 (MLX native, "
-    "JSON schema via response_format). llama-server: http://localhost:8080/v1 "
-    "(GBNF grammars, most control over context and KV quantisation). "
-    "LM Studio: http://localhost:1234/v1. A hosted endpoint takes its key "
-    "from ELSEWHERE_OPENAI_KEY, the only thing read from the environment",
-    "backend \"ollama\" uses its native /api/chat, where the schema is passed "
-    "as format and constrains decoding directly",
-    "vllm: set base to http://your-gpu-host:8000/v1 - the tick itself needs "
-    "almost no memory, so the model does not have to be here",
+    "with its base set: llama-server, LM Studio, vLLM on a GPU box. A hosted "
+    "endpoint takes its key from ELSEWHERE_OPENAI_KEY, the only thing read "
+    "from the environment",
     "claude: pip install -e '.[llm]' and set ANTHROPIC_API_KEY; worth it for "
     "perceive/speak/reflect if the local model makes everyone sound alike",
     "gpt: set OPENAI_API_KEY. gemini: set GEMINI_API_KEY. Both need no extra "
     "package; anything they cannot do with the model you name is the model's "
     "limit, not this file's",
-    "a thinking-capable local model needs its thinking turned off or the JSON "
-    "arrives inside the reasoning field: ollama -> extra {\"think\": false}, "
-    "vllm -> extra {\"chat_template_kwargs\": {\"enable_thinking\": false}}",
+    "mlx: extra goes to the chat template, with enable_thinking false unless "
+    "it says otherwise",
     "change a whole backend at once with `elsewhere configure`; "
-    "run `elsewhere doctor` after any change here",
+    "run `elsewhere doctor` after any change here. After changing the "
+    "embedder, run `elsewhere reembed`",
 ]
 
 FILENAME = "configuration.json"

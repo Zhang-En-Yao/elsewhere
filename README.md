@@ -584,20 +584,22 @@ python3 --version           # verify: Python 3.12.0
 
 python3 -m venv .venv       # create the virtual environment
 source .venv/bin/activate   # activate it
-pip install -e ".[dev]"     # install Elsewhere, and mypy for `make test`
+pip install -e ".[dev,mlx]" # install Elsewhere, mypy for `make test`, and MLX
 ```
 
-Then a mind for the town to think with. The default configuration expects
-[Ollama](https://ollama.com) on this machine:
+Then a mind for the town to think with. The default configuration runs one on
+this Mac through [MLX](https://github.com/ml-explore/mlx), Apple's own
+framework, inside the process that asks - there is no server to start. The
+first call downloads the weights from Hugging Face and caches them:
 
 ```bash
-ollama pull gemma4:e2b-it-qat   # ~4.3GB; the default for every call site
-elsewhere doctor                # can each of the seven call sites be reached?
+elsewhere doctor    # fetches Gemma 4 E2B (~4GB) and EmbeddingGemma (~330MB) the
+                    # first time, then says whether each call site can be reached
 ```
 
 `world/configuration.json` names a model per call site, so the cheap decisions
 can run at home while the ones that need judgement go somewhere larger. Anything
-with an OpenAI-compatible `/v1` works (vLLM, llama-server, LM Studio), as does
+with an OpenAI-compatible `/v1` works (llama-server, LM Studio, vLLM), as does
 Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`, and OpenAI and Gemini
 with `OPENAI_API_KEY` and `GEMINI_API_KEY`. The notes at the
 top of that file say how; `elsewhere configure --backend … --model …` changes
@@ -652,7 +654,8 @@ elsewhere end                   # end the world for good; what happened stays re
 
 elsewhere remember ev0003       # put an event past everyone again
 elsewhere doctor                # can the configured minds be reached?
-elsewhere configure --backend ollama --model llama3.2:3b   # point every mind at one model
+elsewhere configure --backend mlx --model mlx-community/Llama-3.2-3B-Instruct-4bit   # point every mind at one model
+elsewhere reembed               # after changing the embedder: place every memory again
 ```
 
 Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`

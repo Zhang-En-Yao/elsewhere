@@ -205,14 +205,13 @@ def get(name: str) -> Backend:
 
 
 def bootstrap() -> None:
-    from .open_source.ollama import OllamaBackend
+    from .open_source.mlx import MLXBackend
     from .open_source.openai_compatible import OpenAICompatibleBackend
-    from .open_source.vllm import VLLMBackend
     from .closed_source.gemini import GeminiBackend
     from .closed_source.gpt import GPTBackend
     from .stub import StubBackend
-    for backend in (StubBackend(script_from_env=True), OllamaBackend(), OpenAICompatibleBackend(),
-                    VLLMBackend(), GPTBackend(), GeminiBackend()):
+    for backend in (StubBackend(script_from_env=True), MLXBackend(), OpenAICompatibleBackend(),
+                    GPTBackend(), GeminiBackend()):
         register(backend)
     try:
         from .closed_source.claude import AnthropicBackend

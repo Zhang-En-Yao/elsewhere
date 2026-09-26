@@ -529,6 +529,45 @@ def command_configure(arguments) -> None:
     print(f"  written to {path}; check it with: elsewhere --world {root} doctor")
 
 
+def command_reembed(arguments) -> None:
+    """Place every memory and belief again, with the embedder configured now.
+
+    Vectors from two embedders are not comparable, and nothing about them
+    says which one made them: a world whose embedder changed would go on
+    comparing new cues with old memories and get numbers that mean nothing.
+    All of them or none, so a world never holds two kinds at once.
+    """
+    from .backends import embed
+
+    try:
+        with store.tick_lock(Path(arguments.world)):
+            world = open_world(arguments)
+            settings = load_configuration(world.root).get("embed")
+            if settings is None:
+                sys.exit("No embedder is configured.")
+            carried = []
+            for being in world.beings.values():
+                carried += [(m, m.account) for m in world.memories(being.id)]
+                carried += [(b, b.claim) for b in being.who.beliefs]
+            texts = [text for _, text in carried]
+            vectors: List[List[float]] = []
+            for start in range(0, len(texts), 32):
+                got = embed(texts[start:start + 32], settings)
+                if not got:
+                    sys.exit(f"{settings.backend}/{settings.model} could not be "
+                             f"reached; nothing was changed.")
+                vectors += got
+            for (thing, _), vector in zip(carried, vectors):
+                thing.embedding = vector
+            for being in world.beings.values():
+                world.memories(being.id).touch()
+            store.save(world)
+    except store.Locked as exception:
+        sys.exit(f"Not now: {exception}")
+    print(f"{len(carried)} memories and beliefs placed again with "
+          f"{settings.backend}/{settings.model}.")
+
+
 def _command_remember(arguments) -> None:
     """[DEV] Re-run one event past all beings for prompt tuning.
 
@@ -636,6 +675,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="only this call site (repeatable); "
                                 "default: every mind, not the embedder")
     subparser.set_defaults(func=command_configure)
+
+    subparser = subparsers.add_parser(
+        "reembed", help="place every memory again, after changing the embedder")
+    subparser.set_defaults(func=command_reembed)
 
     subparser = subparsers.add_parser(
         "remember", help="[DEV] re-run one event for prompt tuning")
