@@ -155,25 +155,52 @@ def clear_world(root: Path) -> None:
         shutil.rmtree(root / sub, ignore_errors=True)
 
 
-def remember(world: World, event, configuration, transcript=None) -> None:
+def remember(world: World, event, configuration, transcript=None) -> list:
     """Let each person the event reached take it in, from where they stood.
 
     Call it right after `world.record`, while the clock is still at the event's
     time. Everyone reached needs a place they stood, so one without it is an
     error here and not a guess later. With no `configuration` nobody is asked
-    anything.
+    anything. What comes back is what stuck, which is not everybody: a mind
+    that gave nothing keeps nothing.
     """
     if configuration is None:
-        return
+        return []
     stood = event.data.get("vantage") or {}
     missing = [pid for pid in event.reached if pid not in stood]
     if missing:
         raise ValueError(f"{event.category}: no vantage for {missing}")
+    kept = []
     for pid in event.reached:
-        agents.perceive(world, world.beings[pid], event, configuration, transcript)
+        memory = agents.perceive(world, world.beings[pid], event, configuration,
+                                 transcript)
+        if memory is not None:
+            kept.append(memory)
+    return kept
 
 
-def build(root, name: str = "Nod", configuration=None, transcript=None) -> World:
+def unheard(line: str) -> None:
+    """Where a line goes when nobody asked for one. `build` is a library call."""
+
+
+def past(world: World, event, configuration, transcript, say) -> None:
+    """Take an event in, and say how that went.
+
+    The four events below are the whole wait in making a world - everybody
+    reached is asked about each of them, one question at a time, and on a model
+    running at home that is minutes. So a line per event, for whoever is
+    watching a terminal; `progress.watching` in `cli` is who usually is.
+    """
+    started = time.time()
+    kept = remember(world, event, configuration, transcript)
+    if configuration is None:
+        return                  # nobody was asked, so there was no wait to report
+    say(f"  {event.category:<9} {len(kept)} of {len(event.reached)} kept "
+        f"something of it  ({time.time() - started:.0f}s)")
+
+
+def build(root, name: str = "Nod", configuration=None, transcript=None,
+          say=unheard) -> World:
     """The town and its past. Given a `configuration`, the people also remember it."""
     root = Path(root)
     clear_world(root)
@@ -301,7 +328,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None) -> World
                              "p_havvah": "further down the valley, watching the dust go dark all at once",
                              "p_lilith": "up on Mizpah, nearest to where it came down, wet through",
                          }})
-    remember(world, event, configuration, transcript)
+    past(world, event, configuration, transcript, say)
     world.at = CHURNING
     event = world.record("churning",
                          "Marah was pulled one way and then the other all night, "
@@ -320,7 +347,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None) -> World
                              "p_havvah": "well back from the water, on the high side, out of the way of both crowds",
                              "p_lilith": "down at the edge of it, as close as she was let, watching the near side's feet",
                          }})
-    remember(world, event, configuration, transcript)
+    past(world, event, configuration, transcript, say)
     world.at = DELUGE
     event = world.record("flood",
                          "The fish Havvah had kept since it was small - out of the "
@@ -338,7 +365,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None) -> World
                              "p_havvah": "in the stern of the boat, with the seed she had been told to bring",
                              "p_lilith": "on Mizpah, above all of it, watching the valley go under and then the boat come up to her",
                          }})
-    remember(world, event, configuration, transcript)
+    past(world, event, configuration, transcript, say)
     world.at = LIFTING
     event = world.record("lifting",
                          "It rained for seven days without stopping, hard enough to "
@@ -357,7 +384,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None) -> World
                              "p_lilith": "at the edge of it, out in the rain, looking up at the underside of the hill",
                              "p_havvah": "underneath it, with what she had got out of the beds in her skirt",
                          }})
-    remember(world, event, configuration, transcript)
+    past(world, event, configuration, transcript, say)
 
     world.at = START_AT
     # Everything in the world starts due: the first step asks each person what
@@ -372,11 +399,11 @@ def build(root, name: str = "Nod", configuration=None, transcript=None) -> World
     return world
 
 
-def create(root, name: str = "Nod", transcript=None) -> World:
+def create(root, name: str = "Nod", transcript=None, say=unheard) -> World:
     """A new world on disk: the town, its past, and what each person made of it."""
     write_default_configuration(root)
     world = build(root, name=name, configuration=load_configuration(root),
-                  transcript=transcript)
+                  transcript=transcript, say=say)
     world.news_seen = len(world.chronicle)     # the backstory is not news
     world.last_tick_at = time.time()           # nothing is owed from before it began
     save(world)

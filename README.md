@@ -658,6 +658,18 @@ Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`
 wraps the common ones — `make test`, `make watch`, `make tick`, `make news`,
 `make doctor`.
 
+`initialize` and `continue` are the two that wait on a model — making a world
+puts a question to one for every person the backstory reached, and one step of
+`continue` can put out dozens — so both keep a line at the bottom of the
+terminal saying which question is out and how long it has been out:
+
+```
+⠹ Havvah is taking it in · 12s · 7 answered in 2m04s
+```
+
+It is on stderr and only ever on a terminal, so what happened still pipes and
+the scheduled run's log gets nothing extra.
+
 One thing that is worth doing first:
 
 ```bash
