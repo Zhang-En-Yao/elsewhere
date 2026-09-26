@@ -236,7 +236,7 @@ Carol remembers:
 
 David forgets the fire entirely.
 
-The same event leaves different traces in different minds.
+The same event leaves different memories in different minds.
 
 Memory can fade.
 
@@ -703,7 +703,7 @@ Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed
 to the model as a decoding grammar and checked again on the way in, so an
 answer the world cannot use is not representable. A mind only ever sees what
 its person could see. The engine never writes a memory and never edits one —
-it only records when a trace was last touched, and decides whether it can be
+it only records when a memory was last touched, and decides whether it can be
 reached at all. **Forgetting is the engine declining to hand something over**,
 because a model asked "do you still remember this?" with the memory sitting in
 its context will always say yes.

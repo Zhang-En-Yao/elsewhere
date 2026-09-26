@@ -31,23 +31,23 @@ clock has no step.
 ## The two records
 
 ```
-World.chronicle          one append-only ledger    "The old market burned down."
-World.traces(person_id)  one store per person      {"trace": "...", "means": "...", ...}
+World.chronicle            one append-only ledger    "The old market burned down."
+World.memories(person_id)  one store per person      {"account": "...", "means": "...", ...}
 ```
 
 [`world/chronicle.py`](../src/elsewhere/world/chronicle.py) holds the
 `Chronicle`: one line of JSON per `Event`, appended, never revised, and the
 only thing in Elsewhere that claims to be true.
 
-[`world/memories.py`](../src/elsewhere/world/memories.py) holds the `Trace`:
+[`world/memories.py`](../src/elsewhere/world/memories.py) holds the `Memory`:
 one person's own account of what an event left in them, or a thought they
-arrived at themselves. A trace is written by a mind and rewritten by a mind
-(`Trace.rewrite`, called from `recall`). The engine records when it came up
+arrived at themselves. A memory is written by a mind and rewritten by a mind
+(`Memory.rewrite`, called from `recall`). The engine records when it came up
 and reads that back in [`retrieval.py`](../src/elsewhere/retrieval.py) to
 decide whether it can be reached. It never edits the words.
 
-Nobody reads another person's traces. To learn something, a person has to be
-told, and what they get is a new trace of *being told*, not a copy of the
+Nobody reads another person's memories. To learn something, a person has to be
+told, and what they get is a new memory of *being told*, not a copy of the
 speaker's.
 
 ## Modules
@@ -56,7 +56,7 @@ speaker's.
 | --- | --- |
 | [`world/chronicle.py`](../src/elsewhere/world/chronicle.py) | `Event`, `Chronicle` — the one thing that is true |
 | [`world/entities.py`](../src/elsewhere/world/entities.py) | `Being` = `Who` + `Where` + `When`; `Place` (prose) and `Map` (the town's geography); `Regard`, `Belief` |
-| [`world/memories.py`](../src/elsewhere/world/memories.py) | `Trace`, `TraceStore` |
+| [`world/memories.py`](../src/elsewhere/world/memories.py) | `Memory`, `MemoryStore` |
 | [`world/store.py`](../src/elsewhere/world/store.py) | `World`, save/load, `tick_lock`, the calendar |
 | [`schemas.py`](../src/elsewhere/schemas.py) | the seven answer shapes, used as a decoding grammar and as an inbound check |
 | [`prompts.py`](../src/elsewhere/prompts.py) | the system/user prompt text for each call site |
@@ -158,13 +158,13 @@ Four things follow:
   memory raises it through the spreading-activation term of the same equation,
   so something long out of reach can come back because of where somebody is
   standing — with no special case and no similarity threshold.
-- **A belief is a chunk.** `Belief` keeps its occasions the way a trace does
+- **A belief is a chunk.** `Belief` keeps its occasions the way a memory does
   and is ranked by the same `base_level`, so which beliefs a person has in
   front of them is the retrieval layer's answer. `on_faith` — a belief held
   with nothing left to point at for why — asks whether the memories it grew out
   of come back when the person thinks about the belief itself.
-- **A reflection is a memory.** `reflect`'s thought is written into the trace
-  store carrying `Trace.origin`, the ids of the memories it was a thought
+- **A reflection is a memory.** `reflect`'s thought is written into the memory
+  store carrying `Memory.origin`, the ids of the memories it was a thought
   about, so it can be brought to mind later, worn down by not being brought to
   mind, and said out loud. This is `generative_agents`' reflection, whose
   insights go back into associative memory with their evidence
@@ -173,7 +173,7 @@ Four things follow:
 **Every retrieval cue is text a mind wrote**, never a string the engine glued
 together: `perceive` cues on the event's account, `act` on the room plus this
 person's own thought and wants, `speak` on the listener and the speaker's own
-account of them, `reflect` on today's own traces. Concordia's
+account of them, `reflect` on today's own memories. Concordia's
 `AllSimilarMemories` does something strictly better — an `open_question` that
 summarises the situation, then a retrieval against the answer — at the cost of
 one extra model call per retrieval, which is a doubling this engine has not
@@ -206,7 +206,7 @@ Two numbers are the engine's, and neither is a rate: `TOWN_FLOOR` (2) and
 being a town where everybody knows everybody. That is the author's design of
 what kind of world this is.
 
-Three more are budgets: `retrieval.CONTEXT_TRACES` (6) is how many memories a
+Three more are budgets: `retrieval.CONTEXT_MEMORIES` (6) is how many memories a
 prompt can hold, `agents.MAX_BELIEFS` (6) how many beliefs a file keeps, and
 `tick.TURNS` (4) the most that may be said in one exchange.
 
@@ -248,7 +248,7 @@ that happens *to* somebody is non-maskable, here as there.
 5. **Conversation** — among people still in the same place, at most one
    exchange per person per step. An exchange is turns, alternating, until one
    of them has nothing to say. Each turn is its own event, so what somebody
-   answers is a reply to the trace `perceive` just wrote them of the line
+   answers is a reply to the memory `perceive` just wrote them of the line
    before: they can answer what they thought they heard.
 6. **Whoever said they were stopping** goes over the day they are stopping at
    the end of. Their day is whatever has happened to them since they last did

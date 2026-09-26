@@ -11,15 +11,15 @@ from elsewhere.backends import Call, Settings, Transcript, ask, extract_json
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import store
 from elsewhere.world.entities import Being, Where, Who
-from elsewhere.world.memories import Trace
+from elsewhere.world.memories import Memory
 
 
-def trace(**kw):
-    base = dict(id="m1", owner="p", at=100 * 24, trace="the water rose over the fields",
+def memory(**kw):
+    base = dict(id="m1", owner="p", at=100 * 24, account="the water rose over the fields",
                 means="I was frightened", feeling="fear",
                 told=[100 * 24])
     base.update(kw)
-    return Trace(**base)
+    return Memory(**base)
 
 
 class TestWorldStore(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestWorldStore(unittest.TestCase):
 
     def test_a_world_survives_being_written_and_read(self):
         world = seed.build(self.root)
-        world.traces("p_eve").add(trace(owner="p_eve", at=world.at))
+        world.memories("p_eve").add(memory(owner="p_eve", at=world.at))
         store.save(world)
 
         back = store.load(self.root)
@@ -41,7 +41,7 @@ class TestWorldStore(unittest.TestCase):
         self.assertEqual(len(back.beings), len(world.beings))
         self.assertEqual(back.beings["p_eve"].who.card,
                          world.beings["p_eve"].who.card)
-        self.assertEqual(len(back.traces("p_eve")), 1)
+        self.assertEqual(len(back.memories("p_eve")), 1)
         self.assertEqual(len(back.chronicle), len(world.chronicle))
 
     def test_a_being_round_trips_through_its_three_parts(self):
@@ -120,8 +120,8 @@ class TestRetrieval(unittest.TestCase):
     def test_what_is_brought_up_stays_and_what_is_not_falls_behind(self):
         # What a memory is worth is how often anybody has had cause to think
         # of it. Nothing declares that on the day; it is counted afterwards.
-        never = trace(id="a")
-        told = trace(id="b", told=[100 * 24, 101 * 24, 300 * 24, 600 * 24])
+        never = memory(id="a")
+        told = memory(id="b", told=[100 * 24, 101 * 24, 300 * 24, 600 * 24])
         at = (100 + 900) * 24
         self.assertGreater(retrieval.activation(told, at),
                            retrieval.activation(never, at))
@@ -131,14 +131,14 @@ class TestRetrieval(unittest.TestCase):
     def test_when_it_was_told_matters_and_not_only_how_often(self):
         # Three tellings in one week and three a year apart leave a memory in
         # very different places. A tally cannot tell them apart; `told` can.
-        week = trace(told=[100 * 24, 101 * 24, 103 * 24, 106 * 24])
-        spread = trace(told=[100 * 24, 465 * 24, 830 * 24])
+        week = memory(told=[100 * 24, 101 * 24, 103 * 24, 106 * 24])
+        spread = memory(told=[100 * 24, 465 * 24, 830 * 24])
         self.assertEqual(week.recalls, 3)
         self.assertNotEqual(retrieval.activation(week, 1200 * 24),
                             retrieval.activation(spread, 1200 * 24))
 
     def test_a_memory_gets_further_away_the_longer_nobody_touches_it(self):
-        t = trace()
+        t = memory()
         self.assertGreater(retrieval.activation(t, 110 * 24),
                            retrieval.activation(t, 220 * 24))
         # and it moves continuously: dusk is further off than noon.
@@ -146,19 +146,19 @@ class TestRetrieval(unittest.TestCase):
                            retrieval.activation(t, 110 * 24 + 6))
 
     def test_only_a_handful_can_be_brought_to_mind(self):
-        traces = [trace(id=f"m{i}", at=100 * 24 - i, told=[100 * 24 - i])
+        memories = [memory(id=f"m{i}", at=100 * 24 - i, told=[100 * 24 - i])
                   for i in range(20)]
-        got = retrieval.recallable(traces, 100 * 24, limit=6)
+        got = retrieval.recallable(memories, 100 * 24, limit=6)
         self.assertEqual(len(got), 6)
         self.assertEqual(got[0].id, "m0")          # freshest first, all else equal
         # The rest are forgotten for the purposes of the next thought, and
         # still on disk for anybody reading.
-        self.assertTrue(retrieval.out_of_reach(traces[-1], traces, 100 * 24))
+        self.assertTrue(retrieval.out_of_reach(memories[-1], memories, 100 * 24))
 
     def test_what_the_moment_is_about_pulls_its_own_subject_forward(self):
         here, elsewhere_ = [1.0, 0.0], [0.0, 1.0]
-        plain = trace(id="a", at=99 * 24, told=[99 * 24], embedding=elsewhere_)
-        cued = trace(id="b", at=90 * 24, told=[90 * 24], embedding=here)
+        plain = memory(id="a", at=99 * 24, told=[99 * 24], embedding=elsewhere_)
+        cued = memory(id="b", at=90 * 24, told=[90 * 24], embedding=here)
         self.assertEqual(
             retrieval.recallable([plain, cued], 110 * 24, here, limit=2)[0].id, "b")
         # and with nothing to be about, the fresher memory is simply nearer
@@ -168,8 +168,8 @@ class TestRetrieval(unittest.TestCase):
     def test_a_memory_with_no_vector_is_ranked_not_dropped(self):
         # An embedder that was down when this was written must not cost
         # somebody the memory - it costs them only the pull towards it.
-        no_vector = trace(id="a")
-        placed = trace(id="b", embedding=[1.0, 0.0])
+        no_vector = memory(id="a")
+        placed = memory(id="b", embedding=[1.0, 0.0])
         got = retrieval.recallable([no_vector, placed], 101 * 24, [1.0, 0.0])
         self.assertEqual({t.id for t in got}, {"a", "b"})
 
@@ -185,8 +185,8 @@ class TestRetrieval(unittest.TestCase):
         # enters the one equation as spreading activation, so a moment that
         # points straight at an old memory lifts it over a fresher one that
         # nothing points at.
-        old = trace(id="old", at=100 * 24, told=[100 * 24], embedding=[1.0, 0.0])
-        recent = [trace(id=f"n{i}", at=(800 + i) * 24, told=[(800 + i) * 24],
+        old = memory(id="old", at=100 * 24, told=[100 * 24], embedding=[1.0, 0.0])
+        recent = [memory(id=f"n{i}", at=(800 + i) * 24, told=[(800 + i) * 24],
                         embedding=[0.0, 1.0]) for i in range(6)]
         at = 1000 * 24
         self.assertTrue(retrieval.out_of_reach(old, [old] + recent, at))
@@ -194,9 +194,9 @@ class TestRetrieval(unittest.TestCase):
                                                 cue=[1.0, 0.0]))
 
     def test_rewriting_keeps_the_older_wording(self):
-        t = trace()
+        t = memory()
         t.rewrite("something about a flood", at=200 * 24, feeling="fear")
-        self.assertEqual(t.trace, "something about a flood")
+        self.assertEqual(t.account, "something about a flood")
         self.assertEqual(t.history, ["the water rose over the fields"])
         self.assertEqual(t.recalls, 1)
         self.assertEqual(t.told[-1], 200 * 24,
@@ -210,8 +210,8 @@ class TestAnswers(unittest.TestCase):
                          {"stuck": False})
         self.assertEqual(extract_json('Sure! {"stuck": true} Hope that helps.'),
                          {"stuck": True})
-        self.assertEqual(extract_json('{"trace": "a } brace"}'),
-                         {"trace": "a } brace"})
+        self.assertEqual(extract_json('{"account": "a } brace"}'),
+                         {"account": "a } brace"})
         self.assertIsNone(extract_json("I am a 125M parameter model and I ramble"))
 
     def test_a_bad_answer_is_complained_about_and_retried(self):
@@ -254,7 +254,7 @@ class TestAnswers(unittest.TestCase):
             self.assertNotIn("enum", schemas.BY_NAME[name]["properties"]["feeling"],
                              f"{name} is telling people what they may feel")
         clean, complaint = schemas.validate(
-            "perceive", {"trace": "the sound of it", "stuck": True,
+            "perceive", {"account": "the sound of it", "stuck": True,
                          "feeling": "something close to relief, but not quite"})
         self.assertIsNone(complaint)
         self.assertEqual(clean["feeling"], "something close to relief, but not quite")
@@ -263,11 +263,11 @@ class TestAnswers(unittest.TestCase):
         # Five fields went when it turned out nothing anywhere read them, and
         # each had a plausible reason to exist right up until somebody looked.
         # This is the list, so that the next one has to be argued for.
-        t = trace()
+        t = memory()
         self.assertEqual(
             set(t.to_dict()) | {"means", "feeling", "embedding", "event_id",
                                 "history"},
-            {"id", "owner", "at", "trace", "means", "feeling", "embedding",
+            {"id", "owner", "at", "account", "means", "feeling", "embedding",
              "event_id", "told", "history"})
         for gone in ("source", "touched_at", "heard", "about", "place",
                      "salience"):
@@ -277,7 +277,7 @@ class TestAnswers(unittest.TestCase):
         # `history` is the only evidence in the world that a memory moved,
         # and it was being kept for nobody until `person` and `event` printed
         # it. A field worth storing is a field something reads.
-        t = trace()
+        t = memory()
         t.rewrite("water, and not being able to look away", at=200 * 24)
         self.assertEqual(t.history, ["the water rose over the fields"])
 
@@ -285,7 +285,7 @@ class TestAnswers(unittest.TestCase):
         # The five-word ladder and the five floats under it are both gone.
         self.assertNotIn("weight", schemas.PERCEIVE["properties"])
         self.assertFalse(hasattr(schemas, "weight_to_salience"))
-        self.assertFalse(hasattr(Trace(id="m", owner="p", at=0.0, trace="x"),
+        self.assertFalse(hasattr(Memory(id="m", owner="p", at=0.0, account="x"),
                                  "salience"))
 
 
@@ -307,7 +307,7 @@ class TestTheAnswerIsNotInTheQuestion(unittest.TestCase):
         asked = prompts.perceive_user(
             being=being, what_happened="The shelter came down in the night.",
             where="The Shelter", when="02:00 in spring", at=200 * 24,
-            others=[], traces=[], part_of_it=True)
+            others=[], memories=[], part_of_it=True)
         self.assertNotIn(being.who.thought, asked)
         self.assertIn("You build what holds.", asked)     # who they are stays
 
@@ -348,8 +348,8 @@ class TestAnOccasionThatHasNotHappened(unittest.TestCase):
     def test_a_later_telling_does_not_reach_back_and_hold_it_up(self):
         # `max(age, an hour)` would have made a telling from day 1000 the
         # freshest thing about this memory when asked on day 10.
-        later = trace(told=[100 * 24, 1100 * 24])
-        alone = trace(told=[100 * 24])
+        later = memory(told=[100 * 24, 1100 * 24])
+        alone = memory(told=[100 * 24])
         self.assertEqual(retrieval.activation(later, 110 * 24),
                          retrieval.activation(alone, 110 * 24))
         # and once it has happened, it counts
@@ -357,6 +357,6 @@ class TestAnOccasionThatHasNotHappened(unittest.TestCase):
                            retrieval.activation(alone, 1200 * 24))
 
     def test_nothing_has_happened_yet_at_all(self):
-        never = trace(told=[500 * 24])
+        never = memory(told=[500 * 24])
         self.assertEqual(retrieval.chance(retrieval.activation(never, 100 * 24)), 0.0)
         self.assertEqual(retrieval.recallable([never], 100 * 24), [])

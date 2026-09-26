@@ -11,7 +11,7 @@ from typing import List, Optional, Sequence
 
 from . import HOURS_PER_DAY
 from .world.entities import Being
-from .world.memories import Trace
+from .world.memories import Memory
 from .world.store import clock_at, day_of
 
 
@@ -55,12 +55,12 @@ def being_block(being: Being, with_thought: bool = True,
     return "\n".join(lines)
 
 
-def traces_block(traces: Sequence[Trace], header: str = "What you can bring to mind") -> str:
-    if not traces:
+def memories_block(memories: Sequence[Memory], header: str = "What you can bring to mind") -> str:
+    if not memories:
         return f"{header}: nothing in particular."
     lines = [f"{header}:"]
-    for t in traces:
-        line = f"  - {t.trace}"
+    for t in memories:
+        line = f"  - {t.account}"
         if t.means:
             line += f" (what it meant to you: {t.means})"
         if t.feeling and t.feeling != "none":
@@ -110,7 +110,7 @@ happened near you. Decide what - if anything - it leaves in you.
 
 Answer in this order.
 
-trace: the fragment this person is left holding right now - an image, a thing
+account: the fragment this person is left holding right now - an image, a thing
 someone said, the part that frightened or moved them. Not a report. It may be
 less than what happened, and it may be slightly wrong. It must be in their own
 voice, a few words to one sentence, not a chronicle's.
@@ -151,21 +151,21 @@ Three people, another town, another day - the form, not the content:
   A cart went over on the river bend and the horse had to be put down.
 
   Mira, who minds the neighbours' children. At her door, forty paces off.
-    {"trace": "its eye was open the whole time they were deciding",
+    {"account": "its eye was open the whole time they were deciding",
      "means": "", "feeling": "grief", "stuck": true}
 
   Oskar, a trader who counts everything. Behind the cart, holding his own horse.
-    {"trace": "two sacks of flour split open in the mud",
+    {"account": "two sacks of flour split open in the mud",
      "means": "someone is paying for that, and it is not me",
      "feeling": "unease", "stuck": true}
 
   Pell, an old ferryman who has seen it before. On the far bank.
-    {"trace": "a cart on its side", "means": "", "feeling": "none",
+    {"account": "a cart on its side", "means": "", "feeling": "none",
      "stuck": false}"""
 
 
-#: The example traces above, so the eval can tell a copied example from a memory.
-PERCEIVE_EXAMPLE_TRACES = (
+#: The example memories above, so the eval can tell a copied example from a memory.
+PERCEIVE_EXAMPLE_MEMORIES = (
     "its eye was open the whole time they were deciding",
     "two sacks of flour split open in the mud",
     "a cart on its side",
@@ -173,7 +173,7 @@ PERCEIVE_EXAMPLE_TRACES = (
 
 
 def perceive_user(being: Being, what_happened: str, where: str, when: str,
-                  at: float, others: Sequence[Being], traces: Sequence[Trace],
+                  at: float, others: Sequence[Being], memories: Sequence[Memory],
                   part_of_it: bool, vantage: str = "") -> str:
     """Scene first, person last.
 
@@ -195,7 +195,7 @@ def perceive_user(being: Being, what_happened: str, where: str, when: str,
         (f"You were {vantage}. That is where you stood, not what you noticed - "
          f"do not reuse its words.") if vantage else "",
         regards_block(being, others, at).replace("Who is here:", "Who else was there:"),
-        traces_block(traces),
+        memories_block(memories),
         being_block(being, with_thought=False),
         f"Now answer as {being.name}, and only as {being.name}: how much of this "
         f"do you carry? For some people it is everything; for others, nothing at all.",
@@ -296,7 +296,7 @@ Four people, another town, another day - the form, not the content:
 
 
 def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
-             reachable: Sequence[str], traces: Sequence[Trace],
+             reachable: Sequence[str], memories: Sequence[Memory],
              home_name: str = "", may_leave: bool = False,
              beliefs: Optional[Sequence] = None) -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
@@ -314,7 +314,7 @@ def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
         ("From here the road also goes out of the town. You could take it "
          "today and not come back.") if may_leave else "",
         regards_block(being, others, at) if others else "",
-        traces_block(traces),
+        memories_block(memories),
         being_block(being, beliefs=beliefs),
         f"Now decide as {being.name}: what do you do for the next few hours?",
     ]
@@ -349,7 +349,7 @@ Three people, another town - the form, not the content:
 
 
 def speak_user(being: Being, listener: Being, when: str, place_name: str,
-               topics: Sequence[Trace],
+               topics: Sequence[Memory],
                beliefs: Optional[Sequence] = None) -> str:
     regard = being.who.regards.get(listener.id)
     knows = f" {regard.account}" if regard and regard.account else ""
@@ -361,7 +361,7 @@ def speak_user(being: Being, listener: Being, when: str, place_name: str,
         lines.append("On your mind:")
         for i, t in enumerate(topics, 1):
             extra = f" ({t.means})" if t.means else ""
-            lines.append(f"  {i}. {t.trace}{extra}")
+            lines.append(f"  {i}. {t.account}{extra}")
     else:
         lines.append("On your mind: nothing in particular.")
     lines.append(being_block(being, beliefs=beliefs))
@@ -589,7 +589,7 @@ Three people, another town - the form, not the content:
      "want": "be paid"}"""
 
 
-def reflect_user(being: Being, today: Sequence[Trace], older: Sequence[Trace],
+def reflect_user(being: Being, today: Sequence[Memory], older: Sequence[Memory],
                  beliefs: Sequence = (), at: float = 0.0,
                  lately: Sequence[str] = ()) -> str:
     """Their day, the older things still in reach, and what they already hold.
@@ -609,8 +609,8 @@ def reflect_user(being: Being, today: Sequence[Trace], older: Sequence[Trace],
         lines.append("Today, what stayed with you:")
         for i, t in enumerate(today, 1):
             extra = f" ({t.means})" if t.means else ""
-            lines.append(f"  {i}. {t.trace}{extra}")
-    lines.append(traces_block(older, "Older things you can still bring to mind"))
+            lines.append(f"  {i}. {t.account}{extra}")
+    lines.append(memories_block(older, "Older things you can still bring to mind"))
     if beliefs:
         lines.append("What you already hold to be true:\n" + "\n".join(
             f"  {i}. {b.claim}" for i, b in enumerate(beliefs, 1)))
@@ -632,7 +632,7 @@ loud can come back sharper in one detail and quietly lose another. What they
 believe now can bend what it means. It is still their memory: same voice, same
 person, never more detail than they had.
 
-trace: the memory as it now stands, in their own words, one sentence or less.
+account: the memory as it now stands, in their own words, one sentence or less.
 means: what it means to them now, or empty.
 feeling: what comes with it now, in their own words. It does not have to be
 what it was, and it does not have to be a word anyone else would use.
@@ -641,24 +641,24 @@ Two memories, another town - the form, not the content:
 
   Mira, eight months on, hazy. Was: "its eye was open the whole time they were
   deciding". She has told it often.
-    {"trace": "the horse looking at me while the men argued",
+    {"account": "the horse looking at me while the men argued",
      "means": "", "feeling": "grief"}
 
   Oskar, a year on, barely there. Was: "two sacks of flour split open in the mud".
-    {"trace": "flour everywhere, and someone else's loss",
+    {"account": "flour everywhere, and someone else's loss",
      "means": "not my loss", "feeling": "none"}"""
 
 
-def recall_user(being: Being, trace: Trace, age_days: int, at: float) -> str:
+def recall_user(being: Being, memory: Memory, age_days: int, at: float) -> str:
     """How old it is and how often it has been told. Not how clear it is.
 
     How hazy a thing is after eight months and two tellings is exactly the
     judgement that belongs to a mind, and the facts it needs to make it are
     already on the line.
     """
-    was = f'"{trace.trace}"' + (f" (what it meant: {trace.means})" if trace.means else "")
-    told = {0: "never told", 1: "told once"}.get(trace.recalls, f"told {trace.recalls} times")
-    last = trace.told[-2] if len(trace.told) > 1 else None
+    was = f'"{memory.account}"' + (f" (what it meant: {memory.means})" if memory.means else "")
+    told = {0: "never told", 1: "told once"}.get(memory.recalls, f"told {memory.recalls} times")
+    last = memory.told[-2] if len(memory.told) > 1 else None
     since = (f", last brought up {max(0, int((at - last) // HOURS_PER_DAY))} days ago"
              if last is not None else "")
     # `thought` is kept out for the same reason `perceive` keeps it out: it

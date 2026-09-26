@@ -1,14 +1,14 @@
-"""Traces: what a person has, as opposed to what happened.
+"""Memories: what a person has, as opposed to what happened.
 
-A trace is written by a mind and rewritten by a mind. The engine never edits
-the words. It records when the trace came up, and decides - in
+A memory is written by a mind and rewritten by a mind. The engine never edits
+the words. It records when the memory came up, and decides - in
 ``retrieval.py`` - whether it can be reached at all.
 
 That division is the whole point. Asking a model "do you still remember this?"
 while the memory sits in its context is not a question; it is a leading one.
 Forgetting has to be something the engine does by not handing it over.
 
-Everything a trace carries is read by something. A field nobody reads is
+Everything a memory carries is read by something. A field nobody reads is
 storage pretending to be design, and nothing here is allowed to become one.
 """
 
@@ -21,11 +21,11 @@ from typing import Iterator, List, Optional
 
 
 @dataclass
-class Trace:
+class Memory:
     id: str
     owner: str
     at: float                      # hours into the world, when it was laid down
-    trace: str                     # what they would say happened
+    account: str                   # what they would say happened
     means: str = ""                # what they think it meant
     feeling: str = "none"
 
@@ -46,11 +46,11 @@ class Trace:
     event_id: Optional[str] = None
 
     #: The memories this one grew out of, when it did not come from an event
-    #: at all. A trace written by `reflect` is somebody's own thought about
+    #: at all. A memory written by `reflect` is somebody's own thought about
     #: their own day, and what it was a thought *about* is what makes it
     #: readable a year later. `elsewhere person` prints it.
     #:
-    #: A trace has one or the other, never both: it is a version of something
+    #: A memory has one or the other, never both: it is a version of something
     #: that happened, or it is something they arrived at themselves.
     origin: List[str] = field(default_factory=list)
 
@@ -80,13 +80,13 @@ class Trace:
         self.told.append(at)
         del self.told[:-limit]
 
-    def rewrite(self, new_trace: str, at: float, means: str = "",
+    def rewrite(self, new_account: str, at: float, means: str = "",
                 feeling: str = "", embedding: Optional[List[float]] = None) -> None:
         """A mind has looked at this again and it came back different."""
-        if new_trace and new_trace != self.trace:
-            self.history.append(self.trace)
+        if new_account and new_account != self.account:
+            self.history.append(self.account)
             del self.history[:-4]
-            self.trace = new_trace
+            self.account = new_account
             # The words moved, so where they read from moved with them. An
             # embedder that could not be reached leaves the old vector rather
             # than none: stale is nearer the truth than absent.
@@ -105,12 +105,12 @@ class Trace:
         d["embedding"] = [round(x, 5) for x in self.embedding]
         d["told"] = [round(x, 2) for x in self.told]
         return {k: v for k, v in d.items()
-                if v not in (None, [], "") or k in ("id", "owner", "at", "trace")}
+                if v not in (None, [], "") or k in ("id", "owner", "at", "account")}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Trace":
+    def from_dict(cls, d: dict) -> "Memory":
         return cls(
-            id=d["id"], owner=d["owner"], at=float(d["at"]), trace=d["trace"],
+            id=d["id"], owner=d["owner"], at=float(d["at"]), account=d["account"],
             means=d.get("means", ""), feeling=d.get("feeling", "none"),
             embedding=[float(x) for x in d.get("embedding", [])],
             event_id=d.get("event_id"),
@@ -120,39 +120,39 @@ class Trace:
         )
 
 
-class TraceStore:
+class MemoryStore:
     """One file per person. Loaded whole, written whole, small enough to."""
 
     def __init__(self, path: Path):
         self.path = Path(path)
-        self.traces: List[Trace] = list(self._read())
+        self.memories: List[Memory] = list(self._read())
         self._dirty = False
 
-    def _read(self) -> Iterator[Trace]:
+    def _read(self) -> Iterator[Memory]:
         if not self.path.exists():
             return
         with self.path.open(encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if line:
-                    yield Trace.from_dict(json.loads(line))
+                    yield Memory.from_dict(json.loads(line))
 
-    def add(self, trace: Trace) -> Trace:
-        self.traces.append(trace)
+    def add(self, memory: Memory) -> Memory:
+        self.memories.append(memory)
         self._dirty = True
-        return trace
+        return memory
 
-    def get(self, trace_id: str) -> Optional[Trace]:
-        for t in self.traces:
-            if t.id == trace_id:
+    def get(self, memory_id: str) -> Optional[Memory]:
+        for t in self.memories:
+            if t.id == memory_id:
                 return t
         return None
 
     def touch(self) -> None:
         self._dirty = True
 
-    def about_event(self, event_id: str) -> List[Trace]:
-        return [t for t in self.traces if t.event_id == event_id]
+    def about_event(self, event_id: str) -> List[Memory]:
+        return [t for t in self.memories if t.event_id == event_id]
 
     def save(self, force: bool = False) -> None:
         if not (self._dirty or force):
@@ -160,13 +160,13 @@ class TraceStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         with tmp.open("w", encoding="utf-8") as fh:
-            for t in self.traces:
+            for t in self.memories:
                 fh.write(json.dumps(t.to_dict(), ensure_ascii=False) + "\n")
         tmp.replace(self.path)
         self._dirty = False
 
     def __len__(self) -> int:
-        return len(self.traces)
+        return len(self.memories)
 
     def __iter__(self):
-        return iter(self.traces)
+        return iter(self.memories)

@@ -15,7 +15,7 @@ from elsewhere import cli, schedule, schemas, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle, store
-from elsewhere.world.memories import Trace
+from elsewhere.world.memories import Memory
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
@@ -138,17 +138,17 @@ class TestConversation(TownTest):
         super().setUp()
         for pid in ("p_eve", "p_adam"):
             self.world.beings[pid].where.place = "yard"
-        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
-                           trace="the water in the doorway before I could move anything",
+        self.flood = Memory(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
+                           account="the water in the doorway before I could move anything",
                            means="", feeling="fear")
-        self.world.traces("p_eve").add(self.flood)
+        self.world.memories("p_eve").add(self.flood)
 
     def test_something_said_is_something_someone_else_can_keep(self):
         self.acts(p_eve={"because": "he was on the roof that night",
                          "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "1", "line": "You were up there. Could you feel it?"})
         self.stub.answers["perceive|p_adam"] = {
-            "trace": "she asked if I could feel it", "means": "", "feeling": "unease",
+            "account": "she asked if I could feel it", "means": "", "feeling": "unease",
             "stuck": True}
 
         report = tick_mod.tick(self.world, config())
@@ -160,10 +160,10 @@ class TestConversation(TownTest):
         event = self.world.chronicle.get(opening.event_id)
         self.assertIn("Could you feel it?", event.account)
 
-        kept = self.world.traces("p_adam").about_event(event.id)
+        kept = self.world.memories("p_adam").about_event(event.id)
         self.assertEqual(len(kept), 1, "Adam kept his own version of it")
-        self.assertEqual(kept[0].trace, "she asked if I could feel it")
-        self.assertEqual(self.world.traces("p_eve").about_event(event.id), [],
+        self.assertEqual(kept[0].account, "she asked if I could feel it")
+        self.assertEqual(self.world.memories("p_eve").about_event(event.id), [],
                          "the speaker is not asked to perceive her own sentence")
 
     def test_the_other_one_answers(self):
