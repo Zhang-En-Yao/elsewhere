@@ -90,7 +90,7 @@ has become an administrator.
   `Being` like any other. Nothing to add.
 
 **Acceptance.** Play three phases, leave for a week of wall clock, come back and
-run `elsewhere person Eve` — she should have a note about you, and it should
+run `elsewhere person Havvah` — she should have a note about you, and it should
 be wrong in some specific way.
 
 ## P5 — Making things

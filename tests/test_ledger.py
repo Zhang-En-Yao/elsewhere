@@ -32,28 +32,28 @@ class TestWorldStore(unittest.TestCase):
 
     def test_a_world_survives_being_written_and_read(self):
         world = seed.build(self.root)
-        world.memories("p_eve").add(memory(owner="p_eve", at=world.at))
+        world.memories("p_havvah").add(memory(owner="p_havvah", at=world.at))
         store.save(world)
 
         back = store.load(self.root)
         self.assertEqual(back.name, world.name)
         self.assertEqual(back.at, world.at)
         self.assertEqual(len(back.beings), len(world.beings))
-        self.assertEqual(back.beings["p_eve"].who.card,
-                         world.beings["p_eve"].who.card)
-        self.assertEqual(len(back.memories("p_eve")), 1)
+        self.assertEqual(back.beings["p_havvah"].who.card,
+                         world.beings["p_havvah"].who.card)
+        self.assertEqual(len(back.memories("p_havvah")), 1)
         self.assertEqual(len(back.chronicle), len(world.chronicle))
 
     def test_a_being_round_trips_through_its_three_parts(self):
         world = seed.build(self.root)
-        eve = world.beings["p_eve"]
-        eve.who.thought = "the water again"
-        eve.where.now("standing at the edge of it")
-        eve.when.wake_at = world.at + 3.0
+        havvah = world.beings["p_havvah"]
+        havvah.who.thought = "the water again"
+        havvah.where.now("standing at the edge of it")
+        havvah.when.wake_at = world.at + 3.0
         store.save(world)
-        back = store.load(self.root).beings["p_eve"]
+        back = store.load(self.root).beings["p_havvah"]
         self.assertEqual(back.who.thought, "the water again")
-        self.assertEqual(back.who.card, eve.who.card)
+        self.assertEqual(back.who.card, havvah.who.card)
         self.assertEqual(back.where.doing, "standing at the edge of it")
         self.assertEqual(back.when.wake_at, world.at + 3.0)
         # Each part writes its own half of the file, which is why adding a
@@ -82,7 +82,7 @@ class TestWorldStore(unittest.TestCase):
         world = seed.build(self.root)
         garden = world.places["garden"]
         self.assertEqual(set(garden.to_dict()), {"id", "name", "description"})
-        self.assertEqual(world.map.road_out, "ridge")
+        self.assertEqual(world.map.road_out, "mizpah")
         self.assertIn("yard", world.map.beside("garden"))
 
     def test_starting_over_does_not_leave_the_old_town_on_disk(self):
@@ -90,7 +90,7 @@ class TestWorldStore(unittest.TestCase):
         # `initialize` over an existing world loaded the old world's people back in
         # beside the new ones.
         world = seed.build(self.root)
-        world.beings["p_ghost"] = type(world.beings["p_eve"])(
+        world.beings["p_ghost"] = type(world.beings["p_havvah"])(
             id="p_ghost", name="Ghost")
         store.save(world)
         again = seed.build(self.root)
@@ -100,7 +100,7 @@ class TestWorldStore(unittest.TestCase):
     def test_the_chronicle_only_ever_grows(self):
         world = seed.build(self.root)
         before = len(world.chronicle)
-        world.record("test", "something happened", place="shelter")
+        world.record("test", "something happened", place="bethel")
         store.save(world)
         lines = (self.root / "chronicle.jsonl").read_text().strip().splitlines()
         self.assertEqual(len(lines), before + 1)
@@ -223,7 +223,7 @@ class TestAnswers(unittest.TestCase):
                     else {"stuck": True})
 
         backend = StubBackend({"perceive": answer})
-        got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_eve"),
+        got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_havvah"),
                   Settings(backend="stub", model="stub"))
         self.assertEqual(got, {"stuck": True})
         self.assertEqual(len(attempts), 2)
@@ -239,12 +239,12 @@ class TestAnswers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tape = Path(tmp) / "t.jsonl"
             backend = StubBackend({"perceive": {"stuck": True}})
-            ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_eve"),
+            ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_havvah"),
                 Settings(backend="stub", model="stub"), Transcript(tape))
             rows = [json.loads(l) for l in tape.read_text().splitlines()]
             self.assertEqual(len(rows), 1)
             self.assertTrue(rows[0]["ok"])
-            self.assertEqual(rows[0]["about"], "p_eve")
+            self.assertEqual(rows[0]["about"], "p_havvah")
 
     def test_a_feeling_is_not_chosen_from_a_list(self):
         # The engine never compares two feelings or sorts by one - it stores
@@ -297,7 +297,7 @@ class TestTheAnswerIsNotInTheQuestion(unittest.TestCase):
     """`perceive` asks for a short fragment in their own voice. So is `thought`."""
 
     def being(self):
-        return Being(id="p_adam", name="Adam", who=Who(
+        return Being(id="p_bezalel", name="Bezalel", who=Who(
             card="You build what holds.",
             thought="The roof is not finished and the rains are not waiting",
             wants=["finish the roof"]))
@@ -305,8 +305,8 @@ class TestTheAnswerIsNotInTheQuestion(unittest.TestCase):
     def test_perceive_is_not_shown_the_one_sentence_shaped_like_its_answer(self):
         being = self.being()
         asked = prompts.perceive_user(
-            being=being, what_happened="The shelter came down in the night.",
-            where="The Shelter", when="02:00 in spring", at=200 * 24,
+            being=being, what_happened="Beth El came down in the night.",
+            where="Beth El", when="02:00 on Chaitra 3 waxing, in spring", at=200 * 24,
             others=[], memories=[], part_of_it=True)
         self.assertNotIn(being.who.thought, asked)
         self.assertIn("You build what holds.", asked)     # who they are stays
@@ -337,8 +337,8 @@ class TestMannerIsAFactNotASpecification(unittest.TestCase):
                                  f"{being.name}'s manner specifies output: {being.who.manner!r}")
 
     def test_it_is_a_line_of_its_own_because_that_is_what_worked(self):
-        being = Being(id="p", name="Eve",
-                      who=Who(card="You tend the garden.",
+        being = Being(id="p", name="Havvah",
+                      who=Who(card="You keep the garden alive.",
                               manner="You say as little as will do."))
         block = prompts.being_block(being)
         self.assertIn("\nHow you talk: You say as little as will do.", block)

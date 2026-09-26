@@ -16,7 +16,7 @@ from elsewhere.world.memories import Memory
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
         "for_hours": 6.0, "settling": False}
-QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
+QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
          "reach": "the people there", "happens": False,
          "ask_again_in_hours": 24.0}
 
@@ -57,9 +57,9 @@ class TestDirector(Town):
     def test_it_can_only_name_what_exists(self):
         tick_mod.tick(self.world, configuration())
         schema = self.calls("direct")[0].schema
-        self.assertIn("The Ridge Path", schema["properties"]["where"]["enum"])
+        self.assertIn("Mizpah", schema["properties"]["where"]["enum"])
         self.assertEqual(schema["properties"]["who"]["enum"],
-                         ["", "Adam", "Eve", "Lilith"])
+                         ["", "Bezalel", "Havvah", "Lilith"])
 
     def test_most_days_nothing_happens(self):
         before = len(self.world.chronicle)
@@ -69,20 +69,20 @@ class TestDirector(Town):
 
     def test_something_happening_to_someone_happens_where_they_are(self):
         self.stub.set("direct", {"why_now": "the roof", "what": "A beam cracked overhead.",
-                                 "where": "The Ridge Path", "who": "Adam",
+                                 "where": "Mizpah", "who": "Bezalel",
                                  "reach": "the people there",                                  "happens": True})
-        self.stub.answers["perceive|p_adam"] = {"account": "the crack before the dust",
+        self.stub.answers["perceive|p_bezalel"] = {"account": "the crack before the dust",
                                                 "means": "", "feeling": "fear",
                                                 "stuck": True}
         report = tick_mod.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
-        self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")
+        self.assertEqual(event.place, "yard", "Bezalel is in his own yard, not on the ridge")
         self.assertEqual(event.category, chronicle.OCCURRENCE)
-        self.assertEqual([t.owner for t in report.occurrence.kept], ["p_adam"])
+        self.assertEqual([t.owner for t in report.occurrence.kept], ["p_bezalel"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):
         self.stub.set("direct", {"why_now": "", "what": "A storm broke over the town.",
-                                 "where": "The Shelter", "who": "",
+                                 "where": "Beth El", "who": "",
                                  "reach": "the whole town",                                  "happens": True})
         report = tick_mod.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
@@ -97,7 +97,7 @@ class TestDirector(Town):
         # never inside two days of the last happening - and both were this
         # project deciding how eventful a town is. The town answers it.
         self.stub.set("direct", {"why_now": "", "what": "A goat got loose.",
-                                 "where": "The Shelter", "who": "",
+                                 "where": "Beth El", "who": "",
                                  "reach": "the people there", "happens": True,
                                  "ask_again_in_hours": 336.0})
         tick_mod.tick(self.world, configuration())
@@ -114,13 +114,13 @@ class TestDirector(Town):
 class TestRecall(Town):
     def setUp(self):
         super().setUp()
-        for pid in ("p_adam", "p_eve"):
+        for pid in ("p_bezalel", "p_havvah"):
             self.world.beings[pid].where.place = "yard"
-        self.flood = Memory(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
+        self.flood = Memory(id="mem9001", owner="p_havvah", at=68 * 24, told=[68 * 24],
                            account="the water in the doorway before I could move anything",
                            feeling="fear")
-        self.world.memories("p_eve").add(self.flood)
-        self.stub.answers["act|p_eve"] = {"because": "", "action": "talk", "target": "Adam"}
+        self.world.memories("p_havvah").add(self.flood)
+        self.stub.answers["act|p_havvah"] = {"because": "", "action": "talk", "target": "Bezalel"}
         self.stub.set("speak", {"about": "1", "line": "That night."})
 
     def test_telling_it_changes_it(self):
@@ -151,7 +151,7 @@ class TestRecall(Town):
     def test_the_one_sentence_shaped_like_the_answer_is_kept_out(self):
         # `thought` is a short first-person fragment and so is a rewritten
         # memory. With it in the prompt a small model hands it straight back.
-        self.world.beings["p_eve"].who.thought = "I did not look up"
+        self.world.beings["p_havvah"].who.thought = "I did not look up"
         self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
         tick_mod.tick(self.world, configuration())
         user = self.calls("recall")[0].user
@@ -186,8 +186,8 @@ class TestReflect(Town):
         # last one. Lilith said she was settling; the other two did not, and
         # the clock has no opinion about either of them.
         self.world.memories("p_lilith").add(self.today)
-        self.world.memories("p_eve").add(Memory(
-            id="mem9110", owner="p_eve", at=self.world.at, account="a long day", told=[self.world.at]))
+        self.world.memories("p_havvah").add(Memory(
+            id="mem9110", owner="p_havvah", at=self.world.at, account="a long day", told=[self.world.at]))
         self.reckoning()
         self.assertEqual([c.about for c in self.calls("reflect")], ["p_lilith"])
 
@@ -266,22 +266,22 @@ class TestReflect(Town):
         # again, so two people could live a year side by side and neither
         # would change a word about the other.
         self.world.memories("p_lilith").add(self.today)
-        before = self.world.beings["p_lilith"].who.regard("p_eve").account
+        before = self.world.beings["p_lilith"].who.regard("p_havvah").account
         self.stub.set("reflect", {"thought": "", "belief": "", "belief_again": "",
-                                  "about_someone": "Eve",
+                                  "about_someone": "Havvah",
                                   "now_say": "She has not looked at me since the water."})
         self.reckoning()
-        now = self.world.beings["p_lilith"].who.regard("p_eve").account
+        now = self.world.beings["p_lilith"].who.regard("p_havvah").account
         self.assertEqual(now, "She has not looked at me since the water.")
         self.assertNotEqual(now, before)
-        # and only her own account moved; Eve's of her is untouched
-        self.assertNotEqual(self.world.beings["p_eve"].who.regard("p_lilith").account, now)
+        # and only her own account moved; Havvah's of her is untouched
+        self.assertNotEqual(self.world.beings["p_havvah"].who.regard("p_lilith").account, now)
 
     def test_only_somebody_who_exists_can_be_thought_about(self):
         self.world.memories("p_lilith").add(self.today)
         self.reckoning()
         schema = self.calls("reflect")[0].schema
-        self.assertIn("Eve", schema["properties"]["about_someone"]["enum"])
+        self.assertIn("Havvah", schema["properties"]["about_someone"]["enum"])
         self.assertIn("", schema["properties"]["about_someone"]["enum"])
         self.assertNotIn("Nobody", schema["properties"]["about_someone"]["enum"])
 

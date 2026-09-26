@@ -23,9 +23,23 @@ from .chronicle import Chronicle, Event
 from .entities import Being, Map, Place
 from .memories import MemoryStore
 
-DAYS_PER_SEASON = 30
-SEASONS = ("spring", "summer", "autumn", "winter")
-DAYS_PER_YEAR = DAYS_PER_SEASON * len(SEASONS)
+#: The year is the idealised Hindu one, because the town's history is dated in
+#: it: twelve months of thirty tithis, two months to a season, six seasons,
+#: three hundred and sixty days. The months run amanta - a month begins the
+#: day after the new moon, so its waxing half comes first and it ends in the
+#: dark - which is the reckoning the festival dates in `seed.py` are given in.
+DAYS_PER_MONTH = 30
+TITHIS_PER_PAKSHA = DAYS_PER_MONTH // 2
+MONTHS = ("Chaitra", "Vaishakha", "Jyeshtha", "Ashadha",
+          "Shravana", "Bhadrapada", "Ashvina", "Kartika",
+          "Margashirsha", "Pausha", "Magha", "Phalguna")
+
+#: Six seasons, two months each, named in plain words rather than as Vasanta
+#: and Grishma and the rest: a mind told "the rains" knows what is falling on
+#: it, and one told "Varsha" has to know the calendar first.
+SEASONS = ("spring", "the heat", "the rains", "autumn", "the cold", "the dry")
+DAYS_PER_SEASON = DAYS_PER_MONTH * 2
+DAYS_PER_YEAR = DAYS_PER_MONTH * len(MONTHS)
 
 #: The sun does not negotiate. This is the one thing about the hour that the
 #: engine states as a fact, because it is one - it is dark or it is not. What
@@ -41,6 +55,25 @@ def season_at(at: float) -> str:
 def day_of(at: float) -> int:
     """Which day of the world a moment falls on. Worked out, never stored."""
     return int(at // HOURS_PER_DAY) + 1
+
+
+def date_at(at: float) -> str:
+    """The date in the world's own calendar: 'Kartika 1 waxing'.
+
+    The two days a lunar month is actually named after get said rather than
+    numbered, because a full moon and a new moon are things anybody in the
+    world can see for themselves.
+    """
+    day = (day_of(at) - 1) % DAYS_PER_YEAR
+    month = MONTHS[day // DAYS_PER_MONTH]
+    tithi = day % DAYS_PER_MONTH + 1
+    if tithi == TITHIS_PER_PAKSHA:
+        return f"the full moon of {month}"
+    if tithi == DAYS_PER_MONTH:
+        return f"the new moon of {month}"
+    if tithi < TITHIS_PER_PAKSHA:
+        return f"{month} {tithi} waxing"
+    return f"{month} {tithi - TITHIS_PER_PAKSHA} waning"
 
 
 def clock_at(at: float) -> str:
@@ -106,12 +139,15 @@ class World:
         return season_at(self.at)
 
     @property
+    def date(self) -> str:
+        return date_at(self.at)
+
+    @property
     def year(self) -> int:
         return (self.day_index - 1) // DAYS_PER_YEAR + 1
 
     def label(self) -> str:
-        doy = (self.day_index - 1) % DAYS_PER_YEAR + 1
-        return f"Year {self.year}, day {doy}, {self.clock} ({self.season})"
+        return f"Year {self.year}, {self.date}, {self.clock} ({self.season})"
 
     def advance(self, hours: float) -> None:
         self.at += hours
