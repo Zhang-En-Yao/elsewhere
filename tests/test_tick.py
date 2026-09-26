@@ -11,13 +11,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import cli, schedule, schemas, seed, tick as tick_mod
+from elsewhere.schemas import CallName
 from elsewhere.backends import Settings, register
 from elsewhere.configuration import DEFAULTS, configure
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle, store
 from elsewhere.world.memories import Memory
 
-CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
+CALLS = tuple(CallName)[:-1]    # every call but the probe
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
         "for_hours": 6.0, "settling": False}
 
@@ -31,7 +32,7 @@ class TownTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
         self.world = seed.build(self.root)
-        self.stub = StubBackend({"act": STAY, "perceive": {"stuck": False}})
+        self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False}})
         register(self.stub)
 
     def tearDown(self):
@@ -68,7 +69,7 @@ class TestTime(TownTest):
         self.assertEqual(report.hours, 1.5)
         self.assertEqual(self.world.at, was + 1.5)
         # and only she was asked anything: the others said six and meant it
-        asked = [c.about for c in self.calls_for("act")[-1:]]
+        asked = [c.about for c in self.calls_for(CallName.ACT)[-1:]]
         self.assertEqual(asked, ["p_havvah"])
 
     def test_somebody_absorbed_is_not_woken_by_what_is_not_about_them(self):
@@ -89,9 +90,9 @@ class TestTime(TownTest):
                          "and a thing that happens to her is not maskable")
 
     def test_a_world_nobody_scheduled_stops_rather_than_inventing_an_hour(self):
-        self.say("act", {"because": "", "action": "stay", "target": ""})
-        self.say("direct", {"happens": False})
-        self.say("arrive", {"comes": False})
+        self.say(CallName.ACT, {"because": "", "action": "stay", "target": ""})
+        self.say(CallName.DIRECT, {"happens": False})
+        self.say(CallName.ARRIVE, {"comes": False})
         tick_mod.tick(self.world, configuration())              # everyone answers, nobody says when
         was = self.world.at
         report = tick_mod.tick(self.world, configuration())
@@ -100,7 +101,7 @@ class TestTime(TownTest):
 
     def test_everyone_is_asked_once(self):
         tick_mod.tick(self.world, configuration())
-        asked = sorted(c.about for c in self.calls_for("act"))
+        asked = sorted(c.about for c in self.calls_for(CallName.ACT))
         self.assertEqual(asked, sorted(self.world.beings))
 
     def test_a_mind_that_gives_nothing_stays_put(self):
@@ -114,7 +115,7 @@ class TestTime(TownTest):
 class TestChoices(TownTest):
     def test_the_grammar_only_offers_what_is_there(self):
         tick_mod.tick(self.world, configuration())
-        havvah_call = next(c for c in self.calls_for("act") if c.about == "p_havvah")
+        havvah_call = next(c for c in self.calls_for(CallName.ACT) if c.about == "p_havvah")
         options = havvah_call.schema["properties"]["target"]["enum"]
         # Havvah is at the garden: next to Beth El and Marah, and alone. The
         # Boatyard is in reach from Gan Eden because the way between them is
@@ -146,7 +147,7 @@ class TestConversation(TownTest):
     def test_something_said_is_something_someone_else_can_keep(self):
         self.acts(p_havvah={"because": "he was on the roof that night",
                          "action": "talk", "target": "Bezalel"})
-        self.say("speak", {"about": "1", "line": "You were up there. Could you feel it?"})
+        self.say(CallName.SPEAK, {"about": "1", "line": "You were up there. Could you feel it?"})
         self.stub.answers["perceive|p_bezalel"] = {
             "account": "she asked if I could feel it", "means": "", "feeling": "unease",
             "stuck": True}
@@ -170,13 +171,13 @@ class TestConversation(TownTest):
         # It used to be one line in one direction: somebody said a thing,
         # everybody kept their version, and nobody ever answered anybody.
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say("speak", {"about": "nothing in particular", "line": "Cold."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
         talk = tick_mod.tick(self.world, configuration()).talks[0]
         self.assertGreater(len(talk.turns), 1)
         self.assertEqual([t.speaker for t in talk.turns[:2]], ["p_havvah", "p_bezalel"])
         # Bezalel answers what he kept of her line, not the line itself: each
         # turn is an event, and he was handed a version of it first.
-        his = [c for c in self.calls_for("speak") if c.about == "p_bezalel"]
+        his = [c for c in self.calls_for(CallName.SPEAK) if c.about == "p_bezalel"]
         self.assertTrue(his)
 
     def test_an_exchange_ends_when_somebody_has_nothing_to_say(self):
@@ -189,16 +190,16 @@ class TestConversation(TownTest):
 
     def test_saying_it_keeps_it_in_reach(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say("speak", {"about": "1", "line": "That night."})
+        self.say(CallName.SPEAK, {"about": "1", "line": "That night."})
         tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.recalls, 2, "she had the floor twice")
         self.assertEqual(self.flood.told[-1], self.world.at)
 
     def test_the_speaker_is_offered_what_they_can_reach(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say("speak", {"about": "nothing in particular", "line": "Cold."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
         tick_mod.tick(self.world, configuration())
-        call = self.calls_for("speak")[0]
+        call = self.calls_for(CallName.SPEAK)[0]
         self.assertIn("the water in the doorway", call.user)
         self.assertEqual(call.schema["properties"]["about"]["enum"],
                          ["nothing in particular", "1"])
@@ -215,13 +216,13 @@ class TestConversation(TownTest):
     def test_two_beings_reaching_for_each_other_have_one_conversation(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
                   p_bezalel={"because": "", "action": "talk", "target": "Havvah"})
-        self.say("speak", {"about": "nothing in particular", "line": "Evening."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Evening."})
         report = tick_mod.tick(self.world, configuration())
         self.assertEqual(len(report.talks), 1)
 
     def test_meeting_is_written_into_both_ties(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say("speak", {"about": "nothing in particular", "line": "Evening."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Evening."})
         tick_mod.tick(self.world, configuration())
         for a, b in (("p_bezalel", "p_havvah"), ("p_havvah", "p_bezalel")):
             self.assertEqual(self.world.beings[a].who.regards[b].last_seen_at,
@@ -262,10 +263,10 @@ class TestCategories(unittest.TestCase):
         world = seed.build(Path(tmp.name) / "world")
         for pid in ("p_bezalel", "p_havvah"):
             world.beings[pid].where.place = "bethel"
-        stub = StubBackend({"act": STAY, "perceive": {"stuck": False},
-                            "direct": {"happens": False}, "reflect": {},
-                            "arrive": {"comes": False},
-                            "speak": {"about": "nothing in particular", "line": "Cold."}})
+        stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
+                            CallName.DIRECT: {"happens": False}, CallName.REFLECT: {},
+                            CallName.ARRIVE: {"comes": False},
+                            CallName.SPEAK: {"about": "nothing in particular", "line": "Cold."}})
         stub.answers["act|p_bezalel"] = {"because": "", "action": "talk", "target": "Havvah"}
         register(stub)
         tick_mod.tick(world, configuration())
@@ -315,7 +316,7 @@ class TestContinue(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
-        register(StubBackend({"act": STAY, "perceive": {"stuck": False}}))
+        register(StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False}}))
         # Said in the world's own configuration, the way anyone would, so
         # nothing here can reach a real model.
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
@@ -421,7 +422,7 @@ class TestContinue(unittest.TestCase):
     def test_a_tuning_run_does_write_when_nothing_is_in_its_way(self):
         """The guards are guards, and not the command quietly doing nothing."""
         event = store.load(self.root).chronicle.all()[0]
-        register(StubBackend({"act": STAY, "perceive": {
+        register(StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {
             "stuck": True, "account": "what the frame felt like to hold",
             "means": "I was there", "feeling": "pride"}}))
         out = self.run_cli("remember", event.id)

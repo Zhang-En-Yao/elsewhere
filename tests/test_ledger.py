@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import prompts, retrieval, schemas, seed
+from elsewhere.schemas import CallName
 from elsewhere.backends import Call, Settings, Transcript, ask, extract_json
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import store
@@ -222,24 +223,24 @@ class TestAnswers(unittest.TestCase):
             return ({"stuck": "a great deal"} if len(attempts) == 1
                     else {"stuck": True})
 
-        backend = StubBackend({"perceive": answer})
-        got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_havvah"),
+        backend = StubBackend({CallName.PERCEIVE: answer})
+        got = ask(backend, Call(CallName.PERCEIVE, "s", "u", schemas.PERCEIVE, "p_havvah"),
                   Settings(backend="stub", model="stub"))
         self.assertEqual(got, {"stuck": True})
         self.assertEqual(len(attempts), 2)
         self.assertIn("not usable", attempts[1])
 
     def test_a_mind_that_never_makes_sense_is_simply_silent(self):
-        backend = StubBackend({"perceive": "I am not going to answer that"})
-        got = ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p"),
+        backend = StubBackend({CallName.PERCEIVE: "I am not going to answer that"})
+        got = ask(backend, Call(CallName.PERCEIVE, "s", "u", schemas.PERCEIVE, "p"),
                   Settings(backend="stub", model="stub"))
         self.assertIsNone(got)
 
     def test_every_exchange_is_written_to_the_tape(self):
         with tempfile.TemporaryDirectory() as tmp:
             tape = Path(tmp) / "t.jsonl"
-            backend = StubBackend({"perceive": {"stuck": True}})
-            ask(backend, Call("perceive", "s", "u", schemas.PERCEIVE, "p_havvah"),
+            backend = StubBackend({CallName.PERCEIVE: {"stuck": True}})
+            ask(backend, Call(CallName.PERCEIVE, "s", "u", schemas.PERCEIVE, "p_havvah"),
                 Settings(backend="stub", model="stub"), Transcript(tape))
             rows = [json.loads(l) for l in tape.read_text().splitlines()]
             self.assertEqual(len(rows), 1)
@@ -250,14 +251,29 @@ class TestAnswers(unittest.TestCase):
         # The engine never compares two feelings or sorts by one - it stores
         # them, prints them, and hands them back as text. A vocabulary here
         # would be a constraint on a person for nobody's benefit.
-        for name in ("perceive", "recall"):
+        for name in (CallName.PERCEIVE, CallName.RECALL):
             self.assertNotIn("enum", schemas.BY_NAME[name]["properties"]["feeling"],
                              f"{name} is telling people what they may feel")
         clean, complaint = schemas.validate(
-            "perceive", {"account": "the sound of it", "stuck": True,
+            CallName.PERCEIVE, {"account": "the sound of it", "stuck": True,
                          "feeling": "something close to relief, but not quite"})
         self.assertIsNone(complaint)
         self.assertEqual(clean["feeling"], "something close to relief, but not quite")
+
+    def test_every_call_has_a_schema_and_a_grammar(self):
+        for name in CallName:
+            self.assertIn(name, schemas.BY_NAME, f"{name} has no schema")
+            grammar = schemas.grammar(name)
+            self.assertEqual(grammar["required"], list(grammar["properties"]))
+
+    def test_a_call_name_is_spelled_the_way_it_is_written_down(self):
+        self.assertEqual(f"{CallName.ACT}|p_lilith", "act|p_lilith")
+        self.assertEqual(json.dumps({CallName.ACT: 1}), '{"act": 1}')
+        self.assertIs(Call("act", "s", "u", {}).name, CallName.ACT)
+
+    def test_a_misspelled_call_is_refused_when_it_is_made(self):
+        with self.assertRaises(ValueError):
+            Call("perceeve", "s", "u", {})
 
     def test_a_memory_carries_nothing_nobody_reads(self):
         # Five fields went when it turned out nothing anywhere read them, and

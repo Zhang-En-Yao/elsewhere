@@ -16,6 +16,7 @@ from typing import List, Optional
 
 from . import agents, retrieval, schedule, schemas, seed
 from .backends import Transcript, ask, probe
+from .schemas import CallName
 from .configuration import MINDS, configure, load_configuration, path_of
 from .world import chronicle, store
 from .world.store import World, clock_at, day_of
@@ -79,7 +80,7 @@ def go_on(world: World, most: int = 8, say=print) -> None:
                     f"{ahead - world.at - owed:.1f}h of world time")
                 return
             configuration = load_configuration(world.root)
-            ok, message = probe(configuration["act"])
+            ok, message = probe(configuration[CallName.ACT])
             if not ok:
                 # The world waits rather than going on without minds.
                 say(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "

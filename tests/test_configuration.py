@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import cli, seed
+from elsewhere.schemas import CallName
 from elsewhere.configuration import (DEFAULTS, MINDS, configure, load_configuration,
                                      path_of, write_default_configuration)
 
@@ -50,7 +51,7 @@ class ConfigurationTest(unittest.TestCase):
         before = os.environ.get("ELSEWHERE_MODEL")
         os.environ["ELSEWHERE_MODEL"] = "something-else"
         try:
-            self.assertEqual(load_configuration(self.root)["act"].model, "phi4-mini")
+            self.assertEqual(load_configuration(self.root)[CallName.ACT].model, "phi4-mini")
             with self.assertRaises(SystemExit) as raised:
                 cli.main(["--world", str(self.root), "status"])
             self.assertIn("ELSEWHERE_MODEL no longer does anything",
@@ -70,23 +71,23 @@ class ConfigurationTest(unittest.TestCase):
                              ("openai", "some-model", "http://gpu-box:8000/v1"))
         self.assertEqual(loaded["embed"].model, DEFAULTS["embed"]["model"])
         configure(self.root, "ollama", "phi4-mini")        # back home: base goes
-        self.assertEqual(load_configuration(self.root)["act"].base, "")
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].base, "")
 
     def test_a_world_keeps_a_configuration_written_before_it(self):
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
         seed.create(self.root)
-        self.assertEqual(load_configuration(self.root)["act"].backend, "stub")
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].backend, "stub")
         write_default_configuration(self.root)
-        self.assertEqual(load_configuration(self.root)["act"].backend, "stub")
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].backend, "stub")
 
     def test_what_the_file_leaves_out_comes_from_the_defaults(self):
         path_of(self.root).parent.mkdir(parents=True)
         path_of(self.root).write_text(json.dumps(
             {"agents": {"act": {"model": "bigger"}}}), encoding="utf-8")
         loaded = load_configuration(self.root)
-        self.assertEqual(loaded["act"].model, "bigger")
-        self.assertEqual(loaded["act"].backend, DEFAULTS["act"]["backend"])
-        self.assertEqual(loaded["speak"].model, DEFAULTS["speak"]["model"])
+        self.assertEqual(loaded[CallName.ACT].model, "bigger")
+        self.assertEqual(loaded[CallName.ACT].backend, DEFAULTS[CallName.ACT]["backend"])
+        self.assertEqual(loaded[CallName.SPEAK].model, DEFAULTS[CallName.SPEAK]["model"])
 
     def test_doctor_says_which_file_it_read(self):
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))

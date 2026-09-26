@@ -13,13 +13,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import agents, cli, seed, tick as tick_mod
+from elsewhere.schemas import CallName
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle
 from elsewhere.world.entities import Where
 from elsewhere.world.memories import Memory
 
-CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
+CALLS = tuple(CallName)[:-1]    # every call but the probe
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
         "for_hours": 6.0, "settling": False}
 QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
@@ -43,8 +44,8 @@ class Road(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.world = seed.build(Path(self.tmp.name) / "world")
-        self.stub = StubBackend({"act": STAY, "perceive": {"stuck": False},
-                                 "direct": QUIET, "reflect": {}, "arrive": NOBODY})
+        self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
+                                 CallName.DIRECT: QUIET, CallName.REFLECT: {}, CallName.ARRIVE: NOBODY})
         register(self.stub)
         # Lilith begins on the ridge path, which is the way out of Nod.
         self.lilith = self.world.beings["p_lilith"]
@@ -105,14 +106,14 @@ class TestWhetherAnyoneCanGoAtAll(Road):
     def test_the_verb_is_not_in_the_vocabulary_anywhere_else(self):
         self.lilith.where.place = "yard"
         tick_mod.tick(self.world, configuration())
-        schema = next(c for c in self.calls("act") if c.about == "p_lilith").schema
+        schema = next(c for c in self.calls(CallName.ACT) if c.about == "p_lilith").schema
         self.assertNotIn("leave", schema["properties"]["action"]["enum"])
 
     def test_and_is_where_it_is(self):
         tick_mod.tick(self.world, configuration())
-        schema = next(c for c in self.calls("act") if c.about == "p_lilith").schema
+        schema = next(c for c in self.calls(CallName.ACT) if c.about == "p_lilith").schema
         self.assertIn("leave", schema["properties"]["action"]["enum"])
-        user = next(c for c in self.calls("act") if c.about == "p_lilith").user
+        user = next(c for c in self.calls(CallName.ACT) if c.about == "p_lilith").user
         self.assertIn("road also goes out", user)
 
     def test_a_lenient_backend_still_cannot_walk_someone_out(self):
@@ -137,12 +138,12 @@ class TestGoing(Road):
         event = self.world.chronicle.get(report.departures[0].event_id)
         self.assertEqual(event.category, chronicle.DEPARTURE)
         self.assertEqual(sorted(event.reached), sorted(self.world.beings))
-        havvah = next(c for c in self.calls("perceive") if c.about == "p_havvah")
+        havvah = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_havvah")
         self.assertIn("word of it reached you", havvah.user)
 
     def test_she_gets_one_last_look_at_it(self):
         self.send_lilith_away()
-        hers = next(c for c in self.calls("perceive") if c.about == "p_lilith")
+        hers = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_lilith")
         self.assertIn("looking back", hers.user)
 
     def test_what_she_had_stays_where_it_is(self):
@@ -171,9 +172,9 @@ class TestGoing(Road):
 
     def test_the_town_stops_asking_her_anything(self):
         self.send_lilith_away()
-        before = len(self.calls("act"))
+        before = len(self.calls(CallName.ACT))
         tick_mod.tick(self.world, configuration())
-        asked = [c.about for c in self.calls("act")[before:]]
+        asked = [c.about for c in self.calls(CallName.ACT)[before:]]
         self.assertNotIn("p_lilith", asked)
 
     def test_and_stops_offering_her_to_the_director(self):
@@ -182,7 +183,7 @@ class TestGoing(Road):
         # in the same step she went, before she had gone. Wait for the next.
         self.world.at += 24
         tick_mod.tick(self.world, configuration())
-        call = self.calls("direct")[-1]
+        call = self.calls(CallName.DIRECT)[-1]
         self.assertNotIn("Lilith", call.schema["properties"]["who"]["enum"])
         listed = call.user.split("People:")[1].split("Lately")[0]
         self.assertNotIn("Lilith", listed,
@@ -207,7 +208,7 @@ class TestComing(Road):
         # year when it was not - were the engine guessing at how often a town
         # takes a stranger in, which is the road's own answer now.
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("arrive")), 1)
+        self.assertEqual(len(self.calls(CallName.ARRIVE)), 1)
         self.assertEqual(self.world.road_wake_at, self.world.at + 24.0,
                          "the stub said a day; nothing in the engine said anything")
         for name in ("ARRIVAL_MIN_GAP", "ARRIVAL_SETTLED_GAP"):
@@ -215,13 +216,13 @@ class TestComing(Road):
 
     def test_it_is_not_asked_again_until_it_said_so(self):
         tick_mod.tick(self.world, configuration())
-        self.stub.set("arrive", {"comes": False, "ask_again_in_hours": 8760.0})
+        self.stub.set(CallName.ARRIVE, {"comes": False, "ask_again_in_hours": 8760.0})
         self.world.road_wake_at = self.world.at
         tick_mod.tick(self.world, configuration())
-        asked = len(self.calls("arrive"))
+        asked = len(self.calls(CallName.ARRIVE))
         for _ in range(3):
             tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("arrive")), asked,
+        self.assertEqual(len(self.calls(CallName.ARRIVE)), asked,
                          "it said a year, and a year is what it gets")
 
     def test_usually_nobody_comes(self):
@@ -232,7 +233,7 @@ class TestComing(Road):
 
     def test_somebody_comes_up_the_road(self):
         self.send_lilith_away()
-        self.stub.set("arrive", SOMEBODY)
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
         report = self.after_a_gap()
 
         self.assertIsNotNone(report.arrival)
@@ -252,24 +253,24 @@ class TestComing(Road):
 
     def test_the_newcomer_gets_their_first_day(self):
         self.send_lilith_away()
-        self.stub.set("arrive", SOMEBODY)
-        before = len(self.calls("act"))
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
+        before = len(self.calls(CallName.ACT))
         self.after_a_gap()
-        asked = [c.about for c in self.calls("act")[before:]]
+        asked = [c.about for c in self.calls(CallName.ACT)[before:]]
         self.assertIn("p_tam", asked,
                       "they live the day they arrived, not the one after")
 
     def test_they_see_the_place_for_the_first_time(self):
         self.send_lilith_away()
-        self.stub.set("arrive", SOMEBODY)
-        before = len(self.calls("perceive"))
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
+        before = len(self.calls(CallName.PERCEIVE))
         self.after_a_gap()
-        theirs = next(c for c in self.calls("perceive")[before:] if c.about == "p_tam")
+        theirs = next(c for c in self.calls(CallName.PERCEIVE)[before:] if c.about == "p_tam")
         self.assertIn("for the first time", theirs.user)
 
     def test_nobody_here_knows_them(self):
         self.send_lilith_away()
-        self.stub.set("arrive", SOMEBODY)
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
         self.after_a_gap()
         tam = self.world.being_by_name("Tam")
         self.assertEqual(tam.who.regards, {})
@@ -277,9 +278,9 @@ class TestComing(Road):
 
     def test_the_road_is_told_who_is_missing(self):
         self.send_lilith_away()
-        self.stub.set("arrive", SOMEBODY)
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
         self.after_a_gap()
-        user = self.calls("arrive")[-1].user
+        user = self.calls(CallName.ARRIVE)[-1].user
         self.assertIn("Who has gone", user)
         self.assertIn("Lilith", user)
 
@@ -287,15 +288,15 @@ class TestComing(Road):
         # No interval on the answer means no timer, and the engine does not
         # pick one on its behalf - it simply comes round with the world.
         tick_mod.tick(self.world, configuration())
-        self.stub.set("arrive", {"comes": False})
+        self.stub.set(CallName.ARRIVE, {"comes": False})
         self.world.road_wake_at = self.world.at
         tick_mod.tick(self.world, configuration())
-        asked = len(self.calls("arrive"))
+        asked = len(self.calls(CallName.ARRIVE))
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("arrive")), asked + 1)
+        self.assertEqual(len(self.calls(CallName.ARRIVE)), asked + 1)
 
     def test_and_can_then_be_more_than_it_ever_was(self):
-        self.stub.set("arrive", {**SOMEBODY, "name": "Edda"})
+        self.stub.set(CallName.ARRIVE, {**SOMEBODY, "name": "Edda"})
         self.after_a_gap()
         self.assertEqual(len(self.present()), 4,
                          "nobody left, and the town is bigger than it started")
@@ -327,14 +328,14 @@ class TestComing(Road):
 
     def test_a_name_the_town_already_uses_is_refused(self):
         self.send_lilith_away()
-        self.stub.set("arrive", {**SOMEBODY, "name": "Havvah"})
+        self.stub.set(CallName.ARRIVE, {**SOMEBODY, "name": "Havvah"})
         report = self.after_a_gap()
         self.assertIsNone(report.arrival)
         self.assertEqual(len(self.present()), 2)
 
     def test_so_is_coming_back_under_the_same_name(self):
         self.send_lilith_away()
-        self.stub.set("arrive", {**SOMEBODY, "name": "Lilith"})
+        self.stub.set(CallName.ARRIVE, {**SOMEBODY, "name": "Lilith"})
         report = self.after_a_gap()
         self.assertIsNone(report.arrival, "Lilith is gone, and her name went with her")
 
@@ -343,7 +344,7 @@ class TestReading(Road):
     def test_the_report_survives_both(self):
         report = self.send_lilith_away()
         cli.print_report(self.world, report)          # must not raise
-        self.stub.set("arrive", SOMEBODY)
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
         self.world.road_wake_at = self.world.at
         cli.print_report(self.world, tick_mod.tick(self.world, configuration()))
 

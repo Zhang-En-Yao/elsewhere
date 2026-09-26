@@ -19,9 +19,10 @@ from .world.entities import Being, When, Where, Who
 from .world.memories import Memory
 from . import HOURS_PER_DAY
 from .world.store import clock_at, date_at, season_at
+from .schemas import CallName
 
 
-def _settings(configuration, name: str) -> Settings:
+def _settings(configuration, name: CallName) -> Settings:
     return configuration[name]
 
 
@@ -81,14 +82,14 @@ def vantage(world, being: Being, event: Event) -> str:
 def perceive(world, being: Being, event: Event, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Memory]:
     """Ask what this event leaves in this person. Usually the answer is nothing."""
-    settings = _settings(configuration, "perceive")
+    settings = _settings(configuration, CallName.PERCEIVE)
     being_memories = world.memories(being.id)
     cue = vectorize(configuration, event.account)
     context = retrieval.recallable(being_memories, world.at, cue)
 
     place = world.places.get(event.place or "")
     call = Call(
-        name="perceive",
+        name=CallName.PERCEIVE,
         system=prompts.PERCEIVE_SYSTEM,
         user=prompts.perceive_user(
             being=being,
@@ -102,7 +103,7 @@ def perceive(world, being: Being, event: Event, configuration,
             memories=context,
             part_of_it=being.id in event.involved,
         ),
-        schema=schemas.grammar("perceive"),
+        schema=schemas.grammar(CallName.PERCEIVE),
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -182,7 +183,7 @@ def when_label(world) -> str:
 def act(world, being: Being, configuration,
         transcript: Optional[Transcript] = None) -> Decision:
     """Ask what this person does next. The grammar only offers what exists."""
-    settings = _settings(configuration, "act")
+    settings = _settings(configuration, CallName.ACT)
     place = world.places.get(being.where.place)
     others = _others_here(world, being)
     reachable = [world.places[n] for n in world.map.beside(being.where.place)
@@ -200,7 +201,7 @@ def act(world, being: Being, configuration,
 
     going = may_leave(world, being)
     call = Call(
-        name="act",
+        name=CallName.ACT,
         system=prompts.ACT_SYSTEM,
         user=prompts.act_user(being, when_label(world), world.at, place, others,
                               [p.name for p in reachable], context,
@@ -253,7 +254,7 @@ def speak(world, speaker: Being, listener: Being, configuration,
     Bringing something up is rehearsal: the memory it came from is touched and
     stays within reach longer. Rewriting it in the telling is recall's job (P3).
     """
-    settings = _settings(configuration, "speak")
+    settings = _settings(configuration, CallName.SPEAK)
     speaker_memories = world.memories(speaker.id)
     # Who is in front of them, in words: the listener's name and the speaker's
     # own account of them, which is text a mind wrote. Every retrieval cue in
@@ -267,7 +268,7 @@ def speak(world, speaker: Being, listener: Being, configuration,
     place = world.places.get(speaker.where.place)
 
     call = Call(
-        name="speak",
+        name=CallName.SPEAK,
         system=prompts.SPEAK_SYSTEM,
         user=prompts.speak_user(speaker, listener, when_label(world),
                                 place.name if place else "somewhere", topics,
@@ -311,12 +312,12 @@ def may_direct(world) -> bool:
 def direct(world, configuration,
            transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the town whether anything happens to it. Usually nothing does."""
-    settings = _settings(configuration, "direct")
+    settings = _settings(configuration, CallName.DIRECT)
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
     beings = {p.name: p for p in world.beings.values() if p.present}
     call = Call(
-        name="direct",
+        name=CallName.DIRECT,
         system=prompts.DIRECT_SYSTEM,
         user=prompts.direct_user(world, recent),
         schema=schemas.direct_grammar(list(places), list(beings)),
@@ -472,13 +473,13 @@ def _free_being_id(world, name: str) -> str:
 def arrive(world, configuration,
            transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the road whether anybody comes up it today. Usually nobody does."""
-    settings = _settings(configuration, "arrive")
+    settings = _settings(configuration, CallName.ARRIVE)
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     call = Call(
-        name="arrive",
+        name=CallName.ARRIVE,
         system=prompts.ARRIVE_SYSTEM,
         user=prompts.arrive_user(world, recent),
-        schema=schemas.grammar("arrive"),
+        schema=schemas.grammar(CallName.ARRIVE),
         about="road",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -576,9 +577,9 @@ def reflect(world, being: Being, configuration,
              if i in world.beings]
     known += [p.name for p in _others_here(world, being)
               if p.name not in known]
-    settings = _settings(configuration, "reflect")
+    settings = _settings(configuration, CallName.REFLECT)
     call = Call(
-        name="reflect",
+        name=CallName.REFLECT,
         system=prompts.REFLECT_SYSTEM,
         user=prompts.reflect_user(being, today, older, holds, world.at,
                                   lately=being.where.lately),
@@ -667,13 +668,13 @@ def recall(world, being: Being, memory: Memory, configuration,
     The words are the mind's. The engine only files the older wording in the
     memory's history, so the earlier version is not lost to anyone reading.
     """
-    settings = _settings(configuration, "recall")
+    settings = _settings(configuration, CallName.RECALL)
     age = max(0, int((world.at - memory.at) // HOURS_PER_DAY))
     call = Call(
-        name="recall",
+        name=CallName.RECALL,
         system=prompts.RECALL_SYSTEM,
         user=prompts.recall_user(being, memory, age, world.at),
-        schema=schemas.grammar("recall"),
+        schema=schemas.grammar(CallName.RECALL),
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)

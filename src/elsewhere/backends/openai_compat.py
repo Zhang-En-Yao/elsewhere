@@ -91,7 +91,7 @@ class OpenAICompatBackend:
         if strict:
             body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {"name": call.name, "schema": call.schema,
+                "json_schema": {"name": call.name.value, "schema": call.schema,
                                 "strict": False},
             }
         else:
