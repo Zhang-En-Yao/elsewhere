@@ -22,7 +22,8 @@ SOURCE = Path(__file__).resolve().parents[1] / "src" / "elsewhere"
 # Everything the code is allowed to read from the environment. A key decides
 # whether a mind can be reached, never which one; ELSEWHERE_STUB is only read
 # by the stub, which nothing reaches unless the configuration names it.
-ALLOWED = {"ANTHROPIC_API_KEY", "ELSEWHERE_OPENAI_KEY", "ELSEWHERE_STUB"}
+ALLOWED = {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY",
+           "ELSEWHERE_OPENAI_KEY", "ELSEWHERE_STUB"}
 
 
 class ConfigurationTest(unittest.TestCase):

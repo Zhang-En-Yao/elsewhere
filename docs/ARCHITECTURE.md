@@ -342,14 +342,23 @@ storage pretending to be design.
 str`) and a small registry. The engine never imports a specific backend;
 `agents.py` always goes through `get_backend(settings.backend)`.
 
-- [`backends/openai_compat.py`](../src/elsewhere/backends/openai_compat.py) —
-  `OllamaBackend` (native `/api/chat`, schema as `format`), `OpenAICompatBackend`
-  (any `/v1` server — LM Studio, llama-server — tries `response_format:
-  json_schema` and falls back to plain `json_object`), `VLLMBackend`
-  (`guided_json`). Written against `urllib`, so reaching a local or
-  self-hosted model needs no dependency.
-- [`backends/anthropic_backend.py`](../src/elsewhere/backends/anthropic_backend.py)
-  — Claude, imported lazily. The schema is passed as a forced tool call.
+- [`backends/open_source/`](../src/elsewhere/backends/open_source/) — open-source models
+  you run yourself, written against `urllib`, so reaching one needs no dependency.
+  - [`ollama.py`](../src/elsewhere/backends/open_source/ollama.py) — `OllamaBackend`
+    (native `/api/chat`, schema as `format`).
+  - [`openai_compatible.py`](../src/elsewhere/backends/open_source/openai_compatible.py) —
+    `OpenAICompatibleBackend` (any `/v1` server — LM Studio, llama-server — tries
+    `response_format: json_schema` and falls back to plain `json_object`).
+  - [`vllm.py`](../src/elsewhere/backends/open_source/vllm.py) — `VLLMBackend`
+    (`guided_json`).
+- [`backends/closed_source/`](../src/elsewhere/backends/closed_source/) — closed-source models
+  somebody else runs, reached with a key.
+  - [`claude.py`](../src/elsewhere/backends/closed_source/claude.py) — Claude,
+    imported lazily. The schema is passed as a forced tool call.
+  - [`gpt.py`](../src/elsewhere/backends/closed_source/gpt.py) and
+    [`gemini.py`](../src/elsewhere/backends/closed_source/gemini.py) —
+    `GPTBackend` and `GeminiBackend`: the same `/v1` dialect as
+    `OpenAICompatibleBackend`, with each service's address and key filled in.
 - [`backends/stub.py`](../src/elsewhere/backends/stub.py) — answers every call
   with a fixed or scripted answer. This is what `make test` runs against; no
   model, no key, no latency.
@@ -367,7 +376,8 @@ decisions (`act`) can run on something small and local, while the ones that
 need judgement (`perceive`, `speak`, `reflect`) can be pointed at something
 larger. The file is the only source: nothing in the environment overrides
 it, and the CLI refuses to start while one of the old override variables is
-still set. Keys (`ANTHROPIC_API_KEY`, `ELSEWHERE_OPENAI_KEY`) are the exception,
+still set. Keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`,
+`ELSEWHERE_OPENAI_KEY`) are the exception,
 since they decide whether a mind can be reached rather than which one it is.
 Tests write a stub configuration into their own temporary world.
 

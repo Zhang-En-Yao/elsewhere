@@ -205,14 +205,17 @@ def get(name: str) -> Backend:
 
 
 def bootstrap() -> None:
-    from .openai_compat import (OllamaBackend, OpenAICompatBackend,
-                                VLLMBackend)
+    from .open_source.ollama import OllamaBackend
+    from .open_source.openai_compatible import OpenAICompatibleBackend
+    from .open_source.vllm import VLLMBackend
+    from .closed_source.gemini import GeminiBackend
+    from .closed_source.gpt import GPTBackend
     from .stub import StubBackend
-    for backend in (StubBackend(script_from_env=True), OllamaBackend(), OpenAICompatBackend(),
-                    VLLMBackend()):
+    for backend in (StubBackend(script_from_env=True), OllamaBackend(), OpenAICompatibleBackend(),
+                    VLLMBackend(), GPTBackend(), GeminiBackend()):
         register(backend)
     try:
-        from .anthropic_backend import AnthropicBackend
+        from .closed_source.claude import AnthropicBackend
         register(AnthropicBackend())
     except Exception:
         pass

@@ -31,7 +31,7 @@ from .schemas import CallName
 # newest thing that fits: on an 8GB M1 it stays entirely on the GPU, where
 # the E4B spills half of itself onto the CPU and runs at half the speed. See `notes` in the written configuration for the two ways
 # out: a bigger model on a GPU somewhere (backend "vllm"), or sending the
-# calls that need judgement to a hosted model (backend "claude").
+# calls that need judgement to a hosted model (backend "claude", "gpt" or "gemini").
 # One model for every call site. On 8GB two models cannot both stay resident,
 # and swapping between them every tick costs more than it saves.
 # It can think, and would put its JSON in the reasoning field if let.
@@ -59,7 +59,7 @@ DEFAULTS: Dict[str, dict] = {
 }
 
 NOTES = [
-    "backend: ollama | openai | vllm | claude | stub",
+    "backend: ollama | openai | vllm | claude | gpt | gemini | stub",
     "base: where the server is; leave it out for the default "
     "(ollama http://localhost:11434, openai and vllm http://localhost:8000/v1). "
     "timeout: seconds to wait for one answer, 180 if left out",
@@ -75,6 +75,9 @@ NOTES = [
     "almost no memory, so the model does not have to be here",
     "claude: pip install -e '.[llm]' and set ANTHROPIC_API_KEY; worth it for "
     "perceive/speak/reflect if the local model makes everyone sound alike",
+    "gpt: set OPENAI_API_KEY. gemini: set GEMINI_API_KEY. Both need no extra "
+    "package; anything they cannot do with the model you name is the model's "
+    "limit, not this file's",
     "a thinking-capable local model needs its thinking turned off or the JSON "
     "arrives inside the reasoning field: ollama -> extra {\"think\": false}, "
     "vllm -> extra {\"chat_template_kwargs\": {\"enable_thinking\": false}}",

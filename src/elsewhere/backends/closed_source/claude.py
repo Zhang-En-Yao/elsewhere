@@ -7,7 +7,8 @@ Imported lazily: a world that never uses it never needs the package.
 from __future__ import annotations
 
 import os
-from . import Call, Settings
+
+from .. import Call, Settings
 
 
 class AnthropicBackend:
