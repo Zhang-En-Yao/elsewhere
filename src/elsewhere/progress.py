@@ -127,18 +127,18 @@ class Progress:
             self._doing = ""
         self.draw()
 
-    def placing(self, count: int) -> None:
+    def embedding(self, count: int) -> None:
         # Not counted as an answer: nobody was asked anything. It is here
         # because on one machine serving one model at a time it is most of the
         # wait between two questions, and a line that said "waiting" through
         # all of it would be telling the truth badly.
         with self._lock:
-            self._doing = ("placing it in meaning" if count == 1
-                           else f"placing {count} things in meaning")
+            self._doing = ("embedding it" if count == 1
+                           else f"embedding {count} things")
             self._out_since = time.time()
         self.draw()
 
-    def placed(self, took: float, ok: bool) -> None:
+    def embedded(self, took: float, ok: bool) -> None:
         with self._lock:
             self._doing = ""
         self.draw()
