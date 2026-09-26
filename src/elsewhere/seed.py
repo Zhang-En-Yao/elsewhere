@@ -48,16 +48,17 @@ def add_being(world: World, bid: str, name: str, card: str, manner: str,
     )
 
 
-def add_regard(world: World, a: str, b: str, account: str,
+def add_regard(world: World, holder: str, subject: str, account: str,
                days_ago: float) -> None:
-    """What `a` makes of `b`, in their own words, and when they last saw them.
+    """What `holder` makes of `subject`, in their own words, and when they last
+    saw them.
 
     One-sided on both sides - and so is the last time they spoke, which both
     of them can see and neither of them is told what to make of.
     """
-    world.beings[a].who.regard(b).account = account
-    world.beings[a].who.regard(b).last_seen_at = (
-        START_AT - days_ago * HOURS_PER_DAY)
+    regard = world.beings[holder].who.regard(subject)
+    regard.account = account
+    regard.last_seen_at = START_AT - days_ago * HOURS_PER_DAY
 
 
 def clear_world(root: Path) -> None:

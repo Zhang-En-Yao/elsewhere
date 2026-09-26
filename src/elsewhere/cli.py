@@ -528,17 +528,31 @@ def command_configure(arguments) -> None:
 
 
 def _command_remember(arguments) -> None:
-    """[DEV] Re-run one event past all beings for prompt tuning."""
-    world = open_world(arguments)
-    event = world.chronicle.get(arguments.event_id)
-    if event is None:
-        sys.exit(f"No event {arguments.event_id}")
-    configuration = load_configuration(world.root)
-    transcript = transcript_for(world)
-    made = agents.perceive_all(world, event, configuration, transcript)
-    for being in world.beings.values():
-        world.memories(being.id).save()
-    store.save(world)
+    """[DEV] Re-run one event past all beings for prompt tuning.
+
+    It is a development tool, but it is a *writing* one - it lays down memories
+    and saves the world - so it is held to what every other writing command is
+    held to. Under the lock, because a step running beside it would have one of
+    the two overwrite the other; and not in a world that has ended, because
+    `end` says nothing more happens there and a tuning run is still something
+    happening.
+    """
+    try:
+        with store.tick_lock(Path(arguments.world)):
+            # Loaded under the lock, so a step that was running has finished
+            # and saved before this looks at the world.
+            world = open_live(arguments)
+            event = world.chronicle.get(arguments.event_id)
+            if event is None:
+                sys.exit(f"No event {arguments.event_id}")
+            configuration = load_configuration(world.root)
+            made = agents.perceive_all(world, event, configuration,
+                                       transcript_for(world))
+            for being in world.beings.values():
+                world.memories(being.id).save()
+            store.save(world)
+    except store.Locked as exception:
+        sys.exit(f"Not now: {exception}")
     print(f"{len(made)} of {len(event.reached)} people kept something.")
     for memory in made:
         print(f"  {world.beings[memory.owner].name:<8} [{memory.feeling}] {memory.account}")

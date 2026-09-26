@@ -390,10 +390,11 @@ class TestContinue(unittest.TestCase):
         self.assertTrue(after.closed)
         self.assertEqual(after.at, before.at)
         self.assertEqual(len(after.chronicle), len(before.chronicle))
-        # nothing more happens in it...
-        for command in ("tick", "continue"):
+        # nothing more happens in it - including a prompt-tuning run, which
+        # writes memories like anything else does...
+        for command in (("tick",), ("continue",), ("remember", "ev0001")):
             with self.assertRaises(SystemExit) as raised:
-                self.run_cli(command)
+                self.run_cli(*command)
             self.assertIn("has ended", str(raised.exception))
         # ...but what did happen can still be read.
         self.assertIn("(ended)", self.run_cli("status"))
@@ -405,6 +406,26 @@ class TestContinue(unittest.TestCase):
                 self.run_cli("end")
         self.assertIn("Not now", str(raised.exception))
         self.assertFalse(store.load(self.root).closed)
+
+    def test_a_running_tick_is_not_written_over_by_a_tuning_run(self):
+        """`remember` writes memories and saves the world, so it waits its turn."""
+        with store.tick_lock(self.root):
+            with self.assertRaises(SystemExit) as raised:
+                self.run_cli("remember", "ev0001")
+        self.assertIn("Not now", str(raised.exception))
+
+    def test_a_tuning_run_does_write_when_nothing_is_in_its_way(self):
+        """The guards are guards, and not the command quietly doing nothing."""
+        event = store.load(self.root).chronicle.all()[0]
+        register(StubBackend({"act": STAY, "perceive": {
+            "stuck": True, "account": "what the frame felt like to hold",
+            "means": "I was there", "feeling": "pride"}}))
+        out = self.run_cli("remember", event.id)
+        self.assertIn("kept something", out)
+        world = store.load(self.root)
+        kept = [memory for being_id in world.beings
+                for memory in world.memories(being_id).about_event(event.id)]
+        self.assertTrue(kept, "it took the lock and then wrote nothing")
 
 
 if __name__ == "__main__":
