@@ -641,6 +641,8 @@ elsewhere person Eve            # who she has become: beliefs, ties, what is in 
 elsewhere timeline              # history: what happened
 elsewhere event ev0002          # one event, and every version of it
 
+elsewhere end                   # end the world for good; what happened stays readable
+
 elsewhere remember ev0002       # put an event past everyone again
 elsewhere doctor                # can the configured minds be reached?
 ```

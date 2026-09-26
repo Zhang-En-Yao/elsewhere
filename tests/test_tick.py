@@ -385,6 +385,30 @@ class TestContinue(unittest.TestCase):
     def test_news_is_what_you_have_not_seen(self):
         self.assertIn("Nothing has happened", self.run_cli("news"))
 
+    def test_an_ended_world_stays_ended_and_readable(self):
+        before = store.load(self.root)
+        out = self.run_cli("end")
+        self.assertIn("has ended", out)
+        after = store.load(self.root)
+        self.assertTrue(after.closed)
+        self.assertEqual(after.at, before.at)
+        self.assertEqual(len(after.chronicle), len(before.chronicle))
+        # nothing more happens in it...
+        for command in ("tick", "continue"):
+            with self.assertRaises(SystemExit) as raised:
+                self.run_cli(command)
+            self.assertIn("has ended", str(raised.exception))
+        # ...but what did happen can still be read.
+        self.assertIn("(ended)", self.run_cli("status"))
+        self.assertIn("had already ended", self.run_cli("end"))
+
+    def test_a_running_tick_is_not_ended_underneath(self):
+        with store.tick_lock(self.root):
+            with self.assertRaises(SystemExit) as raised:
+                self.run_cli("end")
+        self.assertIn("Not now", str(raised.exception))
+        self.assertFalse(store.load(self.root).closed)
+
 
 if __name__ == "__main__":
     unittest.main()

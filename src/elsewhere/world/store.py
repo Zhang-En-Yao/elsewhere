@@ -68,7 +68,7 @@ class World:
 
     beings: Dict[str, Being] = field(default_factory=dict)
     counters: Dict[str, int] = field(default_factory=dict)
-    closed: bool = False           # nothing sets this yet; `_open_live` reads it
+    closed: bool = False           # set by `elsewhere end`; `cli.open_live` reads it
     last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     news_seen: int = 0                    # chronicle length the last time you looked
     #: The town and the road keep a timer each, the same as a person does, and

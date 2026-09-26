@@ -27,6 +27,10 @@ schedule:        ## keep the world going while you are away (launchd)
 unschedule:      ## stop it
 	./scripts/schedule.sh uninstall
 
+end:             ## end the world for good, and stop the schedule
+	elsewhere --world world end
+	./scripts/schedule.sh uninstall
+
 schedule-status: ## is it running, and can it reach a mind
 	./scripts/schedule.sh status
 
@@ -40,4 +44,4 @@ help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
-.PHONY: test typecheck world doctor live help tick news schedule unschedule schedule-status
+.PHONY: test typecheck world doctor live help tick news schedule unschedule schedule-status end
