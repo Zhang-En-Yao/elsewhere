@@ -15,17 +15,26 @@ from typing import List, Optional
 from . import agents, config as config_mod
 from . import HOURS_PER_DAY
 from .world.chronicle import Chronicle
-from .world.entities import Being, Place
+from .world.entities import (Being, Place, Where, Who,
+                             ways_from_neighbours)
 from .world.store import World, save
 
 START_DAY = 121          # year 2, day 1: the town already has a past
 START_AT = (START_DAY - 1) * HOURS_PER_DAY + 8.0      # and it starts mid-morning
 
 
-def _place(world: World, pid: str, name: str, description: str, neighbours,
-           road_out: bool = False):
-    world.places[pid] = Place(id=pid, name=name, description=description,
-                              neighbours=list(neighbours), road_out=road_out)
+def _place(world: World, touches: dict, pid: str, name: str, description: str,
+           beside, road_out: bool = False):
+    """A place, and the ways out of it as this line happens to name them.
+
+    Naming a way from one end is enough: `entities.ways_from_neighbours` folds
+    both namings into the one entry, so a town written down this way cannot
+    come out with a path that runs one direction only.
+    """
+    world.places[pid] = Place(id=pid, name=name, description=description)
+    touches[pid] = list(beside)
+    if road_out:
+        world.map.road_out = pid
 
 
 def _clear(root: Path) -> None:
@@ -40,7 +49,8 @@ def _clear(root: Path) -> None:
 
     (root / "chronicle.jsonl").unlink(missing_ok=True)
     (root / "world.json").unlink(missing_ok=True)
-    for sub in ("people", "memories"):
+    # "beings" and "memories" are the two directories `store.save` writes.
+    for sub in ("beings", "memories"):
         shutil.rmtree(root / sub, ignore_errors=True)
 
 
@@ -49,63 +59,76 @@ def build(root, name: str = "Wend") -> World:
     _clear(root)
     world = World(root=root, name=name, at=0.0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
+    touches: dict = {}
 
-    _place(world, "garden", "The Garden",
+    _place(world, touches, "garden", "The Garden",
            "What survived on the higher ground, replanted twice since the water came.",
            ["shelter", "waterline"])
-    _place(world, "shelter", "The Shelter",
+    _place(world, touches, "shelter", "The Shelter",
            "Raised on posts now, so the next flood has somewhere to leave them alone.",
            ["garden", "waterline", "yard", "ridge"])
-    _place(world, "waterline", "The Waterline",
+    _place(world, touches, "waterline", "The Waterline",
            "Where the water reached, and where it stopped. The mark is still on the rock.",
            ["garden", "shelter", "ridge"])
-    _place(world, "yard", "Adam's Yard",
+    _place(world, touches, "yard", "Adam's Yard",
            "Timber stacked higher than it needs to be. He says that is the point.",
            ["shelter", "garden"])
-    _place(world, "ridge", "The Ridge Path",
+    _place(world, touches, "ridge", "The Ridge Path",
            "The last dry ground you can see the valley from.",
            ["shelter", "waterline", "grove"], road_out=True)
-    _place(world, "grove", "The Far Grove",
+    _place(world, touches, "grove", "The Far Grove",
            "Apart from everything else. She likes it that way.",
            ["ridge", "waterline"])
 
+    world.map.ways = ways_from_neighbours(touches)
+
     beings = [
         Being(
-            id="p_adam",
-            manner="You answer the question that was asked, and not the one "
-                   "behind it.", name="Adam",
-            place="yard", home="yard",
-            thought="The roof is not finished and the rains are not waiting",
-            card=("You build what holds, and you would rather fix a thing than "
-                  "discuss it. You are steady to the point of being dull about "
-                  "it. You remember what your hands were doing, never how you "
-                  "felt. You rebuilt the shelter after the water went down and "
-                  "that is, to you, the end of the story."),
-            wants=["get the shelter's roof finished before the rains come back"],
+            id="p_adam", name="Adam",
+            who=Who(
+                card=("You build what holds, and you would rather fix a thing "
+                      "than discuss it. You are steady to the point of being "
+                      "dull about it. You remember what your hands were doing, "
+                      "never how you felt. You rebuilt the shelter after the "
+                      "water went down and that is, to you, the end of the "
+                      "story."),
+                manner="You answer the question that was asked, and not the "
+                       "one behind it.",
+                thought="The roof is not finished and the rains are not waiting",
+                wants=["get the shelter's roof finished before the rains come back"],
+            ),
+            where=Where(place="yard", home="yard"),
         ),
         Being(
-            id="p_eve",
-            manner="You say as little as will do, and you leave the important "
-                   "part unsaid.", name="Eve",
-            place="garden", home="garden",
-            thought="Somebody was at the garden's edge again and I did not look up",
-            card=("You tend the garden, and you are good at it, and you do not "
-                  "much like being watched while you work. You startle easily "
-                  "and you know it. You were standing at the garden's edge the "
-                  "night the water came and you have never been able to put "
-                  "that down. You are warmer with people than you let them see."),
-            wants=["get the new seedbed through one more season", "not be asked about the water"],
+            id="p_eve", name="Eve",
+            who=Who(
+                card=("You tend the garden, and you are good at it, and you do "
+                      "not much like being watched while you work. You startle "
+                      "easily and you know it. You were standing at the "
+                      "garden's edge the night the water came and you have "
+                      "never been able to put that down. You are warmer with "
+                      "people than you let them see."),
+                manner="You say as little as will do, and you leave the "
+                       "important part unsaid.",
+                thought="Somebody was at the garden's edge again and I did not look up",
+                wants=["get the new seedbed through one more season",
+                       "not be asked about the water"],
+            ),
+            where=Where(place="garden", home="garden"),
         ),
         Being(
-            id="p_lilith",
-            manner="You are quick, and sharper than you mean to be.", name="Lilith",
-            place="ridge", home="grove",
-            thought="The ridge path goes somewhere and nobody here has asked where",
-            card=("You know the plants on the ridge better than anyone and you "
-                  "are not sure you will be here next year. You notice change "
-                  "before other people do and it makes you impatient with them. "
-                  "The flood is when you first understood you could leave."),
-            wants=["walk the ridge path as far as it goes, one day"],
+            id="p_lilith", name="Lilith",
+            who=Who(
+                card=("You know the plants on the ridge better than anyone and "
+                      "you are not sure you will be here next year. You notice "
+                      "change before other people do and it makes you "
+                      "impatient with them. The flood is when you first "
+                      "understood you could leave."),
+                manner="You are quick, and sharper than you mean to be.",
+                thought="The ridge path goes somewhere and nobody here has asked where",
+                wants=["walk the ridge path as far as it goes, one day"],
+            ),
+            where=Where(place="ridge", home="grove"),
         ),
     ]
     for being in beings:
@@ -115,8 +138,9 @@ def build(root, name: str = "Wend") -> World:
     # and so is the last time they spoke, which both of them can see and
     # neither of them is told what to make of.
     def regard(a: str, b: str, account: str, days_ago: float):
-        world.beings[a].regard(b).account = account
-        world.beings[a].regard(b).last_seen_at = START_AT - days_ago * HOURS_PER_DAY
+        world.beings[a].who.regard(b).account = account
+        world.beings[a].who.regard(b).last_seen_at = (
+            START_AT - days_ago * HOURS_PER_DAY)
 
     regard("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 1)
     regard("p_eve", "p_adam", "He works too late. Good hands.", 1)
@@ -165,29 +189,35 @@ def build(root, name: str = "Wend") -> World:
                  }})
 
     world.at = START_AT
-    # The town starts settled: nobody is owed, so the road waits a year before
-    # it is worth asking who is on it.
-    world.road_asked_at = START_AT
+    # Everything in the world starts due: the first step asks each person what
+    # they are doing, asks the town whether anything happens to it, and asks
+    # the road who is on it. Every one of them answers with when it wants to
+    # be asked next, and from there nothing in the engine has an opinion about
+    # how often anything happens.
+    world.town_wake_at = START_AT
+    world.road_wake_at = START_AT
+    for being in world.beings.values():
+        being.when.wake_at = START_AT
     return world
 
 
 def remember_backstory(world: World, config, transcript=None) -> List:
     """Put the town's history past each person, so the first memories are theirs."""
     made = []
-    here_now = {p.id: p.place for p in world.beings.values()}
+    here_now = {p.id: p.where.place for p in world.beings.values()}
     for event in world.chronicle.all():
         was = world.at
         world.at = event.at
         for being in world.beings.values():
             if being.id not in event.reached:
                 continue
-            being.place = event.place or being.place
+            being.where.place = event.place or being.where.place
             trace = agents.perceive(world, being, event, config, transcript)
             if trace is not None:
                 made.append(trace)
         world.at = was
     for being in world.beings.values():
-        being.place = here_now[being.id]
+        being.where.place = here_now[being.id]
     return made
 
 

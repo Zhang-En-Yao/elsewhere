@@ -16,14 +16,18 @@ from typing import Dict, Optional
 
 from . import Call
 
+#: The dial tone. The durations here are the stub's, not the world's: the
+#: engine has no step size, so a world run against this backend has the rhythm
+#: this dict has and nothing else does.
 DEFAULTS: Dict[str, dict] = {
-    "perceive": {"weight": "nothing"},
-    "act": {"because": "", "doing": "", "action": "stay", "target": ""},
+    "perceive": {"stuck": False},
+    "act": {"because": "", "doing": "", "action": "stay", "target": "",
+            "for_hours": 6.0, "settling": False, "absorbed": False},
     "speak": {"line": "..."},
     "recall": {"trace": "", "changed": False},
     "reflect": {},
-    "direct": {"happens": False},
-    "arrive": {"comes": False},
+    "direct": {"happens": False, "ask_again_in_hours": 24.0},
+    "arrive": {"comes": False, "ask_again_in_hours": 24.0},
 }
 
 

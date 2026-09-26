@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 
 from .. import HOURS_PER_DAY, SCHEMA_VERSION
 from .chronicle import Chronicle, Event
-from .entities import Being, Place
+from .entities import Being, Map, Place
 from .memories import TraceStore
 
 DAYS_PER_SEASON = 30
@@ -60,14 +60,23 @@ class World:
     name: str = "Elsewhere"
     at: float = 0.0                       # hours since the world began
     places: Dict[str, Place] = field(default_factory=dict)
+
+    #: Which places touch which, and where the road out leaves from. The
+    #: town's geography, kept once, rather than an adjacency list on each
+    #: place that had already drifted out of agreement with itself.
+    map: Map = field(default_factory=Map)
+
     beings: Dict[str, Being] = field(default_factory=dict)
     counters: Dict[str, int] = field(default_factory=dict)
-    closed: bool = False
-    closed_on: Optional[int] = None
+    closed: bool = False           # nothing sets this yet; `_open_live` reads it
     last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     news_seen: int = 0                    # chronicle length the last time you looked
-    road_asked_at: Optional[float] = None  # when the road was last asked who was coming
-    directed_at: Optional[float] = None    # when the town was last asked if anything happens
+    #: The town and the road keep a timer each, the same as a person does, and
+    #: set it themselves in their own answer: "nothing today, and nothing
+    #: worth asking about for a week". How long a quiet stretch a town gets is
+    #: the town's to say; there are no gap constants in the engine.
+    town_wake_at: Optional[float] = None
+    road_wake_at: Optional[float] = None
     chronicle: Chronicle = None          # type: ignore[assignment]
     _traces: Dict[str, TraceStore] = field(default_factory=dict)
 
@@ -123,7 +132,7 @@ class World:
 
     def beings_at(self, place_id: str) -> List[Being]:
         return [p for p in self.beings.values()
-                if p.place == place_id and p.present]
+                if p.where.place == place_id and p.present]
 
     def being_by_name(self, name: str) -> Optional[Being]:
         low = name.strip().lower()
@@ -170,10 +179,11 @@ def save(world: World) -> None:
     _atomic_write(world.root / "world.json", {
         "schema": SCHEMA_VERSION, "name": world.name, "at": world.at,
         "counters": world.counters,
-        "closed": world.closed, "closed_on": world.closed_on,
+        "closed": world.closed,
         "last_tick_at": world.last_tick_at, "news_seen": world.news_seen,
-        "road_asked_at": world.road_asked_at, "directed_at": world.directed_at,
+        "town_wake_at": world.town_wake_at, "road_wake_at": world.road_wake_at,
         "places": {k: v.to_dict() for k, v in world.places.items()},
+        "map": world.map.to_dict(),
     })
     for being in world.beings.values():
         _atomic_write(world.root / "beings" / f"{being.id}.json", being.to_dict())
@@ -191,11 +201,8 @@ def load(root) -> World:
     if schema > SCHEMA_VERSION:
         raise ValueError(f"{root} was written by a newer Elsewhere")
     if schema < SCHEMA_VERSION:
-        # There is no conversion, on purpose. Each bump here is a world that
-        # worked differently - schema 3 kept time as whole days and named
-        # quarters of them, schema 4 scored how close two people were,
-        # schema 6 gave everyone one word for how they went to sleep,
-        # schema 7 matched memories by words they had in common - and
+        # There is no conversion, on purpose. A bump here means a world that
+        # worked differently - not a file that was laid out differently - and
         # filling in the difference would silently invent history nobody
         # lived. Worlds that old are read as a record, not resumed.
         raise ValueError(
@@ -204,11 +211,12 @@ def load(root) -> World:
     world = World(
         root=root, name=meta.get("name", "Elsewhere"), at=float(meta["at"]),
         counters=dict(meta.get("counters", {})),
-        closed=bool(meta.get("closed", False)), closed_on=meta.get("closed_on"),
+        closed=bool(meta.get("closed", False)),
         last_tick_at=meta.get("last_tick_at"), news_seen=int(meta.get("news_seen", 0)),
-        road_asked_at=meta.get("road_asked_at"),
-        directed_at=meta.get("directed_at"),
+        town_wake_at=meta.get("town_wake_at"),
+        road_wake_at=meta.get("road_wake_at"),
         places={k: Place.from_dict(v) for k, v in meta.get("places", {}).items()},
+        map=Map.from_dict(meta.get("map", {})),
     )
     world.chronicle = Chronicle(root / "chronicle.jsonl")
     for path in sorted((root / "beings").glob("*.json")):

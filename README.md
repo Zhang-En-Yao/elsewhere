@@ -557,6 +557,11 @@ The goal is to build a world that feels worth returning to.
 > In v0.1 (tagged `v0.1`) every judgement — what stuck, what it meant, what got
 > said — was made by a formula. In v2 the engine keeps the ledger and decides
 > only what can be *reached*; a language model decides what any of it meant.
+> Nothing left on the engine's side is an algorithm anybody here made up: what
+> comes to mind is ACT-R's declarative memory used as published, and everything
+> that used to be a constant somebody chose — how long a memory lasts, how much
+> quiet a town gets, how often the road is worth asking, when a day ends — is
+> now a question put to a mind, answered in the same breath as the rest.
 > The town now lives on its own and remembers. It does not yet make anything,
 > and you cannot yet live in it. [What It Does](#-what-it-does) is the honest
 > list, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how this engine is put
@@ -627,7 +632,7 @@ pip install -e .
 elsewhere init                  # 3 people, 1 town, a flood nobody agrees about
 elsewhere init --blank          # the same town, but nobody has been asked to remember it
 
-elsewhere tick -n 4             # live four steps of the world now (six hours each)
+elsewhere tick -n 4             # live four steps of the world now
 elsewhere catchup               # live whatever steps the wall clock says are owed
 elsewhere news                  # what happened since you last looked
 
@@ -667,11 +672,12 @@ Lilith kept:  "What I took from it was the river came up over The Waterline
 
 ### A world that keeps going while you are away
 
-One step of the world takes six real hours, so a day here is a day there.
-`elsewhere catchup` lives whatever the wall clock says is owed, at most four
-steps in one go; a longer backlog is slept through rather than carried, so a
-laptop that was shut for a week does not wake up and spend an hour on it. If
-the model cannot be reached, the world waits rather than inventing a day.
+A day here is a day there. `elsewhere catchup` lives whatever the wall clock
+says is owed — counted in hours, and paid off in whatever steps the people in
+the world asked for — at most eight steps in one go; a longer backlog is slept
+through rather than carried, so a laptop that was shut for a week does not wake
+up and spend an hour on it. If the model cannot be reached, the world waits
+rather than inventing a day.
 
 ```bash
 make schedule           # a launchd agent that checks every 30 minutes
@@ -689,9 +695,9 @@ Seven questions, and nothing else:
 | `act` | it is this hour and you are standing here — what do you do? |
 | `speak` | you are talking to this person — what do you say, and what do you draw on? |
 | `recall` | you are bringing this up years later — how does it come back now? |
-| `reflect` | the day is over — what did it leave you holding? |
-| `direct` | does anything happen to the town today? |
-| `arrive` | does anybody come up the road, and who would they be? |
+| `reflect` | you have stopped — what did the day leave you holding, and who is on your mind? |
+| `direct` | does anything happen to the town — and when should you be asked again? |
+| `arrive` | does anybody come up the road, who would they be, and when should you be asked again? |
 
 Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed
 to the model as a decoding grammar and checked again on the way in, so an
@@ -702,33 +708,53 @@ reached at all. **Forgetting is the engine declining to hand something over**,
 because a model asked "do you still remember this?" with the memory sitting in
 its context will always say yes.
 
+What decides that is ACT-R's declarative memory — Anderson, Bothell, Byrne,
+Douglass, Lebiere & Qin (2004), with Anderson & Schooler's (1991) base-level
+term inside it — at its published parameters, and there is no retrieval
+threshold and so no number in the file that had to be picked. Memory is a
+*request*, answered with the most active handful and not with all of them; a
+memory that does not come back is forgotten for the purposes of the next
+thought. A memory carries no weight and no importance score: what it is worth
+is how often anybody has had cause to think of it. And because the thing
+somebody is looking at enters the same equation as spreading activation, a
+moment can raise a memory that was long gone — which is the "memory that
+unexpectedly returns years later" this README asks for, with no special case
+for it anywhere.
+
+Four of the seven also say when they want to be asked again, and that is the
+only thing anywhere that paces this world. See below.
+
 ### The road runs both ways
 
 People can leave, and the town does not get them back. Leaving is a fourth verb
-that `act` is only offered where the road actually goes out of the town, in a
-town that can spare somebody, and not in the same season as the last one who
-went — three facts the engine checks before the word is even in the vocabulary.
-Whether to go, and whether to go at three in the morning, is nobody's business
-but the person's.
+that `act` is only offered where the road actually goes out of the town and
+where the town could spare somebody — two facts about the map and the size of
+the place, checked before the word is even in the vocabulary. There used to be
+two more, and both were the engine deciding something that is not its to
+decide: not at night, because nobody here is the sort of person who leaves in
+the dark, and not within forty-five days of the last one who went, because a
+town of this size does not lose people that often. Whether to go, whether to go
+at three in the morning, and whether two people would go in the same week are
+nobody's business but theirs.
 
 When somebody goes, the whole town hears it and each of them keeps their own
 version. What they took with them stays exactly as it was on the day they
 walked out: `elsewhere person <name>` still reads them, frozen, and the notes
 everyone wrote about them stay in their heads, wrong now and not updated.
 
-Somebody may also come up it. A town that is down a person is asked about once
-a month whether anybody is on the road; a town that is not is asked about once
-a year — the engine is only deciding how often the question is worth putting,
-and the answer is usually nobody. When it is somebody, the road says who they
-would be, and they arrive knowing nobody, with nowhere of their own to sleep,
-and live the day they arrived.
+Somebody may also come up it. The road is asked whether anybody is on it, is
+told who has gone, and says both who that person would be and how long before
+it is worth asking again — a year for a town that is short of nobody, a month
+for one that has just lost the only person who could do a thing it needs
+doing. The answer is usually nobody. When it is somebody, they arrive knowing
+nobody, with nowhere of their own to sleep, and live the day they arrived.
 
 So the town's population moves in both directions. It cannot fall below two,
 which is where it stops being a town, or rise above eight, which is where it
 stops being one where everybody knows everybody — and between those it is the
 minds, not the engine, that decide.
 
-### One clock, and no name for the hour
+### One clock, and no step on it
 
 The world keeps a single number: hours since it began. Days, seasons and the
 reading on a clock face are all worked out from it; none of them are stored,
@@ -744,15 +770,28 @@ sun is up, and nothing else:
 It is 03:00 and dark, spring, day 2.
 ```
 
-What that hour is worth doing with is read off who they are. Memory decay runs
-on the same continuous clock, so something is slightly further away at dusk
-than it was at noon, rather than standing still and then dropping four times a
-day.
+What that hour is worth doing with is read off who they are.
 
-The engine still owns the scheduling — the town is asked about once a day
-whether anything happens to it, and each person goes over their day about a day
-after they last did — but those are rates, not hours, and nobody is ever asked
-what time it is.
+Nothing divides that clock into steps, either. The world advances to whatever
+is next due and no further, and what is due is whatever the people in it asked
+for: every entity carries exactly one timer and sets it itself. A person says
+how long they will be at what they are doing — half an hour for a
+conversation, four for mending a net, eight for a night's sleep — and is not
+asked anything again until it runs out. The town says how long a quiet stretch
+it is giving itself. The road says how long before it is worth asking who is
+on it. A town where everybody has settled sleeps through the night in one
+move; a town in the middle of something is asked again in minutes.
+
+Anything that reaches somebody pulls their timer to now, so a fire does not
+wait for the person it is about to finish mending a net. (Both of those — the
+per-entity timer and the non-maskable interrupt over it — are
+[Concordia](https://github.com/google-deepmind/concordia)'s interrupt-driven
+scheduler, in a small version.)
+
+Going over a day works the same way. It used to be everyone at nightfall, and
+then a rolling twenty-four hours each; both were the engine deciding when a
+day ends. A person says when they are stopping, and goes over whatever has
+happened to them since the last time they did.
 
 `make test` type-checks before it runs anything. That is not thoroughness for
 its own sake: the one mistake this codebase keeps making is an attribute that
@@ -780,10 +819,11 @@ together. What has not been built is written down in
 - One clock, and only one: hours since it began. Days, seasons and the reading
   on a clock face are worked out from it and never stored, and nothing anywhere
   stores a named part of the day.
-- Six real hours to a step, so a day here is a day there. `elsewhere catchup`
-  lives whatever the wall clock says is owed.
-- Places, and a town that is asked about once a day whether anything happens
-  to it.
+- No step on that clock. Everything in the world keeps one timer and sets it
+  itself; the world advances to whichever comes first, and anything that
+  reaches somebody wakes them. A day here is still a day there.
+- Places, and a town that decides for itself how long a quiet stretch it gets
+  between things happening to it.
 - A population that moves both ways. People take the road out and do not come
   back; sometimes somebody comes up it, knowing nobody.
 - An append-only chronicle of what happened, and a transcript of every question
@@ -791,28 +831,42 @@ together. What has not been built is written down in
 
 ### The people
 
-- A paragraph and a way of speaking, not five floats.
+- A paragraph and a way of speaking, not five floats — and beliefs with no
+  confidence number under them either.
 - Regards that are one-way by construction: each being's own account of
   another, which never has to agree with the account coming back.
 - Wants, rewritten in the night, and the one thing from the day that keeps
   coming back, in the words they thought it in.
 - Everyone decides at once, from where they stand, and then the world settles
   what is physically so.
-- Conversations. What was said is an event, and everyone in earshot keeps their
-  own version of it — sometimes the wrong one.
+- Conversations that go both ways. An exchange is turns, alternating, until
+  somebody has nothing to say; each turn is an event, and everyone in earshot
+  keeps their own version of it — sometimes the wrong one. What somebody
+  answers is a reply to what they kept of the line before, not to the line.
+- Regards that change. What one person would say about another is rewritten
+  when they stop and think about them, and only their side of it moves.
 
 ### Memory
 
-- The mind decides what stuck and what it was worth. The engine only records
-  that it did.
-- Forgetting is the engine declining to hand something over, on a decay curve
-  that runs on the same continuous clock as everything else.
+- The mind decides what stuck. Nothing decides what it was worth: a memory
+  carries no weight and no importance score, and what keeps it is that somebody
+  has had cause to think of it.
+- Forgetting is the engine declining to hand something over, by ACT-R's
+  declarative memory at its published parameters — no threshold, no curve
+  fitted here, and no constant this project chose.
 - Bringing something up in conversation keeps it in reach, and can change the
   words it comes back in.
-- Each being goes over their own day, about a day after they last did — not the
-  whole town at one nightfall.
+- A memory long out of reach can come back because of where somebody is
+  standing, through the same equation and not a second mechanism for it.
+- Each being goes over their day when they say they are stopping — not the
+  whole town at one nightfall, and not on a clock the engine keeps for them.
 - Beliefs that outlive their reasons: still held as firmly as ever, with
   nothing left they can point at for why.
+- Thoughts that are memories. What a reckoning leaves somebody holding goes
+  into the same store as everything else, carrying what it was a thought
+  about, and fades the same way if nobody ever comes back to it.
+- What they have been doing, which is what a reckoning goes over and what the
+  town reads to decide whether anything came of it.
 
 ### Watching it
 

@@ -1,12 +1,15 @@
 """Traces: what a person has, as opposed to what happened.
 
 A trace is written by a mind and rewritten by a mind. The engine never edits
-the words. It only records when the trace was last touched, and decides - in
+the words. It records when the trace came up, and decides - in
 ``retrieval.py`` - whether it can be reached at all.
 
 That division is the whole point. Asking a model "do you still remember this?"
 while the memory sits in its context is not a question; it is a leading one.
 Forgetting has to be something the engine does by not handing it over.
+
+Everything a trace carries is read by something. A field nobody reads is
+storage pretending to be design, and nothing here is allowed to become one.
 """
 
 from __future__ import annotations
@@ -25,18 +28,31 @@ class Trace:
     trace: str                     # what they would say happened
     means: str = ""                # what they think it meant
     feeling: str = "none"
-    salience: float = 0.4          # the mind's own weighting, never the engine's
 
     #: Where this reads from, as a vector, written once when the words are.
     #: Not a summary and not for a reader - the only thing that ever looks at
-    #: it is `retrieval.nearness`. Empty when no embedder could be reached,
-    #: and then retrieval simply falls back on how reachable the memory is.
+    #: it is the spreading-activation term in `retrieval`. Empty when no
+    #: embedder could be reached, and then a memory is ranked on its history
+    #: alone, which is what it was ranked on before there was an embedder.
+    #:
+    #: There is no weight beside it and no importance score. How much a memory
+    #: is worth is how often anyone has had cause to think of it - `told`,
+    #: below - and not a number a mind was asked to put on it while it was
+    #: still happening.
     embedding: List[float] = field(default_factory=list)
-    source: str = "witnessed"      # witnessed | told | made | seen | carried_in
+
+    #: Which event this is somebody's version of, so `elsewhere event <id>`
+    #: can put everyone's account of the same thing side by side.
     event_id: Optional[str] = None
-    about: List[str] = field(default_factory=list)   # person ids in it
-    place: Optional[str] = None
-    touched_at: float = 0.0
+
+    #: The memories this one grew out of, when it did not come from an event
+    #: at all. A trace written by `reflect` is somebody's own thought about
+    #: their own day, and what it was a thought *about* is what makes it
+    #: readable a year later. `elsewhere person` prints it.
+    #:
+    #: A trace has one or the other, never both: it is a version of something
+    #: that happened, or it is something they arrived at themselves.
+    origin: List[str] = field(default_factory=list)
 
     #: Every hour it has come up, its own laying-down first, newest last.
     #: A count is not enough: three tellings in one week and three a year
@@ -45,8 +61,12 @@ class Trace:
     #: Capped at the most recent few, which are the ones that carry weight -
     #: the oldest term in the sum is always the smallest.
     told: List[float] = field(default_factory=list)
-    heard: Optional[str] = None    # the words they think they were given
-    history: List[str] = field(default_factory=list)  # earlier wordings, newest last
+
+    #: Earlier wordings, newest last, kept when `recall` comes back with the
+    #: memory changed. Printed by `elsewhere person` and `elsewhere event`,
+    #: which is why it is kept: it is the only evidence anywhere that a memory
+    #: moved.
+    history: List[str] = field(default_factory=list)
 
     #: How many times it has been brought up, not counting being laid down.
     #: Derived, because `told` is what decay reads and two answers to the
@@ -76,7 +96,6 @@ class Trace:
             self.means = means
         if feeling:
             self.feeling = feeling
-        self.touched_at = at
         self.came_up(at)
 
     def to_dict(self) -> dict:
@@ -93,12 +112,10 @@ class Trace:
         return cls(
             id=d["id"], owner=d["owner"], at=float(d["at"]), trace=d["trace"],
             means=d.get("means", ""), feeling=d.get("feeling", "none"),
-            salience=float(d.get("salience", 0.4)),
             embedding=[float(x) for x in d.get("embedding", [])],
-            source=d.get("source", "witnessed"), event_id=d.get("event_id"),
-            about=list(d.get("about", [])), place=d.get("place"),
-            touched_at=float(d.get("touched_at", d["at"])),
-            told=[float(x) for x in d.get("told", [])], heard=d.get("heard"),
+            event_id=d.get("event_id"),
+            origin=list(d.get("origin", [])),
+            told=[float(x) for x in d.get("told", [])],
             history=list(d.get("history", [])),
         )
 

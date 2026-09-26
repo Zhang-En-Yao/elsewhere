@@ -8,22 +8,17 @@ to answer, the person simply had nothing, which is allowed.
 
 from __future__ import annotations
 
-from typing import Collection, List, Optional, Sequence
+from typing import List, Optional, Sequence
 
-from . import prompts, retrieval, schemas
+from . import prompts, retrieval, schedule, schemas
 from .backends import (Call, Settings, Transcript, ask, get as get_backend,
                        place as place_in_meaning)
 from .world.chronicle import (ARRIVAL, CONVERSATION, DEPARTURE, Event,
-                              OCCURRENCE, PRESENCE_CHANGES)
-from .world.entities import Being
+                              OCCURRENCE)
+from .world.entities import Being, When, Where, Who
 from .world.memories import Trace
 from . import HOURS_PER_DAY
 from .world.store import clock_at, season_at
-
-#: How many memories a person may lay down in one day that they will still
-#: have years later. Models have no sense of scarcity; the engine supplies it.
-HEAVY_PER_DAY = 1
-HEAVY = 0.7
 
 
 def _settings(config, name: str) -> Settings:
@@ -46,13 +41,19 @@ def _placed(config, text: str) -> List[float]:
 
 
 def _others_here(world, being: Being) -> List[Being]:
-    return [p for p in world.beings_at(being.place) if p.id != being.id]
+    return [p for p in world.beings_at(being.where.place) if p.id != being.id]
 
 
-def _heavy_today(world, being: Being) -> int:
-    store = world.traces(being.id)
-    return sum(1 for t in store
-               if world.at - t.at < HOURS_PER_DAY and t.salience >= HEAVY)
+def held_beliefs(being: Being, at: float, limit: int = 3) -> List:
+    """What this person holds, the most live of it first.
+
+    The same equation that decides which memories come to mind decides which
+    beliefs do, because a belief is a thing somebody carries and ACT-R does
+    not care what kind of chunk it is looking at. What replaced a confidence
+    number is what a confidence number was standing in for: how often somebody
+    has arrived at this again, and how lately.
+    """
+    return retrieval.recallable(being.who.beliefs, at, limit=limit)
 
 
 def vantage(world, being: Being, event: Event) -> str:
@@ -69,7 +70,7 @@ def vantage(world, being: Being, event: Event) -> str:
     if being.id in event.involved:
         return "in the middle of it"
     place = world.places.get(event.place or "")
-    here = world.places.get(being.place)
+    here = world.places.get(being.where.place)
     if place and here and here.id == place.id:
         return f"right there, at {place.name}"
     if here:
@@ -108,19 +109,16 @@ def perceive(world, being: Being, event: Event, config,
     if answer is None:
         return None
 
-    if answer.get("weight", "nothing") == "nothing":
+    if not answer.get("stuck"):
         return None
 
     text = (answer.get("trace") or "").strip()
     if not text:
         return None
 
-    salience = schemas.weight_to_salience(answer.get("weight"))
-    if salience >= HEAVY and _heavy_today(world, being) >= HEAVY_PER_DAY:
-        # They have already had their day. This one keeps its words and loses
-        # its claim on the rest of their life.
-        salience = 0.5
-
+    # Nothing is written down about how much this mattered. What decides
+    # whether it is still here in a year is whether anybody ever brings it up,
+    # which `retrieval` reads off `told`.
     trace = Trace(
         id=world.next_id("mem"),
         owner=being.id,
@@ -128,13 +126,8 @@ def perceive(world, being: Being, event: Event, config,
         trace=text,
         means=(answer.get("means") or "").strip(),
         feeling=answer.get("feeling", "none"),
-        salience=salience,
         embedding=_placed(config, text),
-        source="witnessed" if being.id in event.reached else "told",
         event_id=event.id,
-        about=[w for w in event.involved if w != being.id],
-        place=event.place,
-        touched_at=world.at,
         told=[world.at],
     )
     store.add(trace)
@@ -167,6 +160,11 @@ class Decision:
     target: Optional[str] = None      # place id or person id, resolved
     because: str = ""
     doing: str = ""                   # what it looks like, in their words
+    #: Whether this is them stopping for the day, which is the only thing
+    #: anywhere that makes somebody go over one. How long they will be at it
+    #: is not here: `schedule.set_timer` has already written it onto the
+    #: being, and a second copy on the report is a second thing to keep true.
+    settling: bool = False
     answered: bool = True             # False when the mind gave nothing usable
 
 
@@ -187,12 +185,19 @@ def act(world, being: Being, config,
         transcript: Optional[Transcript] = None) -> Decision:
     """Ask what this person does next. The grammar only offers what exists."""
     settings = _settings(config, "act")
-    place = world.places.get(being.place)
+    place = world.places.get(being.where.place)
     others = _others_here(world, being)
-    reachable = [world.places[n] for n in (place.neighbours if place else [])
+    reachable = [world.places[n] for n in world.map.beside(being.where.place)
                  if n in world.places]
     store = world.traces(being.id)
-    near = _placed(config, f"{place.name}. {place.description}" if place else "")
+    # What this moment reads from: the room, and what this person is already
+    # carrying around in it. The room alone is prose an author wrote once and
+    # the same for everybody standing in it; their thought and their wants are
+    # their own sentences, and a memory near *those* is the one that would
+    # actually come to somebody here.
+    near = _placed(config, ". ".join(x for x in (
+        f"{place.name}. {place.description}" if place else "",
+        being.who.thought, "; ".join(being.who.wants)) if x))
     context = retrieval.recallable(store, world.at, near, limit=4)
 
     going = may_leave(world, being)
@@ -201,14 +206,20 @@ def act(world, being: Being, config,
         system=prompts.ACT_SYSTEM,
         user=prompts.act_user(being, when_label(world), world.at, place, others,
                               [p.name for p in reachable], context,
-                              home_name=(world.places[being.home].name
-                                         if being.home in world.places else ""),
-                              may_leave=going),
+                              home_name=(world.places[being.where.home].name
+                                         if being.where.home in world.places else ""),
+                              may_leave=going,
+                              beliefs=held_beliefs(being, world.at)),
         schema=schemas.act_grammar([p.name for p in reachable],
                                    [o.name for o in others], may_leave=going),
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
+    # Whatever they decided, they also said how long they will be at it, and
+    # that is what says when they are asked anything again. A mind that gave
+    # nothing usable is left without a timer and comes round with the rest of
+    # the world - see `schedule.advance`.
+    schedule.set_timer(being, world, answer)
     if answer is None:
         return Decision(being.id, "stay", None, "", answered=False)
 
@@ -230,7 +241,8 @@ def act(world, being: Being, config,
         # Likewise: nobody walks out of the world from somewhere the road
         # does not go, however the answer got here.
         action = "stay"
-    return Decision(being.id, action, target, because, doing)
+    return Decision(being.id, action, target, because, doing,
+                    settling=bool(answer.get("settling")))
 
 
 # --------------------------------------------------------------------------
@@ -245,22 +257,23 @@ def speak(world, speaker: Being, listener: Being, config,
     """
     settings = _settings(config, "speak")
     store = world.traces(speaker.id)
-    # Who is in front of them, in words, which is the first time this has
-    # reached anything: the cue used to be the listener's id, matched against
-    # tags a mind had typed, so it never once hit a memory about that person.
-    regard = speaker.regards.get(listener.id)
+    # Who is in front of them, in words: the listener's name and the speaker's
+    # own account of them, which is text a mind wrote. Every retrieval cue in
+    # this file is that, and never a string the engine glued together.
+    regard = speaker.who.regards.get(listener.id)
     near = _placed(config, " ".join(x for x in (
         listener.name, regard.account if regard else "",
-        world.places[speaker.place].name if speaker.place in world.places else "",
+        world.places[speaker.where.place].name if speaker.where.place in world.places else "",
     ) if x))
     topics = retrieval.recallable(store, world.at, near, limit=3)
-    place = world.places.get(speaker.place)
+    place = world.places.get(speaker.where.place)
 
     call = Call(
         name="speak",
         system=prompts.SPEAK_SYSTEM,
         user=prompts.speak_user(speaker, listener, when_label(world),
-                                place.name if place else "somewhere", topics),
+                                place.name if place else "somewhere", topics,
+                                beliefs=held_beliefs(speaker, world.at)),
         schema=schemas.speak_grammar(len(topics)),
         about=speaker.id,
     )
@@ -275,7 +288,6 @@ def speak(world, speaker: Being, listener: Being, config,
     about = answer.get("about", "")
     if about.isdigit() and 1 <= int(about) <= len(topics):
         drawn = topics[int(about) - 1]
-        drawn.touched_at = world.at
         drawn.came_up(world.at)
         store.touch()
     return line, drawn
@@ -284,37 +296,22 @@ def speak(world, speaker: Being, listener: Being, config,
 # --------------------------------------------------------------------------
 # direct
 
-#: Scarcity the director cannot supply for itself: whatever it proposes, the
-#: town gets at least this much quiet between occurrences.
-DIRECTOR_MIN_GAP = 2 * HOURS_PER_DAY    # quiet the town gets between occurrences
-DIRECTOR_EVERY = HOURS_PER_DAY          # and how often it is asked at all
+#: How much of the record the town is shown before it answers. A prompt
+#: budget, not a rate.
 DIRECTOR_RECENT_EVENTS = 8
 
 
-def last_occurrence_at(world) -> Optional[int]:
-    for e in reversed(world.chronicle.all()):
-        if e.category == OCCURRENCE:
-            return e.at
-    return None
-
-
 def may_direct(world) -> bool:
-    """Whether the town is worth asking, now.
+    """Whether the town is worth asking, now. The town said when.
 
-    This used to be "in the morning", which meant the engine had decided that
-    things happen to towns at a particular hour. It is a rate: about once a
-    day, and never inside the quiet stretch after something already happened.
+    How eventful a town is is the town's own answer: it sets its timer in
+    `direct` below, and this only reads it.
     """
-    if (world.directed_at is not None
-            and world.at - world.directed_at < DIRECTOR_EVERY):
-        return False
-    last = last_occurrence_at(world)
-    return last is None or world.at - last >= DIRECTOR_MIN_GAP
+    return schedule.town_due(world)
 
 
 def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the town whether anything happens to it. Usually nothing does."""
-    world.directed_at = world.at
     settings = _settings(config, "direct")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
@@ -327,6 +324,10 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         about="town",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
+    # However it answered, it also said when it is worth asking again - and
+    # that is set before anything else, so that a town which says "not for a
+    # fortnight" gets its fortnight whether or not the rest was usable.
+    world.town_wake_at = _asked_again(world, answer)
     if not answer or not answer.get("happens"):
         return None
     what = (answer.get("what") or "").strip()
@@ -337,7 +338,7 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     place = places.get(answer.get("where") or "")
     if who is not None:
         # Something that happens to someone happens where they are standing.
-        place = world.places.get(who.place, place)
+        place = world.places.get(who.where.place, place)
     if place is None:
         return None
 
@@ -345,7 +346,7 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     if answer.get("reach") == "the whole town":
         reached = [p.id for p in world.beings.values() if p.present]
         vantage = {pid: (f"right there, at {place.name}" if pid in here
-                         else f"at {world.places[world.beings[pid].place].name}, "
+                         else f"at {world.places[world.beings[pid].where.place].name}, "
                               f"and word of it reached you there")
                    for pid in reached}
     else:
@@ -363,50 +364,43 @@ def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 # --------------------------------------------------------------------------
 # the road, which runs both ways
 
-#: Scarcity the road cannot supply for itself. A model asked "would she go?"
-#: with her wants in front of it will eventually say yes; whether going is even
-#: possible from here today is the engine's to answer, and it answers with
-#: facts - where she is standing, what hour it is, how many are left, how long
-#: since the last one went.
-TOWN_FLOOR = 2                  # below this it stops being a town
-TOWN_CEILING = 8                # above this it stops being one anybody knows
-DEPARTURE_MIN_GAP = 45 * HOURS_PER_DAY
-ARRIVAL_MIN_GAP = 30 * HOURS_PER_DAY        # while the town is short of somebody
-ARRIVAL_SETTLED_GAP = 120 * HOURS_PER_DAY   # a year, when it is not
+#: What size of thing this world is, which is the author's design and not a
+#: rate the engine is guessing at: below two people there is nobody to talk
+#: to, and above eight it stops being a town where everybody knows everybody.
+#: These are the only two numbers left on the road. The three that went with
+#: them - forty-five days between departures, thirty between askings of the
+#: road, a hundred and twenty once the town was settled - were rates, and
+#: rates are what the timers replaced.
+TOWN_FLOOR = 2
+TOWN_CEILING = 8
 
 
-def _last_at_of(world, kinds: Collection[str]) -> Optional[float]:
-    for event in reversed(world.chronicle.all()):
-        if event.category in kinds:
-            return event.at
-    return None
+def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
+    """When whatever just answered wants to be asked again.
+
+    None when it said nothing usable, which leaves it with no timer - and
+    `schedule.advance` then brings it round with everyone else rather than
+    the engine picking an interval on its behalf.
+    """
+    hours = schedule.in_hours(answer, "ask_again_in_hours")
+    return world.at + hours if hours is not None else None
 
 
 def leaving_place(world):
     """Where the road goes out. A fact about the map, not about anybody."""
-    for place in world.places.values():
-        if place.road_out:
-            return place
-    return None
+    return world.places.get(world.map.road_out)
 
 
 def may_leave(world, being: Being) -> bool:
     """Whether this person could walk out of the world right now.
 
-    Three facts, none of them about what they want, and none of them about
-    what hour it is. There used to be a fourth - not at night - and it was the
-    engine deciding that nobody in this town is the sort of person who leaves
-    in the dark. Whether to walk out at three in the morning is exactly the
-    kind of thing that should differ from one person to the next, so it is
-    theirs to answer, in "because".
+    Two facts, and neither is about what anybody wants: the road goes out from
+    where they are standing, and there would still be a town behind them.
+    Whether to take it, and at what hour, is theirs.
     """
-    place = world.places.get(being.place)
-    if place is None or not place.road_out:
+    if not world.map.road_out or being.where.place != world.map.road_out:
         return False
-    if sum(1 for p in world.beings.values() if p.present) <= TOWN_FLOOR:
-        return False
-    last = _last_at_of(world, (DEPARTURE,))
-    return last is None or world.at - last >= DEPARTURE_MIN_GAP
+    return sum(1 for p in world.beings.values() if p.present) > TOWN_FLOOR
 
 
 def depart(world, being: Being, because: str, config,
@@ -418,69 +412,54 @@ def depart(world, being: Being, because: str, config,
     anything again - but what they have stays where it is, and so does every
     note the people they left behind wrote about them.
     """
-    place = world.places.get(being.place)
+    place = world.places.get(being.where.place)
     where = place.name if place else "the road"
     reached = [p.id for p in world.beings.values() if p.present]
     vantage = {}
     for pid in reached:
         if pid == being.id:
             vantage[pid] = f"on the road out of {world.name}, looking back"
-        elif world.beings[pid].place == being.place:
+        elif world.beings[pid].where.place == being.where.place:
             vantage[pid] = f"right there, at {where}"
         else:
-            other = world.places.get(world.beings[pid].place)
+            other = world.places.get(world.beings[pid].where.place)
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     event = world.record(
         DEPARTURE,
         f"{being.name} took the road out of {world.name} and did not come back.",
-        place=being.place, involved=[being.id], reached=reached,
+        place=being.where.place, involved=[being.id], reached=reached,
         data={"because": because, "person": being.id, "vantage": vantage},
     )
     kept = perceive_all(world, event, config, transcript)
-    being.present = False
-    being.left_at = world.at
-    being.doing = "took the road out of town"
+    # Going is one fact, written once: they are not here *because* this is
+    # when they went. `Being.present` reads it back.
+    being.when.left_at = world.at
+    being.where.now("took the road out of town")
     return event, kept
 
 
-def _road_anchor(world) -> float:
-    """The last time the road was either asked or answered.
-
-    Asking has to count, or a town that is owed somebody would put the question
-    every morning until it got one, which is a model call a day for an answer
-    that is almost always no.
-    """
-    moments = [d for d in (world.road_asked_at,
-                           _last_at_of(world, PRESENCE_CHANGES))
-               if d is not None]
-    if moments:
-        return max(moments)
-    events = world.chronicle.all()             # a world written before this
-    return events[0].at if events else world.at
-
-
 def short_of_somebody(world) -> bool:
-    """Has this town lost more people than it has taken in?"""
+    """Has this town lost more people than it has taken in?
+
+    A fact about the town, shown to the road so it can make something of it.
+    """
     lost = sum(1 for p in world.beings.values() if not p.present)
     taken = sum(1 for e in world.chronicle.all() if e.category == ARRIVAL)
     return lost > taken
 
 
 def may_arrive(world) -> bool:
-    """Whether the road is worth asking this morning.
+    """Whether the road is worth asking, now. The road said when.
 
-    A town that is down somebody notices strangers; one that is not takes
-    somebody in about as often as the prompt says it would, which is once in a
-    year. Either way the road can say no, and usually does - the engine is only
-    deciding how often the question is worth the asking, and the two bounds
-    within which a town is still a town.
+    A town already at the ceiling is never asked, because there is nowhere to
+    put anybody; otherwise the road keeps its own timer, the same as the town
+    and the same as a person.
     """
     here = sum(1 for p in world.beings.values() if p.present)
     if here >= TOWN_CEILING:
         return False
-    gap = ARRIVAL_MIN_GAP if short_of_somebody(world) else ARRIVAL_SETTLED_GAP
-    return world.at - _road_anchor(world) >= gap
+    return schedule.road_due(world)
 
 
 def _free_being_id(world, name: str) -> str:
@@ -493,7 +472,6 @@ def _free_being_id(world, name: str) -> str:
 
 def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the road whether anybody comes up it today. Usually nobody does."""
-    world.road_asked_at = world.at
     settings = _settings(config, "arrive")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     call = Call(
@@ -504,6 +482,7 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
         about="road",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
+    world.road_wake_at = _asked_again(world, answer)
     if not answer or not answer.get("comes"):
         return None
 
@@ -518,15 +497,14 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     being = Being(
         id=_free_being_id(world, name),
         name=name,
-        card=(answer.get("card") or "").strip(),
-        manner=(answer.get("manner") or "").strip(),
-        place=place.id,
+        who=Who(card=(answer.get("card") or "").strip(),
+                manner=(answer.get("manner") or "").strip()),
         # Nowhere of their own yet. Somewhere to sleep is a thing they will
-        # have to come by here, like anyone else.
-        home="",
-        # Nothing keeping them awake yet either. They have not had a night
-        # here, and the engine does not get to say what is on their mind.
-        arrived_at=world.at,
+        # have to come by here, like anyone else. Nothing keeping them awake
+        # either: they have not had a night here, and the engine does not get
+        # to say what is on their mind.
+        where=Where(place=place.id, home=""),
+        when=When(arrived_at=world.at),
     )
     world.beings[being.id] = being
 
@@ -540,10 +518,10 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
     for pid in reached:
         if pid == being.id:
             vantage[pid] = f"at the top of the road, seeing {world.name} for the first time"
-        elif world.beings[pid].place == place.id:
+        elif world.beings[pid].where.place == place.id:
             vantage[pid] = f"right there, at {place.name}"
         else:
-            other = world.places.get(world.beings[pid].place)
+            other = world.places.get(world.beings[pid].where.place)
             vantage[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     return world.record(
@@ -557,55 +535,54 @@ def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[E
 # reflect
 
 MAX_BELIEFS = 6
-REFLECT_EVERY = HOURS_PER_DAY   # roughly once a day each, on their own clock
+def may_reflect(world, being: Being, settling: bool) -> bool:
+    """Whether this person is going over their day, now.
 
+    A day ends when the person says it does: `settling` comes back from `act`
+    and means they are stopping, not that the clock reached an hour.
 
-def may_reflect(world, being: Being) -> bool:
-    """Whether this person is due to go over a day of their own.
-
-    This used to be "everyone, at night". Now it is a rolling day per person,
-    anchored on the last time *they* did it - so somebody who arrived at noon
-    goes over their day at noon, and the town does not all fall quiet at once
-    because the engine said the hour for it had come.
+    The one thing the engine checks is that there is something to go over.
+    Somebody who has been handed nothing since they last did this has nothing
+    to be left with, and is not asked.
     """
-    if (being.reflected_at is not None
-            and world.at - being.reflected_at < REFLECT_EVERY):
+    if not settling:
         return False
-    return any(world.at - t.at < REFLECT_EVERY for t in world.traces(being.id))
-
-_STOP_WORDS = {"the", "and", "that", "with", "from", "into", "still", "this",
-              "there", "their", "were", "was", "had", "have", "then", "they",
-              "them", "about", "your", "you", "what", "when", "just", "like",
-              "been", "over", "only"}
-
-
-def _words(text: str) -> set:
-    import re
-    return {w for w in re.findall(r"[a-z']+", (text or "").lower())
-           if len(w) > 3 and w not in _STOP_WORDS}
-
-
-def _same_belief(a: str, b: str) -> bool:
-    wa, wb = _words(a), _words(b)
-    return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.5
+    since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
+    return any(t.at > since for t in world.traces(being.id))
 
 
 def reflect(world, being: Being, config,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
     """What this person is left with, after a day of their own."""
     store = world.traces(being.id)
-    being.reflected_at = world.at
-    today = [t for t in store if world.at - t.at < REFLECT_EVERY]
+    since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
+    being.when.reflected_at = world.at
+    # Their day is whatever has happened to them since they last stopped and
+    # went over one, which for somebody who was awake for thirty hours is
+    # thirty hours.
+    today = [t for t in store if t.at > since]
     if not today:
         return None
-    today = sorted(today, key=lambda t: -t.salience)[:3]
-    older = [t for t in retrieval.recallable(store, world.at, limit=4) if t not in today][:3]
+    # The most live of the day, by the same equation as everything else.
+    today = retrieval.recallable(today, world.at, limit=3)
+    # What the day was about, in the mind's own words, is the cue for what
+    # older things come back beside it - so a reckoning connects today to the
+    # past it actually points at.
+    cue = _placed(config, " ".join(t.trace for t in today))
+    older = [t for t in retrieval.recallable(store, world.at, cue, limit=7)
+             if t not in today][:3]
+    holds = held_beliefs(being, world.at, limit=MAX_BELIEFS)
+    known = [world.beings[i].name for i in being.who.regards
+             if i in world.beings]
+    known += [p.name for p in _others_here(world, being)
+              if p.name not in known]
     settings = _settings(config, "reflect")
     call = Call(
         name="reflect",
         system=prompts.REFLECT_SYSTEM,
-        user=prompts.reflect_user(being, today, older),
-        schema=schemas.reflect_grammar(len(today)),
+        user=prompts.reflect_user(being, today, older, holds, world.at,
+                                  lately=being.where.lately),
+        schema=schemas.reflect_grammar(len(today), len(holds), known),
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -618,25 +595,65 @@ def reflect(world, being: Being, config,
     if text:
         from .world.entities import Belief
 
-        existing = next((b for b in being.beliefs if _same_belief(b.belief, text)), None)
+        # Whether this is a thing they already hold is theirs to say: it is a
+        # question about meaning, and no amount of word overlap settles it.
+        again = answer.get("belief_again") or ""
+        existing = (holds[int(again) - 1]
+                    if again.isdigit() and 1 <= int(again) <= len(holds) else None)
         if existing is not None:
-            # Holding it again: the old wording stays, the grip tightens.
-            existing.confidence = min(0.95, existing.confidence + 0.1)
+            # Holding it again. The old wording stays; what changes is that
+            # there is now one more occasion of having held it, which is the
+            # only thing anywhere that makes a belief harder to lose.
+            existing.came_up(world.at)
             for trace_id in origin:
                 if trace_id not in existing.origin and len(existing.origin) < 3:
                     existing.origin.append(trace_id)
         else:
-            being.beliefs.append(Belief(belief=text, confidence=0.5, origin=origin))
-            if len(being.beliefs) > MAX_BELIEFS:
-                being.beliefs.sort(key=lambda b: -b.confidence)
-                del being.beliefs[MAX_BELIEFS:]
+            being.who.beliefs.append(Belief(claim=text, origin=origin,
+                                        held=[world.at],
+                                        embedding=_placed(config, text)))
+            if len(being.who.beliefs) > MAX_BELIEFS:
+                # What goes is whatever is furthest from coming to mind, which
+                # is a belief nobody has arrived at in a long time.
+                keep = set(id(b) for b in
+                           retrieval.recallable(being.who.beliefs, world.at,
+                                                limit=MAX_BELIEFS))
+                being.who.beliefs = [b for b in being.who.beliefs if id(b) in keep]
+
+    # How they now hold somebody. This is the only thing in the world that
+    # ever rewrites a regard after the seed wrote it, which is why two people
+    # could live a year beside each other and neither change a word about the
+    # other.
+    whom = (answer.get("about_someone") or "").strip()
+    now_say = (answer.get("now_say") or "").strip()
+    if whom and now_say:
+        other = world.being_by_name(whom)
+        if other is not None and other.id != being.id:
+            being.who.regard(other.id).account = now_say
 
     want = (answer.get("want") or "").strip().rstrip(".")
-    if want and (not being.wants or being.wants[0] != want):
-        being.wants = [want] + [w for w in being.wants if w != want][:1]
+    if want and (not being.who.wants or being.who.wants[0] != want):
+        being.who.wants = [want] + [w for w in being.who.wants if w != want][:1]
+
     thought = (answer.get("thought") or "").strip()
     if thought:
-        being.thought = thought
+        being.who.thought = thought
+        # And it is laid down like anything else they are left holding, so it
+        # can be brought to mind later, worn down by not being brought to
+        # mind, and said out loud. This is `generative_agents`' reflection,
+        # whose insights go back into associative memory carrying the ids of
+        # what they came from (`cognitive_modules/reflect.py`), rather than
+        # onto the persona.
+        store.add(Trace(
+            id=world.next_id("mem"),
+            owner=being.id,
+            at=world.at,
+            trace=thought,
+            means="", feeling="",
+            embedding=_placed(config, thought),
+            origin=[t.id for t in today],
+            told=[world.at],
+        ))
     return answer
 
 
@@ -647,15 +664,15 @@ def recall(world, being: Being, trace: Trace, config,
            transcript: Optional[Transcript] = None) -> bool:
     """The trace has just been brought up; ask how it comes back now.
 
-    The words are the mind's. The engine only keeps the older wording in the
-    trace's history, so what it used to be is not lost to anyone reading.
+    The words are the mind's. The engine only files the older wording in the
+    trace's history, so the earlier version is not lost to anyone reading.
     """
     settings = _settings(config, "recall")
     age = max(0, int((world.at - trace.at) // HOURS_PER_DAY))
     call = Call(
         name="recall",
         system=prompts.RECALL_SYSTEM,
-        user=prompts.recall_user(being, trace, age, retrieval.reach(trace, world.at)),
+        user=prompts.recall_user(being, trace, age, world.at),
         schema=schemas.grammar("recall"),
         about=being.id,
     )
