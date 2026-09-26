@@ -86,7 +86,7 @@ class TestWorldStore(unittest.TestCase):
         self.assertIn("yard", world.map.beside("garden"))
 
     def test_starting_over_does_not_leave_the_old_town_on_disk(self):
-        # `_clear` said "people" and `save` said "beings" for long enough that
+        # `clear_world` said "people" and `save` said "beings" for long enough that
         # `initialize` over an existing world loaded the old world's people back in
         # beside the new ones.
         world = seed.build(self.root)
