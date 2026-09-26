@@ -59,7 +59,7 @@ class Belief:
     There is no confidence number. What a belief is worth is the same thing a
     memory is worth: how often somebody has had cause to hold it, and how
     lately. So a belief keeps its occasions exactly as a memory does, and
-    ``retrieval.base_level`` reads them with the same equation.
+    ``retrieval.familiarity`` reads them with the same equation.
 
     ``origin`` is the memories it grew out of. When none of them can still be
     reached, the belief is held on faith - as firmly as ever, with nothing

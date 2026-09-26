@@ -636,7 +636,6 @@ pip install -e .
 
 ```bash
 elsewhere initialize            # 3 people, 1 town, a flood nobody agrees about
-elsewhere initialize --blank    # the same town, but nobody has been asked to remember it
 
 elsewhere tick -n 4             # live four steps of the world now
 elsewhere continue              # let the world go on: live whatever the wall clock says is owed

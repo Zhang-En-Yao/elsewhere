@@ -194,7 +194,7 @@ def converse(world, a: Being, b: Being, configuration,
 def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickReport:
     """Live one step of the world: up to whatever is next due, and no further."""
     was = world.at
-    moved = schedule.advance(world)
+    moved = schedule.advance_to_next_due(world)
     if moved is None:
         # Nothing anywhere has a timer: every mind declined to say when it
         # wanted to be asked again, and the engine does not pick an hour on

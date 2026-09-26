@@ -158,17 +158,14 @@ def command_initialize(arguments) -> None:
         sys.exit(f"{root} already holds a world. Use --force to start over.")
     started = time.time()
     transcript = Transcript(root / "transcript" / "init.jsonl")
-    world = seed.create(root, name=arguments.name, remember=not arguments.blank,
-                        transcript=transcript)
-    world.last_tick_at = time.time()
-    store.save(world)
+    world = seed.create(root, name=arguments.name, transcript=transcript)
     remembered = sum(len(world.memories(being.id)) for being in world.beings.values())
     output = [
         f"{world.name} exists. {world.label()}",
         f"  {len(world.beings)} people, {len(world.places)} places, {len(world.chronicle)} events already behind them",
         f"  {remembered} memories formed from them ({time.time() - started:.1f}s)",
     ]
-    if remembered == 0 and not arguments.blank:
+    if remembered == 0:
         output.append("  (nothing stuck - is a model reachable? try: elsewhere doctor)")
     output.append(f"  configuration at {path_of(root)}")
     print("\n".join(output))
@@ -570,8 +567,6 @@ def build_parser() -> argparse.ArgumentParser:
     subparser = subparsers.add_parser("initialize", help="make a small world")
     subparser.add_argument("--name", default="Nod")
     subparser.add_argument("--force", action="store_true")
-    subparser.add_argument("--blank", action="store_true",
-                            help="do not run the backstory past anyone")
     subparser.set_defaults(func=command_initialize)
 
     # read-only views

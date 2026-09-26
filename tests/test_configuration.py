@@ -74,7 +74,7 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_a_world_keeps_a_configuration_written_before_it(self):
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
-        seed.create(self.root, remember=False)
+        seed.create(self.root)
         self.assertEqual(load_configuration(self.root)["act"].backend, "stub")
         write_default_configuration(self.root)
         self.assertEqual(load_configuration(self.root)["act"].backend, "stub")
