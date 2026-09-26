@@ -27,12 +27,16 @@ from .schemas import CallName
 # The defaults below assume the model runs on the same machine as the tick and
 # that machine has about 4GB to spare once the OS has taken its share. That
 # buys a 3-4B model at Q4 and nothing larger - which is a real constraint on
-# quality, not a detail. See `notes` in the written configuration for the two ways
+# quality, not a detail. Gemma 4 E2B in its quantisation-aware build is the
+# newest thing that fits: on an 8GB M1 it stays entirely on the GPU, where
+# the E4B spills half of itself onto the CPU and runs at half the speed. See `notes` in the written configuration for the two ways
 # out: a bigger model on a GPU somewhere (backend "vllm"), or sending the
 # calls that need judgement to a hosted model (backend "claude").
 # One model for every call site. On 8GB two models cannot both stay resident,
 # and swapping between them every tick costs more than it saves.
-LOCAL = {"backend": "ollama", "model": "phi4-mini"}        # ~2.5GB at Q4_K_M
+# It can think, and would put its JSON in the reasoning field if let.
+LOCAL = {"backend": "ollama", "model": "gemma4:e2b-it-qat",  # ~4.3GB, 1.6GB loaded
+         "extra": {"think": False}}
 
 # Not a mind: the thing that says where a memory reads from, so that what
 # comes back to somebody is what this moment is about rather than what they
@@ -101,7 +105,10 @@ def read_configuration(root) -> dict:
     if path.exists():
         loaded = json.loads(path.read_text(encoding="utf-8"))
         for name, settings in loaded.get("agents", {}).items():
-            data["agents"].setdefault(name, {}).update(settings)
+            merged = data["agents"].setdefault(name, {})
+            if settings.get("backend", merged.get("backend")) != merged.get("backend"):
+                merged.pop("extra", None)   # the default's extra is for its backend
+            merged.update(settings)
     return data
 
 
@@ -140,6 +147,8 @@ def configure(root, backend: str, model: str, base: Optional[str] = None,
         if name not in data["agents"]:
             raise KeyError(f"no call site named {name!r}; have {sorted(data['agents'])}")
         settings = data["agents"][name]
+        if settings.get("backend") != backend:
+            settings.pop("extra", None)     # what one backend takes, another refuses
         settings.update(backend=backend, model=model)
         if base:
             settings["base"] = base

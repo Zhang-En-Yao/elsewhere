@@ -47,11 +47,11 @@ class ConfigurationTest(unittest.TestCase):
         self.assertLessEqual(read, ALLOWED)
 
     def test_the_environment_cannot_override_the_file(self):
-        configure(self.root, "ollama", "phi4-mini")
+        configure(self.root, "ollama", "gemma4:e2b-it-qat")
         before = os.environ.get("ELSEWHERE_MODEL")
         os.environ["ELSEWHERE_MODEL"] = "something-else"
         try:
-            self.assertEqual(load_configuration(self.root)[CallName.ACT].model, "phi4-mini")
+            self.assertEqual(load_configuration(self.root)[CallName.ACT].model, "gemma4:e2b-it-qat")
             with self.assertRaises(SystemExit) as raised:
                 cli.main(["--world", str(self.root), "status"])
             self.assertIn("ELSEWHERE_MODEL no longer does anything",
@@ -70,8 +70,25 @@ class ConfigurationTest(unittest.TestCase):
                               loaded[name].base),
                              ("openai", "some-model", "http://gpu-box:8000/v1"))
         self.assertEqual(loaded["embed"].model, DEFAULTS["embed"]["model"])
-        configure(self.root, "ollama", "phi4-mini")        # back home: base goes
+        configure(self.root, "ollama", "gemma4:e2b-it-qat")        # back home: base goes
         self.assertEqual(load_configuration(self.root)[CallName.ACT].base, "")
+
+    def test_extra_stays_with_the_backend_it_was_written_for(self):
+        # {"think": false} is an Ollama option; the Claude SDK refuses it.
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].extra,
+                         DEFAULTS[CallName.ACT]["extra"])
+        configure(self.root, "claude", "claude-sonnet-5")
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].extra, {})
+        configure(self.root, "ollama", "gemma4:e2b-it-qat")   # home again
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].extra,
+                         DEFAULTS[CallName.ACT]["extra"])
+
+    def test_an_older_file_on_another_backend_gets_no_default_extra(self):
+        path_of(self.root).parent.mkdir(parents=True)
+        path_of(self.root).write_text(json.dumps(
+            {"agents": {"act": {"backend": "openai", "model": "m"}}}),
+            encoding="utf-8")
+        self.assertEqual(load_configuration(self.root)[CallName.ACT].extra, {})
 
     def test_a_world_keeps_a_configuration_written_before_it(self):
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))

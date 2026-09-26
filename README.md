@@ -591,8 +591,8 @@ Then a mind for the town to think with. The default configuration expects
 [Ollama](https://ollama.com) on this machine:
 
 ```bash
-ollama pull phi4-mini       # ~2.5GB at Q4; the default for every call site
-elsewhere doctor            # can each of the seven call sites be reached?
+ollama pull gemma4:e2b-it-qat   # ~4.3GB; the default for every call site
+elsewhere doctor                # can each of the seven call sites be reached?
 ```
 
 `world/configuration.json` names a model per call site, so the cheap decisions
