@@ -150,7 +150,7 @@ def command_initialize(arguments) -> None:
 def command_status(arguments) -> None:
     """Show world status: where everyone is, and what they remember."""
     world = open_world(arguments)
-    print(f"{world.name} - {world.label()}")
+    print(f"{world.name} - {world.label()}" + ("  (ended)" if world.closed else ""))
     print(f"  chronicle: {len(world.chronicle)} events")
     for place in world.places.values():
         here = world.beings_at(place.id)
@@ -383,6 +383,28 @@ def _command_tick(arguments) -> None:
         sys.exit(f"Not now: {exception}")
 
 
+# ending - the one way a world stops for good
+
+def command_end(arguments) -> None:
+    """End the world: nothing more happens in it, and all that did stays readable."""
+    try:
+        with store.tick_lock(Path(arguments.world)):
+            # Loaded under the lock, so a step that was running has finished
+            # and saved before this looks at the world.
+            world = open_world(arguments)
+            if world.closed:
+                print(f"{world.name} had already ended.")
+                return
+            world.closed = True
+            store.save(world)
+    except store.Locked as exception:
+        sys.exit(f"Not now: {exception}")
+    print(f"{world.name} has ended. {world.label()}")
+    print(f"  {len(world.chronicle)} events are on record; status, person, timeline "
+          f"and event still read them.")
+    print("  If it was scheduled: make unschedule")
+
+
 # development - diagnostics and prompt tuning; internal
 
 def _command_doctor(arguments) -> None:
@@ -505,6 +527,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
     subparser.add_argument("-n", type=int, default=1)
     subparser.set_defaults(func=_command_tick)
+
+    # ending
+    subparser = subparsers.add_parser(
+        "end", help="end the world for good; what happened stays readable")
+    subparser.set_defaults(func=command_end)
 
     # development (internal)
     subparser = subparsers.add_parser("doctor", help="[DEV] diagnose model backend connectivity")
