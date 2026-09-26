@@ -122,7 +122,7 @@ def print_report(world, report) -> None:
 
 # create - the only commands that make a world
 
-def command_init(arguments) -> None:
+def command_initialize(arguments) -> None:
     """Create a new world with initial characters, places, and backstory."""
     root = Path(arguments.world)
     if store.exists(root) and not arguments.force:
@@ -466,7 +466,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.add_argument("--force", action="store_true")
     subparser.add_argument("--blank", action="store_true",
                             help="do not run the backstory past anyone")
-    subparser.set_defaults(func=command_init)
+    subparser.set_defaults(func=command_initialize)
 
     # read-only views
     subparser = subparsers.add_parser(
