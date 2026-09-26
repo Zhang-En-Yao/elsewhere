@@ -39,6 +39,14 @@ Landed:
   when it is not. A seventh call site, `arrive`, and a sixth verb for `act`
   that only exists where the road does. The population moves both ways
   between a floor of two and a ceiling of eight.
+- **A window** — `elsewhere watch`, which is the printed views with room to
+  put two of them side by side: what is in reach above the line where reach
+  ended, and what is not below it, dimmed. It reads the world off disk and
+  picks up whatever moves it, its own `c` or the schedule behind it, and the
+  only thing it writes is where you stopped reading.
+  [`tui/views.py`](../src/elsewhere/tui/views.py) is a pure function of a
+  loaded world and is tested as one; `screen.py` is the half a test cannot
+  check.
 
 There is no P2 in the history. It went P1 → P3/P4.
 

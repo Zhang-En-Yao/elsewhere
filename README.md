@@ -636,6 +636,7 @@ elsewhere tick -n 4             # live four steps of the world now
 elsewhere continue              # let the world go on: live whatever the wall clock says is owed
 elsewhere news                  # what happened since you last looked
 
+elsewhere watch                 # sit with it: one window, kept open while it goes on
 elsewhere status                # where everyone is, and how much they still hold
 elsewhere person Eve            # who she has become: beliefs, ties, what is in reach
 elsewhere timeline              # history: what happened
@@ -648,7 +649,8 @@ elsewhere doctor                # can the configured minds be reached?
 ```
 
 Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`
-wraps the common ones — `make test`, `make tick`, `make news`, `make doctor`.
+wraps the common ones — `make test`, `make watch`, `make tick`, `make news`,
+`make doctor`.
 
 One thing that is worth doing first:
 
@@ -873,7 +875,15 @@ together. What has not been built is written down in
 ### Watching it
 
 - `elsewhere status`, `person`, `timeline`, `event`, `news`.
-- A launchd agent that can be left to run the world at a day per day.
+- `elsewhere watch`: the same views in a window, which is where to sit with it.
+  The printed commands each answer one question and stop; a window has room to
+  put a memory in reach beside the same memory out of reach, and the hour
+  somebody arrived beside what everyone turned out to have kept of it. It shows
+  what the engine *would not* hand over, dimmed, under the line where reach
+  ended — which is this project's one claim about memory, on one screen.
+- A launchd agent that can be left to run the world at a day per day. The
+  window picks its steps up as they land, so a world that is being run
+  somewhere behind you reads the same as one you are running yourself.
 
 What is not here yet — living in it, making anything, or anything above the
 individual — is in [docs/ROADMAP.md](docs/ROADMAP.md), in the order it would
