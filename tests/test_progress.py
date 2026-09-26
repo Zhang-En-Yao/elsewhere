@@ -182,7 +182,7 @@ class WatchingTest(unittest.TestCase):
                              ["asking", "answered"])
             self.assertEqual(self.heard.said[0][1], CallName.PROBE)
         finally:
-            backends._bootstrap()
+            backends.bootstrap()
 
     def test_embedding_something_is_reported_too(self):
         backends.register(self.stub)
@@ -192,7 +192,7 @@ class WatchingTest(unittest.TestCase):
                                       self.settings))
             self.assertEqual(self.heard.said, [("embedding", 1), ("embedded", True)])
         finally:
-            backends._bootstrap()
+            backends.bootstrap()
 
     def test_an_embedder_that_is_down_is_reported_as_nothing_embedded(self):
         class Down(StubBackend):
@@ -205,12 +205,12 @@ class WatchingTest(unittest.TestCase):
                 self.assertEqual(embed(["anything"], self.settings), [])
             self.assertEqual(self.heard.said, [("embedding", 1), ("embedded", False)])
         finally:
-            backends._bootstrap()
+            backends.bootstrap()
 
     def test_nobody_is_told_anything_once_the_watching_is_over(self):
         with backends.watched(self.heard):
             pass
-        self.assertEqual(backends._watchers, [])
+        self.assertEqual(backends.watchers, [])
         ask(self.stub, call(), self.settings)
         self.assertEqual(self.heard.said, [])
 
@@ -218,7 +218,24 @@ class WatchingTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             with backends.watched(self.heard):
                 raise ValueError("a world that could not be made")
-        self.assertEqual(backends._watchers, [])
+        self.assertEqual(backends.watchers, [])
+
+    def test_a_watcher_that_breaks_does_not_stop_the_question_or_the_others(self):
+        class Broken(Heard):
+            def asking(self, call, attempt):
+                raise RuntimeError("the display is gone")
+
+            def answered(self, call, took, ok):
+                raise RuntimeError("the display is gone")
+
+        with self.assertLogs(backends.log, "WARNING") as logged:
+            with backends.watched(Broken()), backends.watched(self.heard):
+                answer = ask(self.stub, call(), self.settings)
+        self.assertIsNotNone(answer)
+        self.assertEqual(len(logged.records), 2)          # asking, answered
+        self.assertIn("the display is gone", logged.output[0])
+        self.assertEqual([said[0] for said in self.heard.said],
+                         ["asking", "answered"])
 
     def test_watching_leaves_the_answer_exactly_as_it_was(self):
         without = ask(self.stub, call(), self.settings)
@@ -245,7 +262,7 @@ class MakingAWorldTest(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
-        backends._bootstrap()          # the dial tone back, for whoever is next
+        backends.bootstrap()          # the dial tone back, for whoever is next
 
     def configuration(self):
         settings = Settings(backend="stub", model="stub")

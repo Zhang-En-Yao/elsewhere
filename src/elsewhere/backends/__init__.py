@@ -15,6 +15,7 @@ stub backend instead, with no model and no tape to replay.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Protocol
 
 from ..schemas import CallName, grammar, validate
+
+log = logging.getLogger(__name__)
 
 REPAIR = ("That was not usable: {complaint}. "
           "Answer again with the same JSON object, corrected. Nothing else.")
@@ -101,8 +104,8 @@ class Watcher(Protocol):
     `ask` puts one question and gives back an answer. This is the one place
     that can see a wait for what it is, so `progress.Progress` hangs off it
     and nothing else in the engine is told that anybody is watching. Neither
-    method may raise, and neither is told anything a transcript does not
-    already have.
+    method should raise - `tell` swallows it if one does - and neither is told
+    anything a transcript does not already have.
 
     `embedding` and `embedded` are the same two for `embed`, which is not a
     question put to anybody but is the other thing that takes seconds - and on
@@ -118,37 +121,44 @@ class Watcher(Protocol):
     def embedded(self, took: float, ok: bool) -> None: ...
 
 
-_watchers: List[Watcher] = []
+watchers: List[Watcher] = []
 
 
 @contextmanager
 def watched(watcher: Watcher) -> Iterator[None]:
     """Tell `watcher` about every question put to a mind while this is open."""
-    _watchers.append(watcher)
+    watchers.append(watcher)
     try:
         yield
     finally:
-        _watchers.remove(watcher)
+        watchers.remove(watcher)
 
 
-def _asking(call: Call, attempt: int) -> None:
-    for watcher in list(_watchers):
-        watcher.asking(call, attempt)
+def tell(event: str, *args) -> None:
+    """Pass one event to every watcher. A watcher that breaks is not heard again
+    for this event, and nobody else is kept from hearing it: watching a wait
+    must never be the thing that ends it."""
+    for watcher in list(watchers):
+        try:
+            getattr(watcher, event)(*args)
+        except Exception:
+            log.warning("watcher %r failed on %s", watcher, event, exc_info=True)
 
 
-def _answered(call: Call, took: float, ok: bool) -> None:
-    for watcher in list(_watchers):
-        watcher.answered(call, took, ok)
+def asking(call: Call, attempt: int) -> None:
+    tell("asking", call, attempt)
 
 
-def _embedding(count: int) -> None:
-    for watcher in list(_watchers):
-        watcher.embedding(count)
+def answered(call: Call, took: float, ok: bool) -> None:
+    tell("answered", call, took, ok)
 
 
-def _embedded(took: float, ok: bool) -> None:
-    for watcher in list(_watchers):
-        watcher.embedded(took, ok)
+def embedding(count: int) -> None:
+    tell("embedding", count)
+
+
+def embedded(took: float, ok: bool) -> None:
+    tell("embedded", took, ok)
 
 
 def extract_json(text: str) -> Optional[dict]:
@@ -211,7 +221,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
     user = call.user
     complaint = None
     for attempt in range(attempts):
-        _asking(call, attempt + 1)
+        asking(call, attempt + 1)
         started = time.time()
         try:
             raw = backend.complete(Call(call.name, call.system, user, call.schema,
@@ -234,7 +244,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
                 "raw": raw, "ok": clean is not None,
                 "complaint": complaint, "error": error,
             })
-        _answered(call, took, clean is not None)
+        answered(call, took, clean is not None)
 
         if clean is not None:
             return clean
@@ -256,14 +266,14 @@ def embed(texts: List[str], settings: Settings) -> List[List[float]]:
     if backend_embed is None:
         return []
     started = time.time()
-    _embedding(len(texts))
+    embedding(len(texts))
     try:
         out = backend_embed(list(texts), settings)
     except Exception:
-        _embedded(time.time() - started, False)
+        embedded(time.time() - started, False)
         return []
     got = out if len(out) == len(texts) else []
-    _embedded(time.time() - started, bool(got))
+    embedded(time.time() - started, bool(got))
     return got
 
 
@@ -273,37 +283,37 @@ def probe(settings: Settings) -> tuple:
                 user='Reply exactly {"ok": true}.',
                 schema=grammar(CallName.PROBE), about="probe")
     started = time.time()
-    _asking(call, 1)
+    asking(call, 1)
     try:
         raw = get(settings.backend).complete(
             call, replace(settings, temperature=0.0))
     except Exception as exc:
-        _answered(call, time.time() - started, False)
+        answered(call, time.time() - started, False)
         return False, f"unreachable: {type(exc).__name__}: {exc}"
     took = time.time() - started
     usable = extract_json(raw) is not None
-    _answered(call, took, usable)
+    answered(call, took, usable)
     if not usable:
         return False, f"answered, but not with JSON: {raw[:60]!r}"
     return True, f"ok ({took:.1f}s)"
 
 
-_REGISTRY: Dict[str, Backend] = {}
+REGISTRY: Dict[str, Backend] = {}
 
 
 def register(backend: Backend) -> None:
-    _REGISTRY[backend.name] = backend
+    REGISTRY[backend.name] = backend
 
 
 def get(name: str) -> Backend:
-    if name not in _REGISTRY:
-        _bootstrap()
-    if name not in _REGISTRY:
-        raise KeyError(f"no backend named {name!r}; have {sorted(_REGISTRY)}")
-    return _REGISTRY[name]
+    if name not in REGISTRY:
+        bootstrap()
+    if name not in REGISTRY:
+        raise KeyError(f"no backend named {name!r}; have {sorted(REGISTRY)}")
+    return REGISTRY[name]
 
 
-def _bootstrap() -> None:
+def bootstrap() -> None:
     from .openai_compat import (OllamaBackend, OpenAICompatBackend,
                                 VLLMBackend)
     from .stub import StubBackend
@@ -317,4 +327,4 @@ def _bootstrap() -> None:
         pass
 
 
-_bootstrap()
+bootstrap()
