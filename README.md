@@ -642,7 +642,7 @@ elsewhere tick -n 4             # live four steps of the world now
 elsewhere continue              # let the world go on: live whatever the wall clock says is owed
 elsewhere news                  # what happened since you last looked
 
-elsewhere watch                 # sit with it: one window, kept open while it goes on
+elsewhere watch                 # sit with it: one window on the world, which only reads
 elsewhere status                # where everyone is, and how much they still hold
 elsewhere person Eve            # who she has become: beliefs, ties, what is in reach
 elsewhere timeline              # history: what happened
@@ -888,9 +888,15 @@ together. What has not been built is written down in
   somebody arrived beside what everyone turned out to have kept of it. It shows
   what the engine *would not* hand over, dimmed, under the line where reach
   ended — which is this project's one claim about memory, on one screen.
-- A launchd agent that can be left to run the world at a day per day. The
-  window picks its steps up as they land, so a world that is being run
-  somewhere behind you reads the same as one you are running yourself.
+
+  The window only reads. It writes nothing under the world's directory, not
+  even where you stopped reading, so there is no key on it that lets the world
+  go on and none that marks the news read: what changes a world stays a command
+  you have to type. Run `elsewhere continue` or `elsewhere news` in another
+  terminal and the window picks the change up by itself.
+- A launchd agent that can be left to run the world at a day per day. You can
+  leave the window open while it runs, and a world being run somewhere behind
+  you reads exactly like one you are running yourself.
 
 What is not here yet — living in it, making anything, or anything above the
 individual — is in [docs/ROADMAP.md](docs/ROADMAP.md), in the order it would

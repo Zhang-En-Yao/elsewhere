@@ -15,7 +15,7 @@ typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 world:           ## make a world in ./world (needs a reachable model)
 	elsewhere --world world initialize
 
-watch:           ## sit with the world in a window while it goes on
+watch:           ## sit with the world in a window; reads only
 	elsewhere watch
 
 tick:            ## live one step now (TICKS=3 for three)

@@ -339,7 +339,7 @@ def command_news(arguments) -> None:
 
 
 def command_watch(arguments) -> None:
-    """Sit with the world: one window, kept open while it goes on.
+    """Sit with the world: one window, open while it goes on without you.
 
     The printed views each answer one question and stop, which is right for a
     command and wrong for sitting with a world - what is worth seeing is a
@@ -347,8 +347,11 @@ def command_watch(arguments) -> None:
     arrived beside what everyone turned out to have kept of it. The window is
     the same views with room to put two of those side by side.
 
-    It picks up whatever moves the world while it is open, whether that is its
-    own `c` or a launchd agent running somewhere behind it.
+    It only reads. Nothing on any key in it writes anything under the world's
+    directory, which is why there is no key that lets the world go on and none
+    that marks the news read - `elsewhere continue` and `elsewhere news` are
+    worth having typed. Run either in another terminal, or leave the schedule
+    running behind it, and the window picks the change up by itself.
     """
     root = Path(arguments.world)
     if not store.exists(root):
@@ -372,9 +375,10 @@ def command_watch(arguments) -> None:
 def go_on(world: World, most: int = 8, say=print) -> None:
     """Live the hours the wall clock says are owed, and say what happened.
 
-    `say` is where the account of it goes, a line at a time: a terminal for
-    `elsewhere continue`, a pane for `elsewhere watch`. Both are told the same
-    thing, because there is only one report and only one lock.
+    `say` is where the account of it goes, a line at a time, and it defaults
+    to the terminal that asked. It is a seam rather than a setting: what lives
+    a step and what shows a step are different questions, and `report_lines`
+    below is the answer to the second one for anybody who needs it.
     """
     from .tick import owed_hours, settle_clock, tick
 
@@ -550,7 +554,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # create
     subparser = subparsers.add_parser("initialize", help="make a small world")
-    subparser.add_argument("--name", default="Wend")
+    subparser.add_argument("--name", default="Nod")
     subparser.add_argument("--force", action="store_true")
     subparser.add_argument("--blank", action="store_true",
                             help="do not run the backstory past anyone")
@@ -584,7 +588,7 @@ def build_parser() -> argparse.ArgumentParser:
     # The same views, in a window, for when you mean to sit with it rather
     # than ask it one question.
     subparser = subparsers.add_parser(
-        "watch", help="sit with the world in a window while it goes on")
+        "watch", help="sit with the world in a window; reads only")
     subparser.set_defaults(func=command_watch)
 
     # time passing

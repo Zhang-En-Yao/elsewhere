@@ -55,7 +55,7 @@ def _clear(root: Path) -> None:
         shutil.rmtree(root / sub, ignore_errors=True)
 
 
-def build(root, name: str = "Wend") -> World:
+def build(root, name: str = "Nod") -> World:
     root = Path(root)
     _clear(root)
     world = World(root=root, name=name, at=0.0)
@@ -222,7 +222,7 @@ def remember_backstory(world: World, configuration, transcript=None) -> List:
     return made
 
 
-def create(root, name: str = "Wend", remember: bool = True,
+def create(root, name: str = "Nod", remember: bool = True,
            transcript=None) -> World:
     world = build(root, name=name)
     write_default_configuration(root)

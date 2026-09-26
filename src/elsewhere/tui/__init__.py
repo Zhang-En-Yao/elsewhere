@@ -14,7 +14,12 @@ view writes a word anybody in the world would have written. It reads the
 ledger, asks `retrieval.py` what would come back if somebody were asked now,
 and shows both answers.
 
-The one thing it writes is where you stopped reading.
+And nothing here writes. Not the clock, not where you stopped reading, not a
+byte under the world's directory: a window is for looking, and what changes a
+world stays a command you have to type. `elsewhere continue` lets it go on,
+`elsewhere news` marks what you have read, `elsewhere end` closes it. Run any
+of them elsewhere and the window picks the change up by itself, which is the
+same thing it does for the launchd agent.
 """
 
 from __future__ import annotations
