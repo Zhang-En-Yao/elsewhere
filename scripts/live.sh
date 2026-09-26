@@ -6,7 +6,7 @@
 # else, and a server bound to this machine's localhost is not reachable from
 # anywhere but this machine.
 #
-#   scripts/live.sh                       # ollama, phi4-mini
+#   scripts/live.sh                       # ollama, gemma4:e2b-it-qat
 #   MODEL=llama3.2:3b scripts/live.sh
 #   RUNTIME=vllm-mlx scripts/live.sh      # MLX server
 #   KEEP=1 scripts/live.sh                # leave the server up between runs
@@ -25,7 +25,7 @@ cd "$(dirname "$0")/.."
 RUNTIME="${RUNTIME:-ollama}"
 PORT="${PORT:-8000}"
 if [ "$RUNTIME" = "ollama" ]; then
-  MODEL="${MODEL:-phi4-mini}"
+  MODEL="${MODEL:-gemma4:e2b-it-qat}"
 else
   MODEL="${MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}"
 fi
