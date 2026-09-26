@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from . import agents, retrieval, schedule, schemas, seed
+from . import agents, progress, retrieval, schedule, schemas, seed
 from .backends import Transcript, ask, probe
 from .schemas import CallName
 from .configuration import MINDS, configure, load_configuration, path_of
@@ -218,7 +218,14 @@ def command_initialize(arguments) -> None:
         sys.exit(f"{root} already holds a world. Use --force to start over.")
     started = time.time()
     transcript = Transcript(root / "transcript" / "init.jsonl")
-    world = seed.create(root, name=arguments.name, transcript=transcript)
+    # A dozen questions to a model before there is a world to say anything
+    # about, so it says what it is waiting on while it waits, and says which
+    # of the four events is being taken in as each one is.
+    with progress.watching() as waiting:
+        waiting.say(f"Making {arguments.name}: a town, and four things that "
+                    f"happened to it for everybody there to take in.")
+        world = seed.create(root, name=arguments.name, transcript=transcript,
+                            say=waiting.say)
     remembered = sum(len(world.memories(being.id)) for being in world.beings.values())
     output = [
         f"{world.name} exists. {world.label()}",
@@ -432,7 +439,14 @@ def command_watch(arguments) -> None:
 
 def command_continue(arguments) -> None:
     """Let the world go on: live the hours the wall clock says are owed."""
-    go_on(open_live(arguments), arguments.max)
+    world = open_live(arguments)
+    # A step is dozens of questions and prints nothing until it has lived the
+    # whole of it - and before the first one there is the wait to find out
+    # whether the minds are there at all. The waiting line says which question
+    # is out; on anything that is not a terminal, including the scheduled run's
+    # log, it says nothing at all.
+    with progress.watching() as waiting:
+        go_on(world, arguments.max, say=waiting.say)
 
 
 def _command_tick(arguments) -> None:

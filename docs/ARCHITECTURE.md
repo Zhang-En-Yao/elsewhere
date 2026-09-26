@@ -68,6 +68,7 @@ speaker's.
 | [`backends/`](../src/elsewhere/backends/) | `Call`/`Settings`/`Transcript`/`ask()`, one module per way of reaching a mind |
 | [`seed.py`](../src/elsewhere/seed.py) | the small beginning: three people, one town, a flood |
 | [`cli.py`](../src/elsewhere/cli.py) | everything a resident can do from a terminal |
+| [`progress.py`](../src/elsewhere/progress.py) | one line on stderr saying which question is out, for the two commands that wait |
 | [`tui/`](../src/elsewhere/tui/) | the same, in a window that only reads: `views.py` decides what to show, `screen.py` where to put it |
 
 ## The seven questions
@@ -358,6 +359,16 @@ An `Embedder` is a second, optional protocol on the same backends. It is the
 only thing a model is asked for that is not an answer, and nothing requires it:
 an embedder that is missing or down gives back an empty vector, and a memory is
 then ranked on its history alone.
+
+A `Watcher` is a third, and is the only thing in the engine that exists for the
+person at the keyboard rather than for the world. `ask()` and `embed()` say when
+a question goes out and when it comes back;
+[`progress.py`](../src/elsewhere/progress.py) hangs off that and draws one line
+on stderr, so `initialize` and `continue` can say which of their hundreds of
+questions is out instead of printing nothing for minutes. It is a courtesy and
+never a dependency: no watcher, or a terminal that closes under one, changes
+nothing about what is lived — and it draws nothing at all unless stderr is a
+terminal, which is what keeps the scheduled run's log exactly as it was.
 
 [`configuration.py`](../src/elsewhere/configuration.py) decides which backend
 and model answer which of the seven call sites, written into each world as
