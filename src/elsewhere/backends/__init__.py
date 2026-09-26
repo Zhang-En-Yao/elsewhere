@@ -15,16 +15,12 @@ stub backend instead, with no model and no tape to replay.
 from __future__ import annotations
 
 import json
-import logging
 import time
-from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Protocol
+from typing import Dict, List, Optional, Protocol
 
 from ..schemas import CallName, grammar, validate
-
-log = logging.getLogger(__name__)
 
 REPAIR = ("That was not usable: {complaint}. "
           "Answer again with the same JSON object, corrected. Nothing else.")
@@ -97,70 +93,6 @@ class Transcript:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-class Watcher(Protocol):
-    """Something told when a question goes out and when it comes back.
-
-    The engine has no notion of how long anything is taking, and should not:
-    `ask` puts one question and gives back an answer. This is the one place
-    that can see a wait for what it is, so `progress.Progress` hangs off it
-    and nothing else in the engine is told that anybody is watching. Neither
-    method should raise - `tell` swallows it if one does - and neither is told
-    anything a transcript does not already have.
-
-    `embedding` and `embedded` are the same two for `embed`, which is not a
-    question put to anybody but is the other thing that takes seconds - and on
-    a machine serving one model at a time it can take more of them than the
-    question did.
-    """
-    def asking(self, call: Call, attempt: int) -> None: ...
-
-    def answered(self, call: Call, took: float, ok: bool) -> None: ...
-
-    def embedding(self, count: int) -> None: ...
-
-    def embedded(self, took: float, ok: bool) -> None: ...
-
-
-watchers: List[Watcher] = []
-
-
-@contextmanager
-def watched(watcher: Watcher) -> Iterator[None]:
-    """Tell `watcher` about every question put to a mind while this is open."""
-    watchers.append(watcher)
-    try:
-        yield
-    finally:
-        watchers.remove(watcher)
-
-
-def tell(event: str, *args) -> None:
-    """Pass one event to every watcher. A watcher that breaks is not heard again
-    for this event, and nobody else is kept from hearing it: watching a wait
-    must never be the thing that ends it."""
-    for watcher in list(watchers):
-        try:
-            getattr(watcher, event)(*args)
-        except Exception:
-            log.warning("watcher %r failed on %s", watcher, event, exc_info=True)
-
-
-def asking(call: Call, attempt: int) -> None:
-    tell("asking", call, attempt)
-
-
-def answered(call: Call, took: float, ok: bool) -> None:
-    tell("answered", call, took, ok)
-
-
-def embedding(count: int) -> None:
-    tell("embedding", count)
-
-
-def embedded(took: float, ok: bool) -> None:
-    tell("embedded", took, ok)
-
-
 def extract_json(text: str) -> Optional[dict]:
     """Pull the first JSON object out of whatever came back.
 
@@ -221,7 +153,6 @@ def ask(backend: Backend, call: Call, settings: Settings,
     user = call.user
     complaint = None
     for attempt in range(attempts):
-        asking(call, attempt + 1)
         started = time.time()
         try:
             raw = backend.complete(Call(call.name, call.system, user, call.schema,
@@ -244,7 +175,6 @@ def ask(backend: Backend, call: Call, settings: Settings,
                 "raw": raw, "ok": clean is not None,
                 "complaint": complaint, "error": error,
             })
-        answered(call, took, clean is not None)
 
         if clean is not None:
             return clean
@@ -265,16 +195,11 @@ def embed(texts: List[str], settings: Settings) -> List[List[float]]:
     backend_embed = getattr(backend, "embed", None)
     if backend_embed is None:
         return []
-    started = time.time()
-    embedding(len(texts))
     try:
         out = backend_embed(list(texts), settings)
     except Exception:
-        embedded(time.time() - started, False)
         return []
-    got = out if len(out) == len(texts) else []
-    embedded(time.time() - started, bool(got))
-    return got
+    return out if len(out) == len(texts) else []
 
 
 def probe(settings: Settings) -> tuple:
@@ -283,19 +208,14 @@ def probe(settings: Settings) -> tuple:
                 user='Reply exactly {"ok": true}.',
                 schema=grammar(CallName.PROBE), about="probe")
     started = time.time()
-    asking(call, 1)
     try:
         raw = get(settings.backend).complete(
             call, replace(settings, temperature=0.0))
     except Exception as exc:
-        answered(call, time.time() - started, False)
         return False, f"unreachable: {type(exc).__name__}: {exc}"
-    took = time.time() - started
-    usable = extract_json(raw) is not None
-    answered(call, took, usable)
-    if not usable:
+    if extract_json(raw) is None:
         return False, f"answered, but not with JSON: {raw[:60]!r}"
-    return True, f"ok ({took:.1f}s)"
+    return True, f"ok ({time.time() - started:.1f}s)"
 
 
 REGISTRY: Dict[str, Backend] = {}
