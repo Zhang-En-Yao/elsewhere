@@ -29,13 +29,13 @@ class AnthropicBackend:
         import json
 
         client = self._client_or_raise()
-        tool = {"name": call.name, "description": f"Answer for {call.name}",
+        tool = {"name": call.name.value, "description": f"Answer for {call.name}",
                 "input_schema": {**call.schema, "type": "object"}}
         response = client.messages.create(
             model=settings.model, max_tokens=self.max_tokens,
             temperature=settings.temperature, timeout=settings.timeout,
             system=call.system, tools=[tool],
-            tool_choice={"type": "tool", "name": call.name},
+            tool_choice={"type": "tool", "name": call.name.value},
             messages=[{"role": "user", "content": call.user}],
             **settings.extra,
         )

@@ -12,7 +12,28 @@ like once it has been written down.
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+
+class CallName(str, Enum):
+    """Every place a mind is asked something.
+
+    A str, so it is what the configuration file, the transcript and a
+    backend's tool name already spell it as.
+    """
+    PERCEIVE = "perceive"
+    ACT = "act"
+    SPEAK = "speak"
+    RECALL = "recall"
+    REFLECT = "reflect"
+    DIRECT = "direct"
+    ARRIVE = "arrive"
+    PROBE = "probe"    # not a person's: can the mind be reached at all
+
+    def __str__(self) -> str:
+        return self.value
+
 
 # Two things a mind is never given a vocabulary for, on purpose.
 #
@@ -179,17 +200,25 @@ ARRIVE = {
     "required": ["comes"],
 }
 
-BY_NAME: Dict[str, dict] = {
-    "perceive": PERCEIVE, "act": ACT, "speak": SPEAK,
-    "recall": RECALL, "reflect": REFLECT, "direct": DIRECT,
-    "arrive": ARRIVE,
+# Not a person's question: only whether the mind can be reached and still
+# answers in JSON. It sits here so `grammar` and `validate` know it like the rest.
+PROBE = {
+    "type": "object",
+    "properties": {"ok": {"type": "boolean"}},
+    "required": ["ok"],
+}
+
+BY_NAME: Dict[CallName, dict] = {
+    CallName.PERCEIVE: PERCEIVE, CallName.ACT: ACT, CallName.SPEAK: SPEAK,
+    CallName.RECALL: RECALL, CallName.REFLECT: REFLECT, CallName.DIRECT: DIRECT,
+    CallName.ARRIVE: ARRIVE, CallName.PROBE: PROBE,
 }
 
 class Invalid(ValueError):
     """The answer came back in a shape the world cannot use."""
 
 
-def validate(name: str, data: Any) -> Tuple[Optional[dict], Optional[str]]:
+def validate(name: CallName, data: Any) -> Tuple[Optional[dict], Optional[str]]:
     """Check an answer against its schema.
 
     Returns ``(clean, None)`` or ``(None, complaint)``. The complaint is
@@ -237,7 +266,7 @@ def validate(name: str, data: Any) -> Tuple[Optional[dict], Optional[str]]:
     return clean, None
 
 
-def grammar(name: str) -> dict:
+def grammar(name: CallName) -> dict:
     """The schema as handed to a decoder: every field required.
 
     Under grammar-constrained decoding an optional field is an invitation to
@@ -265,7 +294,7 @@ def act_grammar(places: List[str], beings: List[str],
     where `agents.may_leave` has already said it is possible, so a model cannot
     walk somebody out of the world from their own kitchen.
     """
-    schema = grammar("act")
+    schema = grammar(CallName.ACT)
     options = [""] + sorted(set(places) | set(beings))
     schema["properties"]["target"] = {"type": "string", "enum": options}
     schema["properties"]["action"] = {
@@ -275,7 +304,7 @@ def act_grammar(places: List[str], beings: List[str],
 
 def speak_grammar(topics: int) -> dict:
     """SPEAK with 'about' narrowed to the numbered things they can bring to mind."""
-    schema = grammar("speak")
+    schema = grammar(CallName.SPEAK)
     choices = ["nothing in particular"] + [str(i) for i in range(1, topics + 1)]
     schema["properties"]["about"] = {"type": "string", "enum": choices}
     return schema
@@ -283,7 +312,7 @@ def speak_grammar(topics: int) -> dict:
 
 def direct_grammar(places: List[str], beings: List[str]) -> dict:
     """DIRECT with where/who narrowed to what exists in this town."""
-    schema = grammar("direct")
+    schema = grammar(CallName.DIRECT)
     schema["properties"]["where"] = {"type": "string", "enum": sorted(places)}
     schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(beings)}
     return schema
@@ -299,7 +328,7 @@ def reflect_grammar(sources: int, held: int = 0,
     they could actually have been thinking about. All three are enums, so none
     of them can name something that is not there.
     """
-    schema = grammar("reflect")
+    schema = grammar(CallName.REFLECT)
     schema["properties"]["belief_from"] = {
         "type": "string", "enum": [""] + [str(i) for i in range(1, sources + 1)]}
     schema["properties"]["belief_again"] = {

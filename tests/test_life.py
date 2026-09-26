@@ -8,12 +8,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import agents, retrieval, seed, tick as tick_mod
+from elsewhere.schemas import CallName
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle
 from elsewhere.world.memories import Memory
 
-CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
+CALLS = tuple(CallName)[:-1]    # every call but the probe
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
         "for_hours": 6.0, "settling": False}
 QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
@@ -29,8 +30,8 @@ class Town(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.world = seed.build(Path(self.tmp.name) / "world")
-        self.stub = StubBackend({"act": STAY, "perceive": {"stuck": False},
-                                 "direct": QUIET, "reflect": {}})
+        self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
+                                 CallName.DIRECT: QUIET, CallName.REFLECT: {}})
         register(self.stub)
 
     def tearDown(self):
@@ -48,15 +49,15 @@ class TestDirector(Town):
     def test_asked_about_once_a_day_whatever_the_hour(self):
         for _ in range(4):                       # four steps: a whole day
             tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("direct")), 1,
+        self.assertEqual(len(self.calls(CallName.DIRECT)), 1,
                          "asked on the first step, then not again inside the day")
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("direct")), 2,
+        self.assertEqual(len(self.calls(CallName.DIRECT)), 2,
                          "a day on, it is worth asking again")
 
     def test_it_can_only_name_what_exists(self):
         tick_mod.tick(self.world, configuration())
-        schema = self.calls("direct")[0].schema
+        schema = self.calls(CallName.DIRECT)[0].schema
         self.assertIn("Mizpah", schema["properties"]["where"]["enum"])
         self.assertEqual(schema["properties"]["who"]["enum"],
                          ["", "Bezalel", "Havvah", "Lilith"])
@@ -68,7 +69,7 @@ class TestDirector(Town):
         self.assertEqual(len(self.world.chronicle), before)
 
     def test_something_happening_to_someone_happens_where_they_are(self):
-        self.stub.set("direct", {"why_now": "the roof", "what": "A beam cracked overhead.",
+        self.stub.set(CallName.DIRECT, {"why_now": "the roof", "what": "A beam cracked overhead.",
                                  "where": "Mizpah", "who": "Bezalel",
                                  "reach": "the people there",                                  "happens": True})
         self.stub.answers["perceive|p_bezalel"] = {"account": "the crack before the dust",
@@ -81,31 +82,31 @@ class TestDirector(Town):
         self.assertEqual([t.owner for t in report.occurrence.kept], ["p_bezalel"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):
-        self.stub.set("direct", {"why_now": "", "what": "A storm broke over the town.",
+        self.stub.set(CallName.DIRECT, {"why_now": "", "what": "A storm broke over the town.",
                                  "where": "Beth El", "who": "",
                                  "reach": "the whole town",                                  "happens": True})
         report = tick_mod.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(sorted(event.reached), sorted(self.world.beings))
-        perceived = sorted(c.about for c in self.calls("perceive"))
+        perceived = sorted(c.about for c in self.calls(CallName.PERCEIVE))
         self.assertEqual(perceived, sorted(self.world.beings))
-        lilith = next(c for c in self.calls("perceive") if c.about == "p_lilith")
+        lilith = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_lilith")
         self.assertIn("word of it reached you", lilith.user)
 
     def test_the_town_says_itself_how_long_a_quiet_stretch_it_gets(self):
         # There used to be two constants here - asked about once a day, and
         # never inside two days of the last happening - and both were this
         # project deciding how eventful a town is. The town answers it.
-        self.stub.set("direct", {"why_now": "", "what": "A goat got loose.",
+        self.stub.set(CallName.DIRECT, {"why_now": "", "what": "A goat got loose.",
                                  "where": "Beth El", "who": "",
                                  "reach": "the people there", "happens": True,
                                  "ask_again_in_hours": 336.0})
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("direct")), 1)
+        self.assertEqual(len(self.calls(CallName.DIRECT)), 1)
         self.assertEqual(self.world.town_wake_at, self.world.at + 336.0)
         for _ in range(8):                       # two days further on
             tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls("direct")), 1,
+        self.assertEqual(len(self.calls(CallName.DIRECT)), 1,
                          "it said a fortnight, and a fortnight is what it gets")
         for name in ("DIRECTOR_MIN_GAP", "DIRECTOR_EVERY"):
             self.assertFalse(hasattr(agents, name))
@@ -121,10 +122,10 @@ class TestRecall(Town):
                            feeling="fear")
         self.world.memories("p_havvah").add(self.flood)
         self.stub.answers["act|p_havvah"] = {"because": "", "action": "talk", "target": "Bezalel"}
-        self.stub.set("speak", {"about": "1", "line": "That night."})
+        self.stub.set(CallName.SPEAK, {"about": "1", "line": "That night."})
 
     def test_telling_it_changes_it(self):
-        self.stub.set("recall", {"account": "water, and not being able to look away",
+        self.stub.set(CallName.RECALL, {"account": "water, and not being able to look away",
                                  "means": "", "feeling": "fear"})
         report = tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.account, "water, and not being able to look away")
@@ -137,9 +138,9 @@ class TestRecall(Town):
         self.assertIsNotNone(report.talks[0].turns[0].reshaped)
 
     def test_the_mind_is_told_how_old_and_how_often_and_not_how_clear(self):
-        self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
+        self.stub.set(CallName.RECALL, {"account": "", "means": "", "feeling": "none"})
         tick_mod.tick(self.world, configuration())
-        user = self.calls("recall")[0].user
+        user = self.calls(CallName.RECALL)[0].user
         self.assertIn("days old", user)
         self.assertIn("told", user)
         self.assertIn("the water in the doorway", user)
@@ -152,21 +153,21 @@ class TestRecall(Town):
         # `thought` is a short first-person fragment and so is a rewritten
         # memory. With it in the prompt a small model hands it straight back.
         self.world.beings["p_havvah"].who.thought = "I did not look up"
-        self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
+        self.stub.set(CallName.RECALL, {"account": "", "means": "", "feeling": "none"})
         tick_mod.tick(self.world, configuration())
-        user = self.calls("recall")[0].user
+        user = self.calls(CallName.RECALL)[0].user
         self.assertNotIn("I did not look up", user)
         self.assertIn("the water in the doorway", user, "the memory is still there")
 
     def test_an_empty_or_identical_answer_leaves_it_alone(self):
-        self.stub.set("recall", {"account": "the water in the doorway before I could move anything"})
+        self.stub.set(CallName.RECALL, {"account": "the water in the doorway before I could move anything"})
         tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.history, [])
 
     def test_small_talk_recalls_nothing(self):
-        self.stub.set("speak", {"about": "nothing in particular", "line": "Cold."})
+        self.stub.set(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(self.calls("recall"), [])
+        self.assertEqual(self.calls(CallName.RECALL), [])
 
 
 class TestReflect(Town):
@@ -189,15 +190,15 @@ class TestReflect(Town):
         self.world.memories("p_havvah").add(Memory(
             id="mem9110", owner="p_havvah", at=self.world.at, account="a long day", told=[self.world.at]))
         self.reckoning()
-        self.assertEqual([c.about for c in self.calls("reflect")], ["p_lilith"])
+        self.assertEqual([c.about for c in self.calls(CallName.REFLECT)], ["p_lilith"])
 
     def test_and_only_if_the_day_left_them_something(self):
         self.reckoning()                          # nothing has happened to her
-        self.assertEqual(self.calls("reflect"), [])
+        self.assertEqual(self.calls(CallName.REFLECT), [])
 
     def test_a_belief_remembers_where_it_came_from(self):
         self.world.memories("p_lilith").add(self.today)
-        self.stub.set("reflect", {"thought": "nobody went down", "belief": "Nobody here will ever leave",
+        self.stub.set(CallName.REFLECT, {"thought": "nobody went down", "belief": "Nobody here will ever leave",
                                   "belief_from": "1", "belief_again": "",
                                   "want": "go before winter"})
         self.reckoning()
@@ -209,7 +210,7 @@ class TestReflect(Town):
 
     def test_the_same_belief_twice_is_held_harder_not_written_twice(self):
         self.world.memories("p_lilith").add(self.today)
-        self.stub.set("reflect", {"belief": "Nobody here will ever leave",
+        self.stub.set(CallName.REFLECT, {"belief": "Nobody here will ever leave",
                                   "belief_from": "1", "belief_again": ""})
         self.reckoning()
 
@@ -223,7 +224,7 @@ class TestReflect(Town):
             id="mem9101", owner="p_lilith", at=self.world.at,
             account="the road again",
             told=[self.world.at]))
-        self.stub.set("reflect", {"belief": "you die in the town you were born in",
+        self.stub.set(CallName.REFLECT, {"belief": "you die in the town you were born in",
                                   "belief_from": "1", "belief_again": "1"})
         self.reckoning()
 
@@ -241,7 +242,7 @@ class TestReflect(Town):
         # overwritten at every reckoning, so it could never come back later,
         # never be worn down by not coming back, and never be said out loud.
         self.world.memories("p_lilith").add(self.today)
-        self.stub.set("reflect", {"thought": "Nobody went down to look",
+        self.stub.set(CallName.REFLECT, {"thought": "Nobody went down to look",
                                   "belief": "", "belief_again": ""})
         self.reckoning()
         thoughts = [t for t in self.world.memories("p_lilith")
@@ -257,7 +258,7 @@ class TestReflect(Town):
         self.world.memories("p_lilith").add(self.today)
         self.world.beings["p_lilith"].where.now("walking the ridge path again")
         self.reckoning()
-        user = self.calls("reflect")[0].user
+        user = self.calls(CallName.REFLECT)[0].user
         self.assertIn("What you have been doing", user)
         self.assertIn("walking the ridge path again", user)
 
@@ -267,7 +268,7 @@ class TestReflect(Town):
         # would change a word about the other.
         self.world.memories("p_lilith").add(self.today)
         before = self.world.beings["p_lilith"].who.regard("p_havvah").account
-        self.stub.set("reflect", {"thought": "", "belief": "", "belief_again": "",
+        self.stub.set(CallName.REFLECT, {"thought": "", "belief": "", "belief_again": "",
                                   "about_someone": "Havvah",
                                   "now_say": "She has not looked at me since the water."})
         self.reckoning()
@@ -280,14 +281,14 @@ class TestReflect(Town):
     def test_only_somebody_who_exists_can_be_thought_about(self):
         self.world.memories("p_lilith").add(self.today)
         self.reckoning()
-        schema = self.calls("reflect")[0].schema
+        schema = self.calls(CallName.REFLECT)[0].schema
         self.assertIn("Havvah", schema["properties"]["about_someone"]["enum"])
         self.assertIn("", schema["properties"]["about_someone"]["enum"])
         self.assertNotIn("Nobody", schema["properties"]["about_someone"]["enum"])
 
     def test_a_belief_can_outlive_its_reasons(self):
         self.world.memories("p_lilith").add(self.today)
-        self.stub.set("reflect", {"belief": "Nobody here will ever leave",
+        self.stub.set(CallName.REFLECT, {"belief": "Nobody here will ever leave",
                                   "belief_from": "1", "belief_again": ""})
         self.reckoning()
         lilith = self.world.beings["p_lilith"]

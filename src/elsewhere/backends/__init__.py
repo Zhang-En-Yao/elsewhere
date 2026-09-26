@@ -20,7 +20,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol
 
-from ..schemas import validate
+from ..schemas import CallName, grammar, validate
 
 REPAIR = ("That was not usable: {complaint}. "
           "Answer again with the same JSON object, corrected. Nothing else.")
@@ -28,11 +28,14 @@ REPAIR = ("That was not usable: {complaint}. "
 
 @dataclass
 class Call:
-    name: str        # perceive | act | speak | recall | reflect | direct | arrive
+    name: CallName
     system: str
     user: str
     schema: dict
     about: str = ""                 # person id or similar, for the transcript
+
+    def __post_init__(self):
+        self.name = CallName(self.name)
 
 
 class Backend(Protocol):
@@ -165,7 +168,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
 
         if transcript is not None:
             transcript.write({
-                "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "call": call.name,
+                "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "call": call.name.value,
                 "about": call.about, "backend": settings.backend,
                 "model": settings.model, "attempt": attempt + 1,
                 "seconds": round(took, 2), "system": call.system, "user": user,
@@ -201,10 +204,9 @@ def embed(texts: List[str], settings: Settings) -> List[List[float]]:
 
 def probe(settings: Settings) -> tuple:
     """Can this mind be reached at all? (ok, message). Never raises."""
-    call = Call(name="probe", system="Answer only with JSON.",
+    call = Call(name=CallName.PROBE, system="Answer only with JSON.",
                 user='Reply exactly {"ok": true}.',
-                schema={"type": "object", "properties": {"ok": {"type": "boolean"}},
-                        "required": ["ok"]}, about="probe")
+                schema=grammar(CallName.PROBE), about="probe")
     started = time.time()
     try:
         raw = get(settings.backend).complete(

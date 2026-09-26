@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional
 
 from .backends import Settings
+from .schemas import CallName
 
 # Model names are deliberately left as plain strings: check the exact tag you
 # have with `ollama list` before trusting these.
@@ -43,13 +44,13 @@ LOCAL = {"backend": "ollama", "model": "phi4-mini"}        # ~2.5GB at Q4_K_M
 EMBED = {"backend": "ollama", "model": "nomic-embed-text"}  # ~274MB, 768 dims
 
 DEFAULTS: Dict[str, dict] = {
-    "act":      {**LOCAL, "temperature": 0.9},
-    "perceive": {**LOCAL, "temperature": 0.7},
-    "speak":    {**LOCAL, "temperature": 1.0},
-    "recall":   {**LOCAL, "temperature": 1.0},
-    "reflect":  {**LOCAL, "temperature": 0.8},
-    "direct":   {**LOCAL, "temperature": 1.0},
-    "arrive":   {**LOCAL, "temperature": 1.0},
+    CallName.ACT:      {**LOCAL, "temperature": 0.9},
+    CallName.PERCEIVE: {**LOCAL, "temperature": 0.7},
+    CallName.SPEAK:    {**LOCAL, "temperature": 1.0},
+    CallName.RECALL:   {**LOCAL, "temperature": 1.0},
+    CallName.REFLECT:  {**LOCAL, "temperature": 0.8},
+    CallName.DIRECT:   {**LOCAL, "temperature": 1.0},
+    CallName.ARRIVE:   {**LOCAL, "temperature": 1.0},
     "embed":    dict(EMBED),
 }
 
