@@ -16,9 +16,10 @@
 # At most MAX steps are lived per run, so a week away does not become an hour
 # of model calls.
 #
-# The model has to be running for any of this to happen - with Homebrew:
-#   brew services start ollama
-# If it is not, continue logs that the world is waiting and lives nothing.
+# The default model runs inside the job itself, through MLX, so there is no
+# server to keep running: each wake loads the weights from the Hugging Face
+# cache, which takes a few seconds. If it cannot, continue logs that the
+# world is waiting and lives nothing.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -114,7 +115,6 @@ case "${1:-status}" in
     launchctl bootstrap "gui/$(id -u)" "$PLIST"
     echo "Scheduled. $WORLD now lives at a day per day, in whatever steps"
     echo "the people in it ask for; at most $MAX per wake. Log: $LOG"
-    echo "The model must be running: brew services start ollama"
     if protected_path "$REPO"; then tcc_warning "$cli"; fi
     ;;
   uninstall)

@@ -48,11 +48,12 @@ class ConfigurationTest(unittest.TestCase):
         self.assertLessEqual(read, ALLOWED)
 
     def test_the_environment_cannot_override_the_file(self):
-        configure(self.root, "ollama", "gemma4:e2b-it-qat")
+        configure(self.root, "mlx", "mlx-community/gemma-4-E2B-it-qat-4bit")
         before = os.environ.get("ELSEWHERE_MODEL")
         os.environ["ELSEWHERE_MODEL"] = "something-else"
         try:
-            self.assertEqual(load_configuration(self.root)[CallName.ACT].model, "gemma4:e2b-it-qat")
+            self.assertEqual(load_configuration(self.root)[CallName.ACT].model,
+                             "mlx-community/gemma-4-E2B-it-qat-4bit")
             with self.assertRaises(SystemExit) as raised:
                 cli.main(["--world", str(self.root), "status"])
             self.assertIn("ELSEWHERE_MODEL no longer does anything",
@@ -71,18 +72,19 @@ class ConfigurationTest(unittest.TestCase):
                               loaded[name].base),
                              ("openai", "some-model", "http://gpu-box:8000/v1"))
         self.assertEqual(loaded["embed"].model, DEFAULTS["embed"]["model"])
-        configure(self.root, "ollama", "gemma4:e2b-it-qat")        # back home: base goes
+        configure(self.root, "mlx", "mlx-community/gemma-4-E2B-it-qat-4bit")  # back home: base goes
         self.assertEqual(load_configuration(self.root)[CallName.ACT].base, "")
 
     def test_extra_stays_with_the_backend_it_was_written_for(self):
-        # {"think": false} is an Ollama option; the Claude SDK refuses it.
+        # enable_thinking goes to an MLX chat template; the Claude SDK refuses it.
+        path_of(self.root).parent.mkdir(parents=True)
+        path_of(self.root).write_text(json.dumps({"agents": {"act": {
+            **DEFAULTS[CallName.ACT], "extra": {"enable_thinking": True}}}}),
+            encoding="utf-8")
         self.assertEqual(load_configuration(self.root)[CallName.ACT].extra,
-                         DEFAULTS[CallName.ACT]["extra"])
+                         {"enable_thinking": True})
         configure(self.root, "claude", "claude-sonnet-5")
         self.assertEqual(load_configuration(self.root)[CallName.ACT].extra, {})
-        configure(self.root, "ollama", "gemma4:e2b-it-qat")   # home again
-        self.assertEqual(load_configuration(self.root)[CallName.ACT].extra,
-                         DEFAULTS[CallName.ACT]["extra"])
 
     def test_an_older_file_on_another_backend_gets_no_default_extra(self):
         path_of(self.root).parent.mkdir(parents=True)
@@ -118,3 +120,44 @@ class ConfigurationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReembedTest(unittest.TestCase):
+    """Changing the embedder leaves no vector from the old one behind."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "world"
+        configure(self.root, "stub", "stub", calls=list(DEFAULTS))
+        seed.create(self.root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_every_memory_and_belief_is_placed_again(self):
+        from elsewhere.backends.stub import StubBackend
+        from elsewhere.world import store
+        from elsewhere.world.entities import Belief
+        from elsewhere.world.memories import Memory
+
+        world = store.load(self.root)
+        being = next(iter(world.beings.values()))
+        world.memories(being.id).add(Memory(id="mem-x", owner=being.id, at=0.0,
+                                            account="the water came up",
+                                            embedding=[0.5] * 768))
+        being.who.beliefs.append(Belief(claim="the river keeps what it takes",
+                                        embedding=[0.5] * 768))
+        store.save(world)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.main(["--world", str(self.root), "reembed"])
+
+        world = store.load(self.root)
+        being = world.beings[being.id]
+        stub = StubBackend()
+        memory = world.memories(being.id).get("mem-x")
+        self.assertEqual(memory.embedding,
+                         [round(x, 5) for x in stub.embed([memory.account])[0]])
+        belief = being.who.beliefs[-1]
+        self.assertEqual(belief.embedding,
+                         [round(x, 5) for x in stub.embed([belief.claim])[0]])
