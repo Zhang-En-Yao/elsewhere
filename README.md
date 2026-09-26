@@ -643,13 +643,13 @@ elsewhere news                  # what happened since you last looked
 
 elsewhere watch                 # sit with it: one window on the world, which only reads
 elsewhere status                # where everyone is, and how much they still hold
-elsewhere person Eve            # who she has become: beliefs, ties, what is in reach
+elsewhere person Havvah         # who she has become: beliefs, ties, what is in reach
 elsewhere timeline              # history: what happened
-elsewhere event ev0002          # one event, and every version of it
+elsewhere event ev0003          # one event, and every version of it
 
 elsewhere end                   # end the world for good; what happened stays readable
 
-elsewhere remember ev0002       # put an event past everyone again
+elsewhere remember ev0003       # put an event past everyone again
 elsewhere doctor                # can the configured minds be reached?
 elsewhere configure --backend ollama --model llama3.2:3b   # point every mind at one model
 ```
@@ -661,20 +661,21 @@ wraps the common ones — `make test`, `make watch`, `make tick`, `make news`,
 One thing that is worth doing first:
 
 ```bash
-elsewhere event ev0002
+elsewhere event ev0003
 ```
 
-The water came up over the waterline in the night. Eve was frightened. Adam
-remembers putting the shelter back up. Lilith remembers deciding she could
-leave.
+The water came up over Marah's ring of stones before morning, and did not go
+down for three days. Havvah was frightened. Bezalel remembers the boat he
+built and the joinery of it. Lilith, who watched the valley go under from
+Mizpah, remembers working out that the valley has an outside.
 
 People also say things out loud, and what the other person walks away with is a
 shorter, flatter version of it — sometimes the wrong one:
 
 ```
-Eve said:     "It was not as bad as people say now. The river came up over
-               The Waterline. It went down again."
-Lilith kept:  "What I took from it was the river came up over The Waterline
+Havvah said:  "It was not as bad as people say now. The river came up over
+               Marah. It went down again."
+Lilith kept:  "What I took from it was the river came up over Marah
                - though it may have been the opposite."
 ```
 
@@ -766,9 +767,16 @@ minds, not the engine, that decide.
 
 ### One clock, and no step on it
 
-The world keeps a single number: hours since it began. Days, seasons and the
-reading on a clock face are all worked out from it; none of them are stored,
-and nothing anywhere stores a named part of the day.
+The world keeps a single number: hours since it began. Days, seasons, the
+date and the reading on a clock face are all worked out from it; none of them
+are stored, and nothing anywhere stores a named part of the day.
+
+The year those days fall into is the idealised Hindu one — twelve months of
+thirty tithis, two months to a season, six seasons, three hundred and sixty
+days, each month running from one new moon to the next. It is the calendar the
+town's own history is dated in, so that the flood in its past falls on Chaitra
+3 waxing because that is Matsya Jayanti, and not because day 363 was a
+convenient number.
 
 That is deliberate. "Morning" and "night" are not facts about a town so much as
 a suggestion about what the people in it should be doing, and the engine has no

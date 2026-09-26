@@ -22,7 +22,7 @@ from elsewhere.world.memories import Memory
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
         "for_hours": 6.0, "settling": False}
-QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
+QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
          "reach": "the people there", "happens": False,
          "ask_again_in_hours": 24.0}
 GOING = {"because": "I said I would go before the rains", "action": "leave",
@@ -61,7 +61,7 @@ class Road(unittest.TestCase):
 
     def send_lilith_away(self):
         """Put Lilith on the road and let her take it."""
-        self.lilith.where.place = "ridge"
+        self.lilith.where.place = "mizpah"
         self.stub.answers["act|p_lilith"] = GOING
         report = tick_mod.tick(self.world, configuration())
         self.stub.answers["act|p_lilith"] = STAY
@@ -70,7 +70,7 @@ class Road(unittest.TestCase):
 
 class TestWhetherAnyoneCanGoAtAll(Road):
     def test_only_from_where_the_road_goes_out(self):
-        self.assertEqual(agents.leaving_place(self.world).id, "ridge")
+        self.assertEqual(agents.leaving_place(self.world).id, "mizpah")
         self.assertTrue(agents.may_leave(self.world, self.lilith))
         self.lilith.where.place = "yard"
         self.assertFalse(agents.may_leave(self.world, self.lilith),
@@ -85,7 +85,7 @@ class TestWhetherAnyoneCanGoAtAll(Road):
                         "whether to go at this hour is hers to answer, in 'because'")
 
     def test_not_if_it_would_stop_being_a_town(self):
-        self.world.beings["p_adam"].when.left_at = self.world.at
+        self.world.beings["p_bezalel"].when.left_at = self.world.at
         self.assertEqual(len(self.present()), 2)
         self.assertFalse(agents.may_leave(self.world, self.lilith),
                          "two people are not a town anybody can leave")
@@ -95,11 +95,11 @@ class TestWhetherAnyoneCanGoAtAll(Road):
         # deciding how often a town of this size loses somebody. The map and
         # the floor are all that is left; whether two people would walk out in
         # the same week is a fact about those two people.
-        self.world.beings["p_x0"] = type(self.lilith)(id="p_x0", name="X0", where=Where(place="shelter"))
+        self.world.beings["p_x0"] = type(self.lilith)(id="p_x0", name="X0", where=Where(place="bethel"))
         self.send_lilith_away()
-        eve = self.world.beings["p_eve"]
-        eve.where.place = "ridge"
-        self.assertTrue(agents.may_leave(self.world, eve))
+        havvah = self.world.beings["p_havvah"]
+        havvah.where.place = "mizpah"
+        self.assertTrue(agents.may_leave(self.world, havvah))
         self.assertFalse(hasattr(agents, "DEPARTURE_MIN_GAP"))
 
     def test_the_verb_is_not_in_the_vocabulary_anywhere_else(self):
@@ -130,15 +130,15 @@ class TestGoing(Road):
         self.assertFalse(self.lilith.present)
         self.assertEqual(self.lilith.when.left_at, self.world.at)
         self.assertNotIn("p_lilith", self.present())
-        self.assertNotIn(self.lilith, self.world.beings_at("ridge"))
+        self.assertNotIn(self.lilith, self.world.beings_at("mizpah"))
 
     def test_the_whole_town_hears_it(self):
         report = self.send_lilith_away()
         event = self.world.chronicle.get(report.departures[0].event_id)
         self.assertEqual(event.category, chronicle.DEPARTURE)
         self.assertEqual(sorted(event.reached), sorted(self.world.beings))
-        eve = next(c for c in self.calls("perceive") if c.about == "p_eve")
-        self.assertIn("word of it reached you", eve.user)
+        havvah = next(c for c in self.calls("perceive") if c.about == "p_havvah")
+        self.assertIn("word of it reached you", havvah.user)
 
     def test_she_gets_one_last_look_at_it(self):
         self.send_lilith_away()
@@ -155,18 +155,18 @@ class TestGoing(Road):
 
     def test_and_so_does_what_everyone_wrote_about_her(self):
         self.send_lilith_away()
-        eve = self.world.beings["p_eve"]
-        self.assertEqual(eve.who.regards["p_lilith"].account,
+        havvah = self.world.beings["p_havvah"]
+        self.assertEqual(havvah.who.regards["p_lilith"].account,
                          "Young. Always about to go somewhere.")
 
     def test_whoever_went_to_find_her_finds_the_road(self):
-        adam = self.world.beings["p_adam"]
-        adam.where.place = "ridge"
-        self.stub.answers["act|p_adam"] = {"because": "", "action": "talk",
+        bezalel = self.world.beings["p_bezalel"]
+        bezalel.where.place = "mizpah"
+        self.stub.answers["act|p_bezalel"] = {"because": "", "action": "talk",
                                            "target": "Lilith"}
         report = self.send_lilith_away()
-        self.assertIn(("p_adam", "p_lilith"), report.missed)
-        self.assertIn("who had gone", adam.where.doing)
+        self.assertIn(("p_bezalel", "p_lilith"), report.missed)
+        self.assertIn("who had gone", bezalel.where.doing)
         self.assertEqual(report.talks, [])
 
     def test_the_town_stops_asking_her_anything(self):
@@ -239,7 +239,7 @@ class TestComing(Road):
         tam = self.world.being_by_name("Tam")
         self.assertIsNotNone(tam)
         self.assertEqual(tam.id, "p_tam")
-        self.assertEqual(tam.where.place, "ridge", "they come in the way she went out")
+        self.assertEqual(tam.where.place, "mizpah", "they come in the way she went out")
         self.assertEqual(tam.who.card, "You came for the plants and you keep to them.")
         self.assertEqual(tam.when.arrived_at, self.world.at)
         self.assertTrue(tam.present)
@@ -273,7 +273,7 @@ class TestComing(Road):
         self.after_a_gap()
         tam = self.world.being_by_name("Tam")
         self.assertEqual(tam.who.regards, {})
-        self.assertEqual(self.world.beings["p_eve"].who.regards.get("p_tam"), None)
+        self.assertEqual(self.world.beings["p_havvah"].who.regards.get("p_tam"), None)
 
     def test_the_road_is_told_who_is_missing(self):
         self.send_lilith_away()
@@ -303,7 +303,7 @@ class TestComing(Road):
     def test_but_not_more_than_a_town_anybody_knows(self):
         for n in range(agents.TOWN_CEILING - len(self.present())):
             self.world.beings[f"p_x{n}"] = type(self.lilith)(
-                id=f"p_x{n}", name=f"X{n}", where=Where(place="shelter"))
+                id=f"p_x{n}", name=f"X{n}", where=Where(place="bethel"))
         self.assertEqual(len(self.present()), agents.TOWN_CEILING)
         self.world.road_wake_at = self.world.at
         self.assertFalse(agents.may_arrive(self.world),
@@ -313,21 +313,21 @@ class TestComing(Road):
         # A filler person is added first, so the floor is reached one departure
         # later than it would be from the seed's three alone, and both the
         # allowed and the blocked departure can be seen in one test.
-        filler = type(self.lilith)(id="p_x0", name="X0", where=Where(place="shelter"))
+        filler = type(self.lilith)(id="p_x0", name="X0", where=Where(place="bethel"))
         self.world.beings["p_x0"] = filler
-        self.send_lilith_away()                    # 3 present: adam, eve, x0
-        filler.where.place = "ridge"
+        self.send_lilith_away()                    # 3 present: bezalel, havvah, x0
+        filler.where.place = "mizpah"
         self.assertTrue(agents.may_leave(self.world, filler))
         filler.when.left_at = self.world.at
-        adam = self.world.beings["p_adam"]
-        adam.where.place = "ridge"
+        bezalel = self.world.beings["p_bezalel"]
+        bezalel.where.place = "mizpah"
         self.assertEqual(len(self.present()), 2)
-        self.assertFalse(agents.may_leave(self.world, adam),
+        self.assertFalse(agents.may_leave(self.world, bezalel),
                          "the last two cannot both walk out")
 
     def test_a_name_the_town_already_uses_is_refused(self):
         self.send_lilith_away()
-        self.stub.set("arrive", {**SOMEBODY, "name": "Eve"})
+        self.stub.set("arrive", {**SOMEBODY, "name": "Havvah"})
         report = self.after_a_gap()
         self.assertIsNone(report.arrival)
         self.assertEqual(len(self.present()), 2)

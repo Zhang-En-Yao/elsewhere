@@ -50,6 +50,65 @@ def open_live(arguments):
     return world
 
 
+def go_on(world: World, most: int = 8, say=print) -> None:
+    """Live the hours the wall clock says are owed, and say what happened.
+
+    `say` is where the account of it goes, a line at a time, and it defaults
+    to the terminal that asked. It is a seam rather than a setting: what lives
+    a step and what shows a step are different questions, and `report_lines`
+    below is the answer to the second one for anybody who needs it.
+    """
+    from .tick import owed_hours, settle_clock, tick
+
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    try:
+        with store.tick_lock(world.root):
+            now = time.time()
+            if world.last_tick_at is None:
+                world.last_tick_at = now
+                store.save(world)
+                say(f"[{stamp}] clock started for {world.name}")
+                return
+            owed = owed_hours(world.last_tick_at, now)
+            # How far ahead the world is already scheduled. Nothing is owed
+            # until the wall clock has caught up with the last thing somebody
+            # said they would be doing.
+            ahead = schedule.next_at(world)
+            if ahead is not None and world.at + owed < ahead:
+                say(f"[{stamp}] checked; nothing is due for "
+                    f"{ahead - world.at - owed:.1f}h of world time")
+                return
+            configuration = load_configuration(world.root)
+            ok, message = probe(configuration["act"])
+            if not ok:
+                # The world waits rather than going on without minds.
+                say(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
+                    f"{world.name} waits")
+                return
+            # Live as much of the backlog as the people in it asked to be
+            # woken for, in whatever steps they asked for - which is why there
+            # is no step size here either. `most` is a bound on model calls,
+            # not on time.
+            began, steps = world.at, 0
+            while world.at - began < owed and steps < most:
+                report = tick(world, configuration, transcript_for(world))
+                steps += 1
+                store.save(world)
+                say(f"[{stamp}]")
+                for line in report_lines(world, report):
+                    say(line)
+                if report.idle:
+                    break
+            lived = world.at - began
+            world.last_tick_at = settle_clock(world.last_tick_at, now, lived, owed)
+            store.save(world)
+            if lived < owed:
+                say(f"[{stamp}] {owed - lived:.1f}h more were owed; "
+                    f"{world.name} slept through them")
+    except store.Locked as exception:
+        say(f"[{stamp}] skipped: {exception}")
+
+
 def transcript_for(world: World) -> Transcript:
     """Return the JSONL transcript path for the current world day."""
     return Transcript(world.root / "transcript" / f"day{day_of(world.at):05d}.jsonl")
@@ -369,64 +428,6 @@ def command_watch(arguments) -> None:
 
 # time passing - move the world's clock forward
 
-def go_on(world: World, most: int = 8, say=print) -> None:
-    """Live the hours the wall clock says are owed, and say what happened.
-
-    `say` is where the account of it goes, a line at a time, and it defaults
-    to the terminal that asked. It is a seam rather than a setting: what lives
-    a step and what shows a step are different questions, and `report_lines`
-    below is the answer to the second one for anybody who needs it.
-    """
-    from .tick import owed_hours, settle_clock, tick
-
-    stamp = time.strftime("%Y-%m-%d %H:%M")
-    try:
-        with store.tick_lock(world.root):
-            now = time.time()
-            if world.last_tick_at is None:
-                world.last_tick_at = now
-                store.save(world)
-                say(f"[{stamp}] clock started for {world.name}")
-                return
-            owed = owed_hours(world.last_tick_at, now)
-            # How far ahead the world is already scheduled. Nothing is owed
-            # until the wall clock has caught up with the last thing somebody
-            # said they would be doing.
-            ahead = schedule.next_at(world)
-            if ahead is not None and world.at + owed < ahead:
-                say(f"[{stamp}] checked; nothing is due for "
-                    f"{ahead - world.at - owed:.1f}h of world time")
-                return
-            configuration = load_configuration(world.root)
-            ok, message = probe(configuration["act"])
-            if not ok:
-                # The world waits rather than going on without minds.
-                say(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
-                    f"{world.name} waits")
-                return
-            # Live as much of the backlog as the people in it asked to be
-            # woken for, in whatever steps they asked for - which is why there
-            # is no step size here either. `most` is a bound on model calls,
-            # not on time.
-            began, steps = world.at, 0
-            while world.at - began < owed and steps < most:
-                report = tick(world, configuration, transcript_for(world))
-                steps += 1
-                store.save(world)
-                say(f"[{stamp}]")
-                for line in report_lines(world, report):
-                    say(line)
-                if report.idle:
-                    break
-            lived = world.at - began
-            world.last_tick_at = settle_clock(world.last_tick_at, now, lived, owed)
-            store.save(world)
-            if lived < owed:
-                say(f"[{stamp}] {owed - lived:.1f}h more were owed; "
-                    f"{world.name} slept through them")
-    except store.Locked as exception:
-        say(f"[{stamp}] skipped: {exception}")
-
 
 def command_continue(arguments) -> None:
     """Let the world go on: live the hours the wall clock says are owed."""
@@ -494,17 +495,17 @@ def _command_doctor(arguments) -> None:
         seen.add(key)
         ok, verdict = probe(settings)
         print(f"  {name:<9} {settings.backend}/{settings.model:<18} {verdict}")
-    embed = configuration.get("embed")
-    if embed is not None:
+    embed_settings = configuration.get("embed")
+    if embed_settings is not None:
         print(heading("Where a memory reads from"))
-        from .backends import place as place_in_meaning
+        from .backends import embed
         started = time.time()
-        got = place_in_meaning(["the water came up over the waterline"], embed)
+        got = embed(["the water came up over the waterline"], embed_settings)
         if got:
-            print(f"  embed     {embed.backend}/{embed.model:<18} "
+            print(f"  embed     {embed_settings.backend}/{embed_settings.model:<18} "
                   f"ok ({len(got[0])} dims, {time.time() - started:.1f}s)")
         else:
-            print(f"  embed     {embed.backend}/{embed.model:<18} "
+            print(f"  embed     {embed_settings.backend}/{embed_settings.model:<18} "
                   f"unreachable - retrieval falls back on how reachable a "
                   f"memory is, which still works")
     print(f'\n  Set "backend": "stub" in {path} to run without any of this.')

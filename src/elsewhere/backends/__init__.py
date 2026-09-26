@@ -179,7 +179,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
     return None
 
 
-def place(texts: List[str], settings: Settings) -> List[List[float]]:
+def embed(texts: List[str], settings: Settings) -> List[List[float]]:
     """Where these read from, as vectors. An empty list back means: no idea.
 
     A backend that cannot embed, or one that is down, is not an error here.
@@ -189,11 +189,11 @@ def place(texts: List[str], settings: Settings) -> List[List[float]]:
     if not texts:
         return []
     backend = get(settings.backend)
-    embed = getattr(backend, "embed", None)
-    if embed is None:
+    backend_embed = getattr(backend, "embed", None)
+    if backend_embed is None:
         return []
     try:
-        out = embed(list(texts), settings)
+        out = backend_embed(list(texts), settings)
     except Exception:
         return []
     return out if len(out) == len(texts) else []

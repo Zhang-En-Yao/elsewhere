@@ -49,7 +49,7 @@ class TestMeasuring(unittest.TestCase):
 
     def test_padding_lines_up_what_a_terminal_lines_up(self):
         self.assertEqual(views.width(views.pad(WIDE[:1], 9)), 9)
-        self.assertEqual(views.width(views.pad("Eve", 9)), 9)
+        self.assertEqual(views.width(views.pad("Havvah", 9)), 9)
 
     def test_clipping_never_overruns_the_room_it_was_given(self):
         for columns in range(1, 12):
@@ -58,24 +58,24 @@ class TestMeasuring(unittest.TestCase):
                                  columns)
 
     def test_what_fits_is_left_exactly_as_it_was(self):
-        self.assertEqual(views.clip("Eve", 20), "Eve")
+        self.assertEqual(views.clip("Havvah", 20), "Havvah")
 
 
 class TestWrapping(unittest.TestCase):
     """Half of what is on screen is held in columns a space wide."""
 
     def test_nothing_comes_back_wider_than_asked_for(self):
-        line = views.Line("    Adam     " + "a sentence that will not fit " * 4,
+        line = views.Line("    Havvah   " + "a sentence that will not fit " * 4,
                           under=13)
         for columns in (20, 34, 55, 80):
             for one in views.wrap(line, columns):
                 self.assertLessEqual(views.width(one.text), columns)
 
     def test_the_indent_and_the_columns_inside_it_survive(self):
-        line = views.Line("    Adam     He works too late, and he knows it too well.",
+        line = views.Line("    Havvah   He works too late, and he knows it too well.",
                           under=13)
         first = views.wrap(line, 40)[0]
-        self.assertTrue(first.text.startswith("    Adam     He"),
+        self.assertTrue(first.text.startswith("    Havvah   He"),
                         "a wrapper that normalises whitespace takes every "
                         "aligned column apart: " + repr(first.text))
 
@@ -159,16 +159,16 @@ class TestItShowsWhatTheEngineWouldHandOver(Window):
     """The one thing a window can do that a printed page cannot."""
 
     def test_out_of_reach_is_shown_as_out_of_reach_and_not_left_out(self):
-        eve = self.world.beings["p_eve"]
+        havvah = self.world.beings["p_havvah"]
         for index in range(retrieval.CONTEXT_MEMORIES + 3):
-            self.remember(eve.id, account=f"the {index}th thing that happened",
+            self.remember(havvah.id, account=f"the {index}th thing that happened",
                           at=self.world.at - index * 24 * 30,
                           told=[self.world.at - index * 24 * 30])
-        memories = list(self.world.memories(eve.id))
+        memories = list(self.world.memories(havvah.id))
         reach = retrieval.recallable(memories, self.world.at)
         self.assertLess(len(reach), len(memories), "the fixture proves nothing")
 
-        lines = views.person_detail(self.world, eve.id)
+        lines = views.person_detail(self.world, havvah.id)
         body = text(lines)
         for memory in memories:
             self.assertIn(memory.account, body,
@@ -185,26 +185,26 @@ class TestItShowsWhatTheEngineWouldHandOver(Window):
                             f"{memory.account!r} is out of reach and not dimmed")
 
     def test_a_memory_that_moved_shows_what_it_used_to_be(self):
-        eve = self.world.beings["p_eve"]
-        memory = self.remember(eve.id, account="the water rose over the fields")
+        havvah = self.world.beings["p_havvah"]
+        memory = self.remember(havvah.id, account="the water rose over the fields")
         memory.rewrite("the water came for us", self.world.at)
-        body = text(views.person_detail(self.world, eve.id))
+        body = text(views.person_detail(self.world, havvah.id))
         self.assertIn("the water came for us", body)
         self.assertIn("the water rose over the fields", body)
 
     def test_a_belief_with_nothing_left_to_point_at_says_so(self):
         from elsewhere.world.entities import Belief
-        eve = self.world.beings["p_eve"]
-        gone = self.remember(eve.id, account="a thing nobody has thought of since",
+        havvah = self.world.beings["p_havvah"]
+        gone = self.remember(havvah.id, account="a thing nobody has thought of since",
                              at=0.0, told=[0.0])
         for index in range(retrieval.CONTEXT_MEMORIES + 1):
-            self.remember(eve.id, account=f"something newer, {index}")
-        eve.who.beliefs.append(Belief(claim="the water always comes back",
+            self.remember(havvah.id, account=f"something newer, {index}")
+        havvah.who.beliefs.append(Belief(claim="the water always comes back",
                                       origin=[gone.id], held=[self.world.at]))
-        self.assertTrue(retrieval.on_faith(eve.who.beliefs[0],
-                                           self.world.memories(eve.id), self.world.at),
+        self.assertTrue(retrieval.on_faith(havvah.who.beliefs[0],
+                                           self.world.memories(havvah.id), self.world.at),
                         "the fixture proves nothing")
-        self.assertIn("on faith", text(views.person_detail(self.world, eve.id)))
+        self.assertIn("on faith", text(views.person_detail(self.world, havvah.id)))
 
 
 class TestSomebodyWhoLeft(Window):
@@ -280,7 +280,7 @@ class TestTheWindowWritesNothing(Window):
         super().setUp()
         from elsewhere.world import store
         store.save(self.world)
-        self.world.memories("p_eve").save(force=True)
+        self.world.memories("p_havvah").save(force=True)
 
     def test_looking_at_all_of_it_changes_none_of_it(self):
         was = self.files()
