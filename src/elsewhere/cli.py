@@ -128,9 +128,9 @@ def command_initialize(arguments) -> None:
     if store.exists(root) and not arguments.force:
         sys.exit(f"{root} already holds a world. Use --force to start over.")
     started = time.time()
-    tape = Transcript(root / "transcript" / "init.jsonl")
+    transcript = Transcript(root / "transcript" / "init.jsonl")
     world = seed.create(root, name=arguments.name, remember=not arguments.blank,
-                        transcript=tape)
+                        transcript=transcript)
     world.last_tick_at = time.time()
     store.save(world)
     remembered = sum(len(world.traces(being.id)) for being in world.beings.values())
