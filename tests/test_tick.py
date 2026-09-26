@@ -319,7 +319,7 @@ class TestContinue(unittest.TestCase):
         # Said in the world's own configuration, the way anyone would, so
         # nothing here can reach a real model.
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
-        seed.create(self.root, remember=False)
+        seed.create(self.root)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -336,6 +336,10 @@ class TestContinue(unittest.TestCase):
         store.save(world)
 
     def test_the_first_continue_only_starts_the_clock(self):
+        # `create` starts the clock itself, so this is a world that has none.
+        world = store.load(self.root)
+        world.last_tick_at = None
+        store.save(world)
         before = store.load(self.root)
         out = self.run_cli("continue")
         after = store.load(self.root)

@@ -218,7 +218,7 @@ def act(world, being: Being, configuration,
     # Whatever they decided, they also said how long they will be at it, and
     # that is what says when they are asked anything again. A mind that gave
     # nothing usable is left without a timer and comes round with the rest of
-    # the world - see `schedule.advance`.
+    # the world - see `schedule.advance_to_next_due`.
     schedule.set_timer(being, world, answer)
     if answer is None:
         return Decision(being.id, "stay", None, "", answered=False)
@@ -380,7 +380,7 @@ def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
     """When whatever just answered wants to be asked again.
 
     None when it said nothing usable, which leaves it with no timer - and
-    `schedule.advance` then brings it round with everyone else rather than
+    `schedule.advance_to_next_due` then brings it round with everyone else rather than
     the engine picking an interval on its behalf.
     """
     hours = schedule.in_hours(answer, "ask_again_in_hours")

@@ -112,14 +112,14 @@ def set_timer(being, world, answer: Optional[dict]) -> None:
     """Take this person at their word about how long they will be.
 
     A mind that gave nothing usable gets no timer of its own and comes round
-    when the world next stirs - which is `advance` below, not a number.
+    when the world next stirs - which is `advance_to_next_due` below, not a number.
     """
     hours = in_hours(answer)
     being.when.wake_at = world.at + hours if hours is not None else None
     being.when.absorbed = bool(answer and answer.get("absorbed"))
 
 
-def advance(world) -> Optional[float]:
+def advance_to_next_due(world) -> Optional[float]:
     """Move the clock to the next thing that wants attention.
 
     Returns where it moved to, or None when nothing in the world is scheduled.

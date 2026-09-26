@@ -113,8 +113,10 @@ def nearness(a: Sequence[float], b: Sequence[float]) -> float:
     return dot / (na * nb)
 
 
-def base_level(memory: Held, at: float) -> float:
-    """B_i: how often this has come up, and how lately.
+def familiarity(memory: Held, at: float) -> float:
+    """How familiar this is: how often it has come up, and how lately.
+
+    ACT-R calls this base-level activation, B_i.
 
         B = ln( SUM over every occasion of (now - then) ** -d )
 
@@ -129,10 +131,9 @@ def base_level(memory: Held, at: float) -> float:
     total = 0.0
     for then in told:
         if then > at:
-            # Not yet. The clock runs backwards over events already written -
-            # see `seed.remember_backstory` - and an occasion that has not
-            # happened cannot be why something comes to mind. Clamping its age
-            # to an hour instead would make it the freshest thing there.
+            # Not yet. An occasion that has not happened cannot be why
+            # something comes to mind, and clamping its age to an hour
+            # instead would make it the freshest thing there.
             continue
         days = max((at - then) / HOURS_PER_DAY, 1.0 / 24.0)
         total += days ** -DECAY
@@ -157,7 +158,7 @@ def spread(memory: Held, cue: Optional[Sequence[float]]) -> float:
 def activation(memory: Held, at: float,
                cue: Optional[Sequence[float]] = None) -> float:
     """A_i: how near this is to coming to mind, here, now."""
-    return base_level(memory, at) + spread(memory, cue)
+    return familiarity(memory, at) + spread(memory, cue)
 
 
 def chance(value: float) -> float:

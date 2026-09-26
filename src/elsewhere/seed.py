@@ -9,8 +9,8 @@ remember nothing, which is an honest state to start from.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
-from typing import List, Optional
 
 from . import agents
 from .configuration import load_configuration, write_default_configuration
@@ -78,7 +78,26 @@ def clear_world(root: Path) -> None:
         shutil.rmtree(root / sub, ignore_errors=True)
 
 
-def build(root, name: str = "Nod") -> World:
+def remember(world: World, event, configuration, transcript=None) -> None:
+    """Let each person the event reached take it in, from where they stood.
+
+    Call it right after `world.record`, while the clock is still at the event's
+    time. Everyone reached needs a place they stood, so one without it is an
+    error here and not a guess later. With no `configuration` nobody is asked
+    anything.
+    """
+    if configuration is None:
+        return
+    stood = event.data.get("vantage") or {}
+    missing = [pid for pid in event.reached if pid not in stood]
+    if missing:
+        raise ValueError(f"{event.category}: no vantage for {missing}")
+    for pid in event.reached:
+        agents.perceive(world, world.beings[pid], event, configuration, transcript)
+
+
+def build(root, name: str = "Nod", configuration=None, transcript=None) -> World:
+    """The town and its past. Given a `configuration`, the people also remember it."""
     root = Path(root)
     clear_world(root)
     world = World(root=root, name=name, at=0.0)
@@ -162,38 +181,41 @@ def build(root, name: str = "Nod") -> World:
     # spray" is already a perception, and a small model will copy it straight
     # into the memory it is supposed to be forming for itself.
     world.at = 17 * HOURS_PER_DAY + 19.0                        # an evening
-    world.record("gathering",
-                 "Adam and Eve raised the shelter's first frame, and the three "
-                 "of them ate under it before the roof was even on.",
-                 place="shelter", involved=["p_adam", "p_eve"],
-                 reached=["p_adam", "p_eve", "p_lilith"],
-                 data={"vantage": {
-                     "p_adam": "up on the frame, tying the crossbeams",
-                     "p_eve": "on the ground, passing the rope up",
-                     "p_lilith": "sitting apart, watching them work",
-                 }})
+    event = world.record("gathering",
+                         "Adam and Eve raised the shelter's first frame, and the three "
+                         "of them ate under it before the roof was even on.",
+                         place="shelter", involved=["p_adam", "p_eve"],
+                         reached=["p_adam", "p_eve", "p_lilith"],
+                         data={"vantage": {
+                             "p_adam": "up on the frame, tying the crossbeams",
+                             "p_eve": "on the ground, passing the rope up",
+                             "p_lilith": "sitting apart, watching them work",
+                         }})
+    remember(world, event, configuration, transcript)
     world.at = 67 * HOURS_PER_DAY + 2.0                         # the small hours
-    world.record("flood",
-                 "The water came up over the waterline in the night and did "
-                 "not go down for three days.",
-                 place="waterline", involved=[],
-                 reached=["p_adam", "p_eve", "p_lilith"],
-                 data={"vantage": {
-                     "p_adam": "on the roof of his own yard, watching the water take the floor below him",
-                     "p_eve": "in the garden, on the last dry rise, holding what she could carry",
-                     "p_lilith": "on the ridge path, above all of it, watching the valley disappear",
-                 }})
+    event = world.record("flood",
+                         "The water came up over the waterline in the night and did "
+                         "not go down for three days.",
+                         place="waterline", involved=[],
+                         reached=["p_adam", "p_eve", "p_lilith"],
+                         data={"vantage": {
+                             "p_adam": "on the roof of his own yard, watching the water take the floor below him",
+                             "p_eve": "in the garden, on the last dry rise, holding what she could carry",
+                             "p_lilith": "on the ridge path, above all of it, watching the valley disappear",
+                         }})
+    remember(world, event, configuration, transcript)
     world.at = 91 * HOURS_PER_DAY + 14.0                        # an afternoon
-    world.record("building",
-                 "The shelter was raised again, this time on posts, out of "
-                 "timber that had not finished drying.",
-                 place="shelter", involved=["p_adam"],
-                 reached=["p_adam", "p_lilith", "p_eve"],
-                 data={"vantage": {
-                     "p_adam": "on the new posts, driving them deeper than anyone asked him to",
-                     "p_lilith": "on the path down from the ridge, back for the day",
-                     "p_eve": "in the garden, close enough to hear the hammering",
-                 }})
+    event = world.record("building",
+                         "The shelter was raised again, this time on posts, out of "
+                         "timber that had not finished drying.",
+                         place="shelter", involved=["p_adam"],
+                         reached=["p_adam", "p_lilith", "p_eve"],
+                         data={"vantage": {
+                             "p_adam": "on the new posts, driving them deeper than anyone asked him to",
+                             "p_lilith": "on the path down from the ridge, back for the day",
+                             "p_eve": "in the garden, close enough to hear the hammering",
+                         }})
+    remember(world, event, configuration, transcript)
 
     world.at = START_AT
     # Everything in the world starts due: the first step asks each person what
@@ -208,32 +230,12 @@ def build(root, name: str = "Nod") -> World:
     return world
 
 
-def remember_backstory(world: World, configuration, transcript=None) -> List:
-    """Put the town's history past each person, so the first memories are theirs."""
-    made = []
-    here_now = {p.id: p.where.place for p in world.beings.values()}
-    for event in world.chronicle.all():
-        was = world.at
-        world.at = event.at
-        for being in world.beings.values():
-            if being.id not in event.reached:
-                continue
-            being.where.place = event.place or being.where.place
-            memory = agents.perceive(world, being, event, configuration, transcript)
-            if memory is not None:
-                made.append(memory)
-        world.at = was
-    for being in world.beings.values():
-        being.where.place = here_now[being.id]
-    return made
-
-
-def create(root, name: str = "Nod", remember: bool = True,
-           transcript=None) -> World:
-    world = build(root, name=name)
+def create(root, name: str = "Nod", transcript=None) -> World:
+    """A new world on disk: the town, its past, and what each person made of it."""
     write_default_configuration(root)
-    if remember:
-        remember_backstory(world, load_configuration(root), transcript)
+    world = build(root, name=name, configuration=load_configuration(root),
+                  transcript=transcript)
     world.news_seen = len(world.chronicle)     # the backstory is not news
+    world.last_tick_at = time.time()           # nothing is owed from before it began
     save(world)
     return world
