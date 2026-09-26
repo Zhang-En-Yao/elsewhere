@@ -25,6 +25,7 @@ DEFAULT_ROOT = Path("world")
 # helpers - shared by more than one command, none of them a command itself
 
 def open_world(arguments) -> World:
+    """Load an existing world, or exit if it doesn't exist."""
     root = Path(arguments.world)
     if not store.exists(root):
         sys.exit(f"No world at {root}. Run: elsewhere init --world {root}")
@@ -32,6 +33,7 @@ def open_world(arguments) -> World:
 
 
 def _open_live(arguments):
+    """Load a world and ensure it's still active (not closed)."""
     world = open_world(arguments)
     if world.closed:
         sys.exit(f"{world.name} has ended. Nothing more happens here.")
@@ -39,24 +41,28 @@ def _open_live(arguments):
 
 
 def transcript_for(world: World) -> Transcript:
+    """Return the JSONL transcript path for the current world day."""
     return Transcript(world.root / "transcript" / f"day{day_of(world.at):05d}.jsonl")
 
 
 def when(at: float) -> str:
-    """A moment, for a person to read: 'day 121, 18:00'."""
+    """Format a world timestamp as human-readable 'day N, HH:MM'."""
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
 def heading(text: str) -> str:
+    """Format a section heading with an underline."""
     return f"\n{text}\n{'-' * len(text)}"
 
 
 def _name(world, person_id: str) -> str:
+    """Look up a being's name by ID, or return the ID if not found."""
     being = world.beings.get(person_id)
     return being.name if being else person_id
 
 
 def print_report(world, report) -> None:
+    """Format and print a tick() report: what happened and who said/did what."""
     if report.idle:
         print(f"\n{report.label}\n  (nothing in the world is scheduled)")
         return
@@ -119,6 +125,7 @@ def print_report(world, report) -> None:
 # commands - one per subcommand, wired up in build_parser() below
 
 def command_init(arguments) -> None:
+    """Create a new world with initial characters, places, and backstory."""
     root = Path(arguments.world)
     if store.exists(root) and not arguments.force:
         sys.exit(f"{root} already holds a world. Use --force to start over.")
@@ -129,17 +136,19 @@ def command_init(arguments) -> None:
     world.last_tick_at = time.time()
     store.save(world)
     remembered = sum(len(world.traces(being.id)) for being in world.beings.values())
-    print(f"{world.name} exists. {world.label()}")
-    print(f"  {len(world.beings)} people, {len(world.places)} places, "
-          f"{len(world.chronicle)} events already behind them")
-    print(f"  {remembered} of those events left a mark on somebody "
-          f"({time.time() - started:.1f}s)")
+    output = [
+        f"{world.name} exists. {world.label()}",
+        f"  {len(world.beings)} people, {len(world.places)} places, {len(world.chronicle)} events already behind them",
+        f"  {remembered} of those events left a mark on somebody ({time.time() - started:.1f}s)",
+    ]
     if remembered == 0 and not arguments.blank:
-        print("  (nothing stuck - is a model reachable? try: elsewhere doctor)")
-    print(f"  config at {root / 'config.json'}")
+        output.append("  (nothing stuck - is a model reachable? try: elsewhere doctor)")
+    output.append(f"  config at {root / 'config.json'}")
+    print("\n".join(output))
 
 
 def command_status(arguments) -> None:
+    """Show world status: where everyone is, and what they remember."""
     world = open_world(arguments)
     print(f"{world.name} - {world.label()}")
     print(f"  chronicle: {len(world.chronicle)} events")
@@ -173,6 +182,7 @@ def command_status(arguments) -> None:
 
 
 def command_being(arguments) -> None:
+    """Show detailed view of one being: who they are, what they remember, who they know."""
     world = open_world(arguments)
     being = world.being_by_name(arguments.name)
     if being is None:
@@ -233,6 +243,7 @@ def command_being(arguments) -> None:
 
 
 def command_timeline(arguments) -> None:
+    """Show all events in chronological order (most recent by default)."""
     world = open_world(arguments)
     print(heading(f"{world.name}: what happened"))
     for event in world.chronicle.all()[-arguments.limit:]:
@@ -240,6 +251,7 @@ def command_timeline(arguments) -> None:
 
 
 def command_event(arguments) -> None:
+    """Show one event and what it left in each being who experienced it."""
     world = open_world(arguments)
     event = world.chronicle.get(arguments.event_id)
     if event is None:
@@ -269,8 +281,8 @@ def command_event(arguments) -> None:
                 print(f"    {'':<8}   was: \"{was}\"")
 
 
-def command_doctor(arguments) -> None:
-    """Can the things that are supposed to be thinking actually be reached?"""
+def _command_doctor(arguments) -> None:
+    """[DEV] Diagnostic: check if model backends are reachable and working."""
     root = Path(arguments.world)
     configuration = config.load(root) if store.exists(root) else {
         name: Settings.from_dict(settings_dict)
@@ -319,8 +331,8 @@ def command_doctor(arguments) -> None:
     print("\n  Set ELSEWHERE_BACKEND=stub to run without any of this.")
 
 
-def command_remember(arguments) -> None:
-    """Put one event past everyone again, by hand. Useful while tuning prompts."""
+def _command_remember(arguments) -> None:
+    """[DEV] Re-run one event past all beings for prompt tuning."""
     world = open_world(arguments)
     event = world.chronicle.get(arguments.event_id)
     if event is None:
@@ -336,8 +348,8 @@ def command_remember(arguments) -> None:
         print(f"  {world.beings[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
 
 
-def command_tick(arguments) -> None:
-    """Live N steps now, by hand."""
+def _command_tick(arguments) -> None:
+    """[DEV] Manually advance the world N steps (use `catchup` for normal operation)."""
     from .tick import tick
 
     world = _open_live(arguments)
@@ -355,7 +367,7 @@ def command_tick(arguments) -> None:
 
 
 def command_catchup(arguments) -> None:
-    """The scheduled entry point: live whatever steps the wall clock says are owed."""
+    """Advance the world to catch up with wall-clock time (scheduled entry point for cron)."""
     from .tick import owed_hours, settle_clock, tick
     from .backends import probe
 
@@ -409,7 +421,7 @@ def command_catchup(arguments) -> None:
 
 
 def command_news(arguments) -> None:
-    """What happened since you last looked."""
+    """Show new events since last time you checked (marks them as read by default)."""
     world = open_world(arguments)
     events = world.chronicle.all()[world.news_seen:]
     print(f"{world.name} - {world.label()}")
@@ -472,18 +484,18 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.add_argument("event_id")
     subparser.set_defaults(func=command_event)
 
-    subparser = subparsers.add_parser("doctor", help="check the minds can be reached")
-    subparser.set_defaults(func=command_doctor)
+    # Development/diagnostic commands below - not part of normal gameplay.
+    subparser = subparsers.add_parser("doctor", help="[DEV] diagnose model backend connectivity")
+    subparser.set_defaults(func=_command_doctor)
 
-    # From here down, the world's saved state actually changes.
     subparser = subparsers.add_parser(
-        "remember", help="put one event past everyone again")
+        "remember", help="[DEV] re-run one event for prompt tuning")
     subparser.add_argument("event_id")
-    subparser.set_defaults(func=command_remember)
+    subparser.set_defaults(func=_command_remember)
 
-    subparser = subparsers.add_parser("tick", help="live N steps of the world now")
+    subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
     subparser.add_argument("-n", type=int, default=1)
-    subparser.set_defaults(func=command_tick)
+    subparser.set_defaults(func=_command_tick)
 
     subparser = subparsers.add_parser(
         "catchup", help="live the hours the wall clock says are owed")
