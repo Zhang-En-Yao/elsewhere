@@ -31,7 +31,7 @@ def open_world(arguments) -> World:
     return store.load(root)
 
 
-def _open_live(arguments):
+def open_live(arguments):
     """Load a world and ensure it's still active (not closed)."""
     world = open_world(arguments)
     if world.closed:
@@ -54,7 +54,7 @@ def heading(text: str) -> str:
     return f"\n{text}\n{'-' * len(text)}"
 
 
-def _name(world, person_id: str) -> str:
+def name(world, person_id: str) -> str:
     """Look up a being's name by ID, or return the ID if not found."""
     being = world.beings.get(person_id)
     return being.name if being else person_id
@@ -72,19 +72,19 @@ def print_report(world, report) -> None:
         occurrence = report.occurrence
         print(f"  * {occurrence.account}")
         for trace in occurrence.kept:
-            print(f"      {_name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+            print(f"      {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
     if report.arrival is not None:
         arrival = report.arrival
         print(f"  + {arrival.account}")
         for trace in arrival.kept:
-            print(f"      {_name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+            print(f"      {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
     for departure in report.departures:
         event = world.chronicle.get(departure.event_id)
-        print(f"  - {event.account if event else _name(world, departure.being_id) + ' left.'}")
+        print(f"  - {event.account if event else name(world, departure.being_id) + ' left.'}")
         if departure.because:
             print(f'      "{departure.because}"')
         for trace in departure.kept:
-            print(f"      {_name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+            print(f"      {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
     talked = {talk.speaker for talk in report.talks} | {talk.listener for talk in report.talks}
     talked |= {departure.being_id for departure in report.departures}
     for person_id, decision in sorted(report.decisions.items()):
@@ -97,25 +97,25 @@ def print_report(world, report) -> None:
         print(f"  {being.name:<7} {what:<34}{why}")
     for talk in report.talks:
         for said in talk.turns:
-            print(f"  {_name(world, said.speaker):<7} to {_name(world, said.listener)}: "
+            print(f"  {name(world, said.speaker):<7} to {name(world, said.listener)}: "
                   f"\"{said.line}\"")
             if said.reshaped:
-                print(f"  {'':<7}   ({_name(world, said.speaker)}'s memory was "
+                print(f"  {'':<7}   ({name(world, said.speaker)}'s memory was "
                       f"\"{said.reshaped[0]}\"; now \"{said.reshaped[1]}\")")
             heard = {trace.owner for trace in said.kept}
             for trace in said.kept:
-                print(f"  {'':<7}   {_name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+                print(f"  {'':<7}   {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
             event = world.chronicle.get(said.event_id)
             for person_id in (event.reached if event else []):
                 if person_id not in heard and person_id != said.speaker:
-                    print(f"  {'':<7}   {_name(world, person_id)} kept nothing of it")
+                    print(f"  {'':<7}   {name(world, person_id)} kept nothing of it")
     for person_id, reflection in report.reflections.items():
         line = reflection.get("thought") or ""
         extra = (f' -> now believes "{reflection["belief"]}"'
                  if reflection.get("belief") else "")
         # A reckoning happens when the person says they are stopping, which
         # is whatever hour that turns out to be.
-        print(f"  {_name(world, person_id):<7} stops, and is left with: \"{line}\"{extra}")
+        print(f"  {name(world, person_id):<7} stops, and is left with: \"{line}\"{extra}")
     if report.silent:
         print(f"  ({report.silent} mind(s) gave no usable answer and stayed put)")
 
@@ -184,7 +184,7 @@ def command_status(arguments) -> None:
 def command_being(arguments) -> None:
     """Show detailed view of one being: who they are, what they remember, who they know."""
     world = open_world(arguments)
-    being = world.being_by_name(arguments.name)
+    being = world.being_byname(arguments.name)
     if being is None:
         sys.exit(f"Nobody here is called {arguments.name!r}")
     print(heading(being.name))
@@ -296,7 +296,7 @@ def command_news(arguments) -> None:
         print(f"    {mark.get(event.category, '')}{event.account}")
         for person_id in event.reached:
             for trace in world.traces(person_id).about_event(event.id):
-                print(f"      {_name(world, person_id)} kept [{trace.feeling}] {trace.trace}")
+                print(f"      {name(world, person_id)} kept [{trace.feeling}] {trace.trace}")
     print("\n  Now:")
     for being in sorted(world.beings.values(), key=lambda person: person.name):
         if not being.present:
@@ -317,7 +317,7 @@ def _command_catchup(arguments) -> None:
     from .backends import probe
 
     stamp = time.strftime("%Y-%m-%d %H:%M")
-    world = _open_live(arguments)
+    world = open_live(arguments)
     try:
         with store.tick_lock(world.root):
             now = time.time()
@@ -369,7 +369,7 @@ def _command_tick(arguments) -> None:
     """[DEV] Advance the world N steps by hand, ignoring the wall clock."""
     from .tick import tick
 
-    world = _open_live(arguments)
+    world = open_live(arguments)
     configuration = config.load(world.root)
     try:
         with store.tick_lock(world.root):
