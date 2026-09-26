@@ -1,9 +1,4 @@
-"""The road runs both ways: who walks out of the world, and who walks into it.
-
-Everything here is the engine's half. Whether somebody wants to go is the
-mind's business and is not tested. Whether the world will let them, and what it
-does to a town when they do, is.
-"""
+"""Departures and arrivals: the engine's gates, not the mind's choice."""
 
 import sys
 import tempfile
@@ -47,7 +42,6 @@ class Road(unittest.TestCase):
         self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
                                  CallName.DIRECT: QUIET, CallName.REFLECT: {}, CallName.ARRIVE: NOBODY})
         register(self.stub)
-        # Lilith begins on the ridge path, which is the way out of Nod.
         self.lilith = self.world.beings["p_lilith"]
 
     def tearDown(self):
@@ -61,7 +55,6 @@ class Road(unittest.TestCase):
         return sorted(p.id for p in self.world.beings.values() if p.present)
 
     def send_lilith_away(self):
-        """Put Lilith on the road and let her take it."""
         self.lilith.where.place = "mizpah"
         self.stub.answers["act|p_lilith"] = GOING
         report = tick_mod.tick(self.world, configuration())
@@ -78,8 +71,6 @@ class TestWhetherAnyoneCanGoAtAll(Road):
                          "the yard is not a way out of anywhere")
 
     def test_the_hour_is_not_the_engine_s_business(self):
-        # There used to be a fourth gate here: not at night. It was the engine
-        # deciding that nobody is the sort of person who walks out in the dark.
         self.world.at = 3 * 24 + 3.0                 # three in the morning
         self.assertFalse(self.world.daylight)
         self.assertTrue(agents.may_leave(self.world, self.lilith),
@@ -92,10 +83,6 @@ class TestWhetherAnyoneCanGoAtAll(Road):
                          "two people are not a town anybody can leave")
 
     def test_how_often_anybody_goes_is_nobody_business_but_theirs(self):
-        # There used to be forty-five days here, and it was the engine
-        # deciding how often a town of this size loses somebody. The map and
-        # the floor are all that is left; whether two people would walk out in
-        # the same week is a fact about those two people.
         self.world.beings["p_x0"] = type(self.lilith)(id="p_x0", name="X0", where=Where(place="bethel"))
         self.send_lilith_away()
         havvah = self.world.beings["p_havvah"]
@@ -179,8 +166,7 @@ class TestGoing(Road):
 
     def test_and_stops_offering_her_to_the_director(self):
         self.send_lilith_away()
-        # The town is asked once a day, and the first asking of this one came
-        # in the same step she went, before she had gone. Wait for the next.
+        # The director was already asked in the step she left; wait for the next.
         self.world.at += 24
         tick_mod.tick(self.world, configuration())
         call = self.calls(CallName.DIRECT)[-1]
@@ -194,7 +180,6 @@ class TestGoing(Road):
 
 class TestComing(Road):
     def after_a_gap(self, hours=None):
-        """Wind the clock on past whatever the road said it wanted."""
         if hours is not None:
             self.world.at += hours
         else:
@@ -202,11 +187,6 @@ class TestComing(Road):
         return tick_mod.tick(self.world, configuration())
 
     def test_the_road_keeps_its_own_timer(self):
-        # The road is asked once at the start of the world and then says when
-        # it is worth asking again. There are no gap constants left: the two
-        # that were here - a month while the town was short of somebody, a
-        # year when it was not - were the engine guessing at how often a town
-        # takes a stranger in, which is the road's own answer now.
         tick_mod.tick(self.world, configuration())
         self.assertEqual(len(self.calls(CallName.ARRIVE)), 1)
         self.assertEqual(self.world.road_wake_at, self.world.at + 24.0,
@@ -285,8 +265,6 @@ class TestComing(Road):
         self.assertIn("Lilith", user)
 
     def test_a_road_that_answers_nothing_usable_is_asked_again(self):
-        # No interval on the answer means no timer, and the engine does not
-        # pick one on its behalf - it simply comes round with the world.
         tick_mod.tick(self.world, configuration())
         self.stub.set(CallName.ARRIVE, {"comes": False})
         self.world.road_wake_at = self.world.at
@@ -311,9 +289,7 @@ class TestComing(Road):
                          "there is nowhere to put anybody, so it is never asked")
 
     def test_and_can_shrink_until_it_stops_being_one(self):
-        # A filler person is added first, so the floor is reached one departure
-        # later than it would be from the seed's three alone, and both the
-        # allowed and the blocked departure can be seen in one test.
+        # A filler lets one test see both the allowed and the blocked departure.
         filler = type(self.lilith)(id="p_x0", name="X0", where=Where(place="bethel"))
         self.world.beings["p_x0"] = filler
         self.send_lilith_away()                    # 3 present: bezalel, havvah, x0
@@ -357,10 +333,7 @@ class TestReading(Road):
         self.world.at += 4000 * 24                 # long enough to lose anything
         from elsewhere import retrieval
         memory = list(self.world.memories("p_lilith"))[0]
-        # The world has no idea what has happened to her since and does not
-        # pretend to by going on fading things nobody here can see. What
-        # `elsewhere person Lilith` reads is her clock, stopped on the day she
-        # went - so it says the same thing however long ago that was.
+        # A departed person's memories are read at `left_at`.
         self.assertGreater(retrieval.chance(retrieval.activation(memory, left_at)),
                            0.5, "as of the day she went, she still had it")
         self.assertLess(retrieval.chance(retrieval.activation(memory, self.world.at)),

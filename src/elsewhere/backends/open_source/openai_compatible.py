@@ -10,11 +10,7 @@ from .http import post
 
 
 class OpenAICompatibleBackend:
-    """vLLM, LM Studio, llama.cpp server, or anything else with /v1.
-
-    Tries a json_schema response format first (vLLM supports it through guided
-    decoding) and falls back to plain json_object for servers that do not.
-    """
+    """Tries a json_schema response format, falling back to json_object."""
 
     name = "openai"
     base = "http://localhost:8000/v1"
@@ -23,8 +19,7 @@ class OpenAICompatibleBackend:
         return (settings.base or self.base).rstrip("/")
 
     def _key(self) -> str:
-        # A secret, so the one thing that stays in the environment: it says
-        # whether a server will answer, never which mind it is.
+        # The only setting read from the environment, since it is a secret.
         return os.environ.get("ELSEWHERE_OPENAI_KEY", "none")
 
     def _body(self, call: Call, model: str, temperature: float,

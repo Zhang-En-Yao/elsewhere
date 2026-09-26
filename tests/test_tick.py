@@ -1,4 +1,4 @@
-"""P1: the town moves on its own. All of it offline, against a scripted stub."""
+"""The town moving on its own, offline against a scripted stub."""
 
 import io
 import contextlib
@@ -51,9 +51,6 @@ class TownTest(unittest.TestCase):
 
 class TestTime(TownTest):
     def test_a_step_is_as_long_as_the_next_thing_due(self):
-        # There is no step size. Everyone answered "six hours" because that is
-        # what the stub says; the clock moved six because of that and for no
-        # other reason.
         tick_mod.tick(self.world, configuration())              # the opening step
         was = self.world.at
         report = tick_mod.tick(self.world, configuration())
@@ -68,14 +65,11 @@ class TestTime(TownTest):
         report = tick_mod.tick(self.world, configuration())
         self.assertEqual(report.hours, 1.5)
         self.assertEqual(self.world.at, was + 1.5)
-        # and only she was asked anything: the others said six and meant it
+        # and only she was asked
         asked = [c.about for c in self.calls_for(CallName.ACT)[-1:]]
         self.assertEqual(asked, ["p_havvah"])
 
     def test_somebody_absorbed_is_not_woken_by_what_is_not_about_them(self):
-        # Concordia's interrupt mask, with one bit. Without it every
-        # conversation anywhere woke everybody in earshot, and nobody in this
-        # town could concentrate on anything.
         tick_mod.tick(self.world, configuration())
         for pid in ("p_bezalel", "p_havvah", "p_lilith"):
             self.world.beings[pid].where.place = "bethel"
@@ -117,11 +111,7 @@ class TestChoices(TownTest):
         tick_mod.tick(self.world, configuration())
         havvah_call = next(c for c in self.calls_for(CallName.ACT) if c.about == "p_havvah")
         options = havvah_call.schema["properties"]["target"]["enum"]
-        # Havvah is at the garden: next to Beth El and Marah, and alone. The
-        # Boatyard is in reach from Gan Eden because the way between them is
-        # one entry now. It used to be two lists, and the garden's copy had
-        # lost it - so Bezalel could walk to Havvah and Havvah could not walk
-        # back, and nothing anywhere could have noticed.
+        # Havvah is alone at the garden, next to Beth El, Marah and the Boatyard.
         self.assertEqual(sorted(options),
                          ["", "Beth El", "Marah", "The Boatyard"])
 
@@ -168,15 +158,12 @@ class TestConversation(TownTest):
                          "the speaker is not asked to perceive her own sentence")
 
     def test_the_other_one_answers(self):
-        # It used to be one line in one direction: somebody said a thing,
-        # everybody kept their version, and nobody ever answered anybody.
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
         self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
         talk = tick_mod.tick(self.world, configuration()).talks[0]
         self.assertGreater(len(talk.turns), 1)
         self.assertEqual([t.speaker for t in talk.turns[:2]], ["p_havvah", "p_bezalel"])
-        # Bezalel answers what he kept of her line, not the line itself: each
-        # turn is an event, and he was handed a version of it first.
+        # Each turn is an event, so Bezalel replies to his perceived version.
         his = [c for c in self.calls_for(CallName.SPEAK) if c.about == "p_bezalel"]
         self.assertTrue(his)
 
@@ -230,11 +217,8 @@ class TestConversation(TownTest):
 
 
 class TestStayingPut(TownTest):
-    """What somebody is doing is theirs to say, not the engine's to enumerate."""
 
     def test_the_verbs_are_only_what_the_engine_can_resolve(self):
-        # Move somebody, put two in a conversation, take one out of the world.
-        # Anything else is staying put, and what that looks like is free text.
         self.assertEqual(set(schemas.ACTIONS), {"stay", "go", "talk"})
         self.assertNotIn("enum", schemas.ACT["properties"]["doing"])
 
@@ -255,7 +239,7 @@ class TestStayingPut(TownTest):
 
 
 class TestCategories(unittest.TestCase):
-    """The engine's categories are matched by string, and a typo is silent."""
+    """Categories are matched by string, so a typo fails silently."""
 
     def test_a_conversation_is_recorded_under_the_name_the_engine_knows(self):
         tmp = tempfile.TemporaryDirectory()
@@ -275,10 +259,6 @@ class TestCategories(unittest.TestCase):
                          "one event per turn, and the stub always has a line")
 
     def test_the_three_kinds_account_for_everything_the_engine_writes(self):
-        # The taxonomy is the point: the world acting on people, a being's
-        # presence starting or stopping, and beings reaching each other. A
-        # fifth category that belongs to none of them is a category nobody
-        # has decided the meaning of yet.
         world_acts = {chronicle.OCCURRENCE}
         exchanges = {chronicle.CONVERSATION}
         self.assertEqual(
@@ -296,8 +276,6 @@ class TestCategories(unittest.TestCase):
 
 class TestOwedTime(unittest.TestCase):
     def test_what_is_owed_is_hours_and_not_steps(self):
-        # A day here is a day there, which is the promise. How many steps that
-        # comes to is the town's business and differs from day to day.
         self.assertEqual(tick_mod.owed_hours(None, 1e9), 0.0)
         self.assertEqual(tick_mod.owed_hours(0, 5.9 * 3600), 5.9)
         self.assertEqual(tick_mod.owed_hours(0, 25 * 3600), 25.0)
@@ -317,8 +295,7 @@ class TestContinue(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
         register(StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False}}))
-        # Said in the world's own configuration, the way anyone would, so
-        # nothing here can reach a real model.
+        # Configured to the stub so nothing reaches a real model.
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
         seed.create(self.root)
 
@@ -337,7 +314,6 @@ class TestContinue(unittest.TestCase):
         store.save(world)
 
     def test_the_first_continue_only_starts_the_clock(self):
-        # `create` starts the clock itself, so this is a world that has none.
         world = store.load(self.root)
         world.last_tick_at = None
         store.save(world)
@@ -351,9 +327,7 @@ class TestContinue(unittest.TestCase):
         self.set_last_tick(13)
         before = store.load(self.root).at
         self.run_cli("continue")
-        # At least the thirteen hours the wall clock says. It may be a little
-        # more, because a step is however long the person who wanted waking
-        # soonest asked for and the last one cannot be cut in half.
+        # Can overshoot by up to one step, which is not split.
         lived = store.load(self.root).at - before
         self.assertGreaterEqual(lived, 13)
         self.assertLess(lived, 13 + 6)
@@ -368,9 +342,7 @@ class TestContinue(unittest.TestCase):
         self.assertLess(time.time() - after.last_tick_at, 60)
 
     def test_nothing_is_owed_until_the_world_has_something_due(self):
-        # Everyone has said they will be six hours at what they are doing and
-        # the wall clock has moved one: there is nothing to live, and saying
-        # so is a heartbeat.
+        # Everyone is busy for six hours and only one has passed.
         self.run_cli("continue")                  # starts the clock
         self.set_last_tick(7)
         self.run_cli("continue")                  # lives up to the next thing due
@@ -395,13 +367,12 @@ class TestContinue(unittest.TestCase):
         self.assertTrue(after.closed)
         self.assertEqual(after.at, before.at)
         self.assertEqual(len(after.chronicle), len(before.chronicle))
-        # nothing more happens in it - including a prompt-tuning run, which
-        # writes memories like anything else does...
+        # nothing more happens in it, including a tuning run...
         for command in (("tick",), ("continue",), ("remember", "ev0001")):
             with self.assertRaises(SystemExit) as raised:
                 self.run_cli(*command)
             self.assertIn("has ended", str(raised.exception))
-        # ...but what did happen can still be read.
+        # ...but it can still be read.
         self.assertIn("(ended)", self.run_cli("status"))
         self.assertIn("had already ended", self.run_cli("end"))
 
@@ -413,14 +384,12 @@ class TestContinue(unittest.TestCase):
         self.assertFalse(store.load(self.root).closed)
 
     def test_a_running_tick_is_not_written_over_by_a_tuning_run(self):
-        """`remember` writes memories and saves the world, so it waits its turn."""
         with store.tick_lock(self.root):
             with self.assertRaises(SystemExit) as raised:
                 self.run_cli("remember", "ev0001")
         self.assertIn("Not now", str(raised.exception))
 
     def test_a_tuning_run_does_write_when_nothing_is_in_its_way(self):
-        """The guards are guards, and not the command quietly doing nothing."""
         event = store.load(self.root).chronicle.all()[0]
         register(StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {
             "stuck": True, "account": "what the frame felt like to hold",

@@ -1,59 +1,16 @@
-"""A small beginning: three people, one town, and four things that happened to it.
+"""The starting world: three people, one town, and four past events.
 
-The town's history is authored - somebody has to write the first page. What
-nobody authors is what any of it meant: the opening memories are produced by
-running the backstory past each person the same way every later event will be.
-A world created with no mind available simply starts with three people who
-remember nothing, which is an honest state to start from.
+The history is authored; what it meant to each person is not - opening
+memories come from running each event through `perceive`, like any later event.
 
-It is written in that order too - the events first, and then a town that is
-what they left behind. Nothing here is scenery that the story then had to be
-fitted into.
+Events are canonical Hindu myths (Ganga's descent, the churning, Matsya's
+deluge, Govardhan lifted), each dated on its own festival in the Hindu calendar.
+Places are what those events left behind, each named for a Jewish place whose
+story is the same (e.g. Penuel: seeing God and living). The people carry names
+fitting their part: Bezalel built the boat and the house, Havvah kept the fish
+and the garden, Lilith stands where the road goes out.
 
-WHAT HAPPENS is out of Hindu cosmology, and it is the canonical events
-themselves rather than a village keeping their feast days: the Ganga coming
-down out of the sky, taken on a head first so the fall would not open the
-ground; the churning of the water, for the poison and then for the little that
-was sweet; the deluge at the turn of the age, with the fish that outgrew every
-vessel and the boat tied to its horn; and seven days of rain held off under a
-hill lifted on one hand. They happen here, in this valley, to these three.
-
-WHEN is the day each one's own tradition puts it on, which is why the world's
-calendar is the idealised Hindu one - twelve months of thirty tithis, six
-seasons, three hundred and sixty days (`world.store`). The descent is Jyeshtha
-10 waxing, Ganga Dussehra. The churning is Phalguna 14 waning, Maha
-Shivaratri, the night nobody sleeps, because of what was drunk that night. The
-deluge is Chaitra 3 waxing, Matsya Jayanti. The lifting is Kartika 1 waxing,
-Govardhan Puja, the Annakut day after Diwali night. The world then opens on
-Chaitra 1 waxing - new year's morning, with the rains four months off.
-
-WHERE is what those four left on the ground, in the order they made it, and
-each one is named for the Jewish place whose own story is about the same thing
-happening. The river came down on a ledge and did not kill the man who took
-it: Penuel, where Jacob saw God face to face and lived. It filled a bitter
-water with one sweet reach in it: Marah, whose water could not be drunk until
-it could. The hill they stood up in that water to churn against is the same
-hill that was later held over the town: Sinai, which a midrash has God hold
-over Israel like an upturned vat. The boat came to rest on the high ground,
-which is also where the road out goes: Mizpah, the watchpost, and the heap two
-people left where they parted - and the peak the fish's boat is tied to is
-called Naubandhana, the boat-binding. Then the three things the survivors made
-from what was left: the hull itself, turned over on the one patch of ground
-the lifted hill kept dry, which is Beth El, a house with a stone at its
-corner; the ground it was built on, which is the Boatyard; and the seed that
-was carried in it, which is Gan Eden, a garden called Eden in the land east of
-it.
-
-WHO is three people the events gave something to carry. Bezalel, "in the
-shadow of God", built the tabernacle; here he built the boat and then the
-house out of the boat. Havvah is "the living"; she kept the fish, and the
-garden is the seed she brought off the boat. Lilith left a garden rather than
-stay in one, and she is the one standing on the high ground when the boat came
-up out of the water, and the one who may yet go.
-
-None of it is narrated as myth. Every event below is written as plainly as
-every event that comes after it, because the freight is not in the sentence -
-it is in who it happened to, and where they were standing.
+Events are written plainly, not as myth.
 """
 
 from __future__ import annotations
@@ -72,15 +29,7 @@ from .world.store import (DAYS_PER_MONTH, DAYS_PER_YEAR, TITHIS_PER_PAKSHA,
 
 
 def on(year: int, month: int, tithi: int, paksha: str, hour: float) -> float:
-    """The world's clock at a date written in the world's own calendar.
-
-    `month` is 1-12 as `store.MONTHS` runs, `tithi` is the 1-15 of a
-    fortnight, and `paksha` is "waxing" or "waning" - waxing first, because
-    these months begin the day after a new moon. The dates below are written
-    this way rather than as day numbers so that a date which is meant to be
-    Govardhan Puja reads as Kartika 1 waxing and can be checked against a
-    calendar instead of against a comment.
-    """
+    """`tithi` is 1-15 within the `paksha` ("waxing" first, amanta months)."""
     if paksha not in ("waxing", "waning"):
         raise ValueError(f"a fortnight waxes or wanes: {paksha!r}")
     if not 1 <= tithi <= TITHIS_PER_PAKSHA:
@@ -90,7 +39,6 @@ def on(year: int, month: int, tithi: int, paksha: str, hour: float) -> float:
     return (day - 1) * HOURS_PER_DAY + hour
 
 
-# The town's past, each event on the day its own tradition puts it on.
 DESCENT = on(1, 3, 10, "waxing", 11.0)     # Jyeshtha 10 waxing: Ganga Dussehra
 CHURNING = on(1, 12, 14, "waning", 2.0)    # Phalguna 14 waning: Maha Shivaratri
 DELUGE = on(2, 1, 3, "waxing", 4.0)        # Chaitra 3 waxing: Matsya Jayanti
@@ -103,12 +51,6 @@ START_DAY = int(START_AT // HOURS_PER_DAY) + 1
 
 def add_place(world: World, neighbours: dict, pid: str, name: str,
                description: str, adjacent, road_out: bool = False):
-    """A place, and the ways out of it as this line happens to name them.
-
-    Naming a way from one end is enough: `entities.ways_from_neighbours` folds
-    both namings into the one entry, so a town written down this way cannot
-    come out with a path that runs one direction only.
-    """
     world.places[pid] = Place(id=pid, name=name, description=description)
     neighbours[pid] = list(adjacent)
     if road_out:
@@ -117,7 +59,6 @@ def add_place(world: World, neighbours: dict, pid: str, name: str,
 
 def add_being(world: World, bid: str, name: str, card: str, manner: str,
                thought: str, wants, place: str, home: str) -> None:
-    """A person, standing at `place`, with `home` as where they go back to."""
     world.beings[bid] = Being(
         id=bid, name=name,
         who=Who(card=card, manner=manner, thought=thought, wants=wants),
@@ -127,43 +68,24 @@ def add_being(world: World, bid: str, name: str, card: str, manner: str,
 
 def add_regard(world: World, holder: str, subject: str, account: str,
                days_ago: float) -> None:
-    """What `holder` makes of `subject`, in their own words, and when they last
-    saw them.
-
-    One-sided on both sides - and so is the last time they spoke, which both
-    of them can see and neither of them is told what to make of.
-    """
     regard = world.beings[holder].who.regard(subject)
     regard.account = account
     regard.last_seen_at = START_AT - days_ago * HOURS_PER_DAY
 
 
 def clear_world(root: Path) -> None:
-    """A new world starts with an empty past.
-
-    The chronicle is append-only by design, which means building a world into
-    a directory that already holds one would quietly give it two histories.
-    Transcripts are left alone: they are a record of questions asked, not part
-    of the world.
-    """
+    """Needed because the chronicle is append-only. Transcripts are kept."""
     import shutil
 
     (root / "chronicle.jsonl").unlink(missing_ok=True)
     (root / "world.json").unlink(missing_ok=True)
-    # "beings" and "memories" are the two directories `store.save` writes.
     for sub in ("beings", "memories"):
         shutil.rmtree(root / sub, ignore_errors=True)
 
 
 def remember(world: World, event, configuration, transcript=None) -> list:
-    """Let each person the event reached take it in, from where they stood.
-
-    Call it right after `world.record`, while the clock is still at the event's
-    time. Everyone reached needs a place they stood, so one without it is an
-    error here and not a guess later. With no `configuration` nobody is asked
-    anything. What comes back is what stuck, which is not everybody: a mind
-    that gave nothing keeps nothing.
-    """
+    """Call right after `world.record`, while the clock is at the event.
+    Every reached being must have a vantage."""
     if configuration is None:
         return []
     stood = event.data.get("vantage") or {}
@@ -180,38 +102,26 @@ def remember(world: World, event, configuration, transcript=None) -> list:
 
 
 def unheard(line: str) -> None:
-    """Where a line goes when nobody asked for one. `build` is a library call."""
+    pass
 
 
 def past(world: World, event, configuration, transcript, say) -> None:
-    """Take an event in, and say how that went.
-
-    The four events below are the whole wait in making a world - everybody
-    reached is asked about each of them, one question at a time, and on a model
-    running at home that is minutes. So a line per event, for whoever is
-    watching a terminal.
-    """
     started = time.time()
     kept = remember(world, event, configuration, transcript)
     if configuration is None:
-        return                  # nobody was asked, so there was no wait to report
+        return
     say(f"  {event.category:<9} {len(kept)} of {len(event.reached)} kept "
         f"something of it  ({time.time() - started:.0f}s)")
 
 
 def build(root, name: str = "Nod", configuration=None, transcript=None,
           say=unheard) -> World:
-    """The town and its past. Given a `configuration`, the people also remember it."""
     root = Path(root)
     clear_world(root)
     world = World(root=root, name=name, at=0.0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
     neighbours: dict = {}
 
-    # Every place here is what one of the four events left behind, which is
-    # also the order they were made in: the river, the water it filled, the
-    # hill that was put into it, the high ground the boat stopped on, and then
-    # the three things the people made out of what was left.
     add_place(world, neighbours, "penuel", "Penuel",
            "The ledge the river came down onto, and the seven channels it "
            "went out of. You cannot hear anything else standing on it.",
@@ -298,7 +208,6 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
         place="mizpah", home="sinai",
     )
 
-    # Who already knows whom, in their own words.
     add_regard(world, "p_bezalel", "p_havvah", "Seven days under the hill and she never once asked how. She is easy to be quiet with.", 1)
     add_regard(world, "p_havvah", "p_bezalel", "He works too late. Good hands.", 1)
     add_regard(world, "p_havvah", "p_lilith", "Young. Always about to go somewhere.", 6)
@@ -306,11 +215,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
     add_regard(world, "p_bezalel", "p_lilith", "Restless. Not unkind.", 11)
     add_regard(world, "p_lilith", "p_bezalel", "He would rebuild this whole place plank by plank and never ask why.", 11)
 
-    # ---- the first page of the chronicle ---------------------------------
-    # Where each of them stood is part of what happened, so it is written into
-    # the chronicle - as a position and nothing more. "Close enough to feel the
-    # spray" is already a perception, and a small model will copy it straight
-    # into the memory it is supposed to be forming for itself.
+    # Vantages are bare positions: descriptive phrasing gets copied verbatim
+    # into the memories.
     world.at = DESCENT
     event = world.record("descent",
                          "The river came down. It came out of the sky onto the "
@@ -387,11 +293,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
     past(world, event, configuration, transcript, say)
 
     world.at = START_AT
-    # Everything in the world starts due: the first step asks each person what
-    # they are doing, asks the town whether anything happens to it, and asks
-    # the road who is on it. Every one of them answers with when it wants to
-    # be asked next, and from there nothing in the engine has an opinion about
-    # how often anything happens.
+    # Everything starts due; from here on every timer is set by its owner.
     world.town_wake_at = START_AT
     world.road_wake_at = START_AT
     for being in world.beings.values():
@@ -400,7 +302,6 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
 
 
 def create(root, name: str = "Nod", transcript=None, say=unheard) -> World:
-    """A new world on disk: the town, its past, and what each person made of it."""
     write_default_configuration(root)
     world = build(root, name=name, configuration=load_configuration(root),
                   transcript=transcript, say=say)

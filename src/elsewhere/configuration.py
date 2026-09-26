@@ -1,16 +1,5 @@
-"""Which mind answers which question.
-
-Per call site, so the cheap decisions can run on something small at home while
-the ones that need judgement go somewhere larger. Written into the world as
-``configuration.json`` at creation time, so it is visible and editable rather
-than buried in code.
-
-That file is the only thing that decides. Nothing in the environment can
-override it, so what you read there is what the world runs on - whether it is
-you at a terminal or launchd at three in the morning. The one exception is a
-key: a secret does not belong in a file that gets copied around, and a key only
-decides whether a mind can be reached, never which one it is.
-"""
+"""Which backend and model answers each call, from the world's
+``configuration.json``. The environment never overrides it, except for API keys."""
 
 from __future__ import annotations
 
@@ -21,28 +10,12 @@ from typing import Dict, Iterable, Optional
 from .backends import Settings
 from .schemas import CallName
 
-# Model names are Hugging Face repositories, fetched on first use and cached
-# in ~/.cache/huggingface; a local directory of MLX weights works too.
-#
-# The defaults below assume the model runs on the same machine as the tick and
-# that machine has about 4GB to spare once the OS has taken its share. That
-# buys a 3-4B model at Q4 and nothing larger - which is a real constraint on
-# quality, not a detail. Gemma 4 E2B in its quantisation-aware build is the
-# newest thing that fits: on an 8GB M1 it takes 3.4GB once loaded and peaks
-# near 4.1GB while answering. See `notes` in the written configuration for the
-# two ways out: a bigger model on a GPU somewhere (backend "openai" with its
-# base set), or sending the calls that need judgement to a hosted model
-# (backend "claude", "gpt" or "gemini").
-# One model for every call site. On 8GB two models cannot both stay resident,
-# and loading a second one every tick costs more than it saves.
+# Hugging Face repo or a local MLX directory. Sized for ~4GB free on an 8GB
+# Apple-silicon Mac (3.4GB resident, ~4.1GB peak); one model for every call,
+# since two cannot stay resident at once.
 LOCAL = {"backend": "mlx", "model": "mlx-community/gemma-4-E2B-it-qat-4bit"}  # ~4GB
 
-# Not a mind: the thing that says where a memory reads from, so that what
-# comes back to somebody is what this moment is about rather than what they
-# happened to type the same word for. Google's EmbeddingGemma, which MLX runs
-# natively. Nothing breaks if it is missing: retrieval falls back on how
-# reachable a memory is, which is what it used before. Vectors from two
-# embedders cannot be compared, so after changing this run
+# Optional; without it retrieval ranks by base level only. Changing it requires
 # `elsewhere reembed`.
 EMBED = {"backend": "mlx", "model": "mlx-community/embeddinggemma-300m-8bit"}  # ~330MB, 768 dims
 
@@ -83,8 +56,6 @@ NOTES = [
 
 FILENAME = "configuration.json"
 
-# The minds, as opposed to the embedder: what `configure` changes unless told
-# otherwise, since one model rarely does both.
 MINDS = tuple(name for name in DEFAULTS if name != "embed")
 
 
@@ -98,7 +69,7 @@ def default_configuration() -> dict:
 
 
 def read_configuration(root) -> dict:
-    """The file as written, with anything it leaves out taken from the defaults."""
+    """The file merged over the defaults."""
     data = default_configuration()
     path = path_of(root)
     if path.exists():
@@ -112,7 +83,6 @@ def read_configuration(root) -> dict:
 
 
 def load_configuration(root) -> Dict[str, Settings]:
-    """Read a world's configuration: one Settings per call site."""
     return {name: Settings.from_dict(settings)
             for name, settings in read_configuration(root)["agents"].items()}
 
@@ -127,11 +97,7 @@ def _write(root, data: dict) -> Path:
 
 
 def write_default_configuration(root) -> Path:
-    """Write the defaults, unless this world already has a configuration.
-
-    Kept rather than replaced, so that `configure` can run before a world is
-    made, and starting a world over does not undo which minds it runs on.
-    """
+    """Kept if one exists, so `configure` can run before `initialize`."""
     path = path_of(root)
     if path.exists():
         return path
@@ -140,7 +106,6 @@ def write_default_configuration(root) -> Path:
 
 def configure(root, backend: str, model: str, base: Optional[str] = None,
               calls: Iterable[str] = MINDS) -> Path:
-    """Point these call sites at one backend and model, and write it down."""
     data = read_configuration(root)
     for name in calls:
         if name not in data["agents"]:

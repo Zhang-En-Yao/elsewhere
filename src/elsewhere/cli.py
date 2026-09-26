@@ -1,8 +1,4 @@
-"""Terminal access to a world whose judgements are not yours and not mine.
-
-P0 commands: make one, look at it, and check that whatever is supposed to be
-thinking can actually be reached.
-"""
+"""The `elsewhere` command line."""
 
 from __future__ import annotations
 
@@ -23,8 +19,8 @@ from .world.store import World, clock_at, day_of
 
 DEFAULT_ROOT = Path("world")
 
-# What used to override the configuration from the environment. They do
-# nothing now, and saying so is better than letting somebody believe they do.
+# Removed environment overrides, mapped to their configuration field; setting
+# one is an error so nobody believes it still works.
 ABANDONED = {
     "ELSEWHERE_BACKEND": "backend",
     "ELSEWHERE_MODEL": "model",
@@ -33,10 +29,9 @@ ABANDONED = {
 }
 
 
-# helpers - shared by more than one command, none of them a command itself
+# helpers
 
 def open_world(arguments) -> World:
-    """Load an existing world, or exit if it doesn't exist."""
     root = Path(arguments.world)
     if not store.exists(root):
         sys.exit(f"No world at {root}. Run: elsewhere --world {root} initialize")
@@ -44,7 +39,6 @@ def open_world(arguments) -> World:
 
 
 def open_live(arguments):
-    """Load a world and ensure it's still active (not closed)."""
     world = open_world(arguments)
     if world.closed:
         sys.exit(f"{world.name} has ended. Nothing more happens here.")
@@ -52,13 +46,7 @@ def open_live(arguments):
 
 
 def go_on(world: World, most: int = 8, say=print) -> None:
-    """Live the hours the wall clock says are owed, and say what happened.
-
-    `say` is where the account of it goes, a line at a time, and it defaults
-    to the terminal that asked. It is a seam rather than a setting: what lives
-    a step and what shows a step are different questions, and `report_lines`
-    below is the answer to the second one for anybody who needs it.
-    """
+    """Live the hours the wall clock says are owed, reporting each step via `say`."""
     from .tick import owed_hours, settle_clock, tick
 
     stamp = time.strftime("%Y-%m-%d %H:%M")
@@ -71,9 +59,6 @@ def go_on(world: World, most: int = 8, say=print) -> None:
                 say(f"[{stamp}] clock started for {world.name}")
                 return
             owed = owed_hours(world.last_tick_at, now)
-            # How far ahead the world is already scheduled. Nothing is owed
-            # until the wall clock has caught up with the last thing somebody
-            # said they would be doing.
             ahead = schedule.next_at(world)
             if ahead is not None and world.at + owed < ahead:
                 say(f"[{stamp}] checked; nothing is due for "
@@ -82,14 +67,10 @@ def go_on(world: World, most: int = 8, say=print) -> None:
             configuration = load_configuration(world.root)
             ok, message = probe(configuration[CallName.ACT])
             if not ok:
-                # The world waits rather than going on without minds.
                 say(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
                     f"{world.name} waits")
                 return
-            # Live as much of the backlog as the people in it asked to be
-            # woken for, in whatever steps they asked for - which is why there
-            # is no step size here either. `most` is a bound on model calls,
-            # not on time.
+            # `most` bounds model calls, not world time.
             began, steps = world.at, 0
             while world.at - began < owed and steps < most:
                 report = tick(world, configuration, transcript_for(world))
@@ -111,38 +92,27 @@ def go_on(world: World, most: int = 8, say=print) -> None:
 
 
 def transcript_for(world: World) -> Transcript:
-    """Return the JSONL transcript path for the current world day."""
     return Transcript(world.root / "transcript" / f"day{day_of(world.at):05d}.jsonl")
 
 
 def when(at: float) -> str:
-    """Format a world timestamp as human-readable 'day N, HH:MM'."""
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
 def heading(text: str) -> str:
-    """Format a section heading with an underline."""
     return f"\n{text}\n{'-' * len(text)}"
 
 
 def name(world, person_id: str) -> str:
-    """Look up a being's name by ID, or return the ID if not found."""
     being = world.beings.get(person_id)
     return being.name if being else person_id
 
 
 def report_lines(world, report) -> List[str]:
-    """A tick() report as lines: what happened, and who said or did what.
-
-    Lines rather than prints, because two things show a step now - a terminal
-    and a window (`tui/screen.py`) - and a report that formats itself in one
-    place cannot say two different things about the same step.
-    """
+    """Shared by the terminal and the TUI so both describe a step the same way."""
     if report.idle:
         return [report.label, "  (nothing in the world is scheduled)"]
     out: List[str] = []
-    # How far the clock moved, which is now different every step and is the
-    # one number that says whose hour it was.
     out.append(f"{report.label}  (+{report.hours:g}h)")
     if report.occurrence is not None:
         occurrence = report.occurrence
@@ -193,8 +163,6 @@ def report_lines(world, report) -> List[str]:
         line = reflection.get("thought") or ""
         extra = (f' -> now believes "{reflection["belief"]}"'
                  if reflection.get("belief") else "")
-        # A reckoning happens when the person says they are stopping, which
-        # is whatever hour that turns out to be.
         out.append(f"  {name(world, person_id):<7} stops, and is left with: "
                    f"\"{line}\"{extra}")
     if report.silent:
@@ -203,16 +171,14 @@ def report_lines(world, report) -> List[str]:
 
 
 def print_report(world, report) -> None:
-    """The same report, on a terminal, with a blank line above it."""
     print()
     for line in report_lines(world, report):
         print(line)
 
 
-# create - the only commands that make a world
+# create
 
 def command_initialize(arguments) -> None:
-    """Create a new world with initial characters, places, and backstory."""
     root = Path(arguments.world)
     if store.exists(root) and not arguments.force:
         sys.exit(f"{root} already holds a world. Use --force to start over.")
@@ -233,10 +199,9 @@ def command_initialize(arguments) -> None:
     print("\n".join(output))
 
 
-# read-only views - load the world, never change what happened in it
+# read-only views
 
 def command_status(arguments) -> None:
-    """Show world status: where everyone is, and what they remember."""
     world = open_world(arguments)
     print(f"{world.name} - {world.label()}" + ("  (ended)" if world.closed else ""))
     print(f"  chronicle: {len(world.chronicle)} events")
@@ -256,9 +221,7 @@ def command_status(arguments) -> None:
     total = 0
     for being in world.beings.values():
         memory_store = world.memories(being.id)
-        # Somebody who left is counted as they were the moment they went. The
-        # world has no idea what has happened to them since and will not
-        # pretend to by going on fading things nobody here can see.
+        # Someone who left is frozen at the moment they went.
         at = world.at if being.present else (being.when.left_at or world.at)
         memories = list(memory_store)
         live = retrieval.recallable(memories, at)
@@ -270,7 +233,6 @@ def command_status(arguments) -> None:
 
 
 def command_being(arguments) -> None:
-    """Show detailed view of one being: who they are, what they remember, who they know."""
     world = open_world(arguments)
     being = world.being_by_name(arguments.name)
     if being is None:
@@ -317,13 +279,8 @@ def command_being(arguments) -> None:
         told = len(memory.told) or 1
         print(f"          come up {told}x  "
               f"{retrieval.chance(retrieval.activation(memory, at)):.0%} it comes to mind")
-        # Earlier wordings. The only place the world shows that a memory
-        # moved, which is the whole claim this project makes about memory.
         for was in reversed(memory.history):
             print(f"          was: \"{was}\"")
-        # Something they arrived at themselves rather than a version of
-        # something that happened. What it was a thought about is the only
-        # thing that makes it readable a year later.
         for source in memory.origin:
             came = world.memories(being.id).get(source)
             if came is not None:
@@ -331,7 +288,6 @@ def command_being(arguments) -> None:
 
 
 def command_timeline(arguments) -> None:
-    """Show all events in chronological order (most recent by default)."""
     world = open_world(arguments)
     print(heading(f"{world.name}: what happened"))
     for event in world.chronicle.all()[-arguments.limit:]:
@@ -339,7 +295,6 @@ def command_timeline(arguments) -> None:
 
 
 def command_event(arguments) -> None:
-    """Show one event and what it left in each being who experienced it."""
     world = open_world(arguments)
     event = world.chronicle.get(arguments.event_id)
     if event is None:
@@ -370,7 +325,6 @@ def command_event(arguments) -> None:
 
 
 def command_news(arguments) -> None:
-    """Show new events since last time you checked (marks them as read by default)."""
     world = open_world(arguments)
     events = world.chronicle.all()[world.news_seen:]
     print(f"{world.name} - {world.label()}")
@@ -398,25 +352,11 @@ def command_news(arguments) -> None:
 
 
 def command_watch(arguments) -> None:
-    """Sit with the world: one window, open while it goes on without you.
-
-    The printed views each answer one question and stop, which is right for a
-    command and wrong for sitting with a world - what is worth seeing is a
-    memory in reach beside the same memory out of reach, and the hour somebody
-    arrived beside what everyone turned out to have kept of it. The window is
-    the same views with room to put two of those side by side.
-
-    It only reads. Nothing on any key in it writes anything under the world's
-    directory, which is why there is no key that lets the world go on and none
-    that marks the news read - `elsewhere continue` and `elsewhere news` are
-    worth having typed. Run either in another terminal, or leave the schedule
-    running behind it, and the window picks the change up by itself.
-    """
+    """Read-only TUI; it never writes under the world's directory."""
     root = Path(arguments.world)
     if not store.exists(root):
         sys.exit(f"No world at {root}. Run: elsewhere --world {root} initialize")
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
-        # A window has nowhere to be. The printed views do, and they pipe.
         sys.exit("watch needs a terminal. For a pipe or a log: elsewhere news")
     try:
         from .tui import screen
@@ -425,21 +365,19 @@ def command_watch(arguments) -> None:
     try:
         screen.run(root)
     except ValueError as exception:
-        # A world an older Elsewhere wrote. Says so rather than a traceback.
+        # A world written by an older, incompatible version.
         sys.exit(str(exception))
 
 
-# time passing - move the world's clock forward
+# time passing
 
 
 def command_continue(arguments) -> None:
-    """Let the world go on: live the hours the wall clock says are owed."""
     world = open_live(arguments)
     go_on(world, arguments.max)
 
 
 def _command_tick(arguments) -> None:
-    """[DEV] Advance the world N steps by hand, ignoring the wall clock."""
     from .tick import tick
 
     world = open_live(arguments)
@@ -456,14 +394,12 @@ def _command_tick(arguments) -> None:
         sys.exit(f"Not now: {exception}")
 
 
-# ending - the one way a world stops for good
+# ending
 
 def command_end(arguments) -> None:
-    """End the world: nothing more happens in it, and all that did stays readable."""
     try:
         with store.tick_lock(Path(arguments.world)):
-            # Loaded under the lock, so a step that was running has finished
-            # and saved before this looks at the world.
+            # Load under the lock so a running step finishes and saves first.
             world = open_world(arguments)
             if world.closed:
                 print(f"{world.name} had already ended.")
@@ -478,10 +414,9 @@ def command_end(arguments) -> None:
     print("  If it was scheduled: make unschedule")
 
 
-# development - diagnostics and prompt tuning; internal
+# development
 
 def _command_doctor(arguments) -> None:
-    """[DEV] Diagnostic: check if model backends are reachable and working."""
     root = Path(arguments.world)
     path = path_of(root)
     configuration = load_configuration(root)
@@ -491,7 +426,7 @@ def _command_doctor(arguments) -> None:
     seen = set()
     for name, settings in configuration.items():
         if name == "embed":
-            continue                      # not a mind; probed on its own below
+            continue                      # probed separately below
         key = (settings.backend, settings.model, settings.base)
         if key in seen:
             print(f"  {name:<9} {settings.backend}/{settings.model:<18} (same model as above)")
@@ -516,7 +451,6 @@ def _command_doctor(arguments) -> None:
 
 
 def command_configure(arguments) -> None:
-    """Point the minds at one backend and model, in the world's configuration."""
     root = Path(arguments.world)
     try:
         path = configure(root, arguments.backend, arguments.model, arguments.base,
@@ -530,13 +464,8 @@ def command_configure(arguments) -> None:
 
 
 def command_reembed(arguments) -> None:
-    """Place every memory and belief again, with the embedder configured now.
-
-    Vectors from two embedders are not comparable, and nothing about them
-    says which one made them: a world whose embedder changed would go on
-    comparing new cues with old memories and get numbers that mean nothing.
-    All of them or none, so a world never holds two kinds at once.
-    """
+    """Re-embed every memory and belief with the current embedder. All or
+    none, since vectors from different embedders are not comparable."""
     from .backends import embed
 
     try:
@@ -569,19 +498,10 @@ def command_reembed(arguments) -> None:
 
 
 def _command_remember(arguments) -> None:
-    """[DEV] Re-run one event past all beings for prompt tuning.
-
-    It is a development tool, but it is a *writing* one - it lays down memories
-    and saves the world - so it is held to what every other writing command is
-    held to. Under the lock, because a step running beside it would have one of
-    the two overwrite the other; and not in a world that has ended, because
-    `end` says nothing more happens there and a tuning run is still something
-    happening.
-    """
+    """Writes memories, so it takes the lock and refuses an ended world."""
     try:
         with store.tick_lock(Path(arguments.world)):
-            # Loaded under the lock, so a step that was running has finished
-            # and saved before this looks at the world.
+            # Load under the lock so a running step finishes and saves first.
             world = open_live(arguments)
             event = world.chronicle.get(arguments.event_id)
             if event is None:
@@ -632,14 +552,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.add_argument("event_id")
     subparser.set_defaults(func=command_event)
 
-    # The one view that writes: it remembers where you stopped reading.
+    # The one view that writes: it marks news as read.
     subparser = subparsers.add_parser(
         "news", help="what happened since you last looked")
     subparser.add_argument("--peek", action="store_true", help="look without marking it read")
     subparser.set_defaults(func=command_news)
 
-    # The same views, in a window, for when you mean to sit with it rather
-    # than ask it one question.
     subparser = subparsers.add_parser(
         "watch", help="sit with the world in a window; reads only")
     subparser.set_defaults(func=command_watch)

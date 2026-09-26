@@ -1,16 +1,4 @@
-"""Backends: whatever is doing the thinking, and the tape that records it.
-
-The engine never talks to a model directly. It composes a ``Call`` - a system
-prompt, a user prompt and the schema the answer must fit - and hands it to a
-backend. Which backend answers which call is configuration, so ``act`` can run
-on a 4B model at home while ``reflect`` goes to something larger.
-
-Every exchange is appended to a transcript - a durable record of what was
-asked, what came back, and whether it was usable. It is this world's
-replacement for a random seed, in the sense that it is the thing that
-explains a run after the fact; the tests themselves run offline against a
-stub backend instead, with no model and no tape to replay.
-"""
+"""Model backends, the call/answer plumbing, and the transcript of every call."""
 
 from __future__ import annotations
 
@@ -43,22 +31,15 @@ class Backend(Protocol):
     name: str
 
     def complete(self, call: Call, settings: "Settings") -> str:
-        """Return the raw text of one answer. Must not raise on model nonsense."""
+        """Must not raise on model nonsense."""
         ...
 
 
 class Embedder(Protocol):
-    """A backend that can also place text somewhere, rather than answer about it.
-
-    This is the only thing in Elsewhere a model is asked for that is not an
-    answer. It exists because the alternative was a tag vocabulary that every
-    mind had to keep spelling the same way for the engine to match on, and a
-    person does not file their own memories.
-    """
     name: str
 
     def embed(self, texts: List[str], settings: "Settings") -> List[List[float]]:
-        """One vector per text, in order. Must not raise on nonsense input."""
+        """One vector per text, in order."""
         ...
 
 
@@ -68,8 +49,8 @@ class Settings:
     model: str = "stub"
     temperature: float = 0.8
     extra: Dict = field(default_factory=dict)
-    base: str = ""                  # where the server is; "" for the backend's own default
-    timeout: float = 180.0          # seconds to wait for one answer
+    base: str = ""                  # "" for the backend's own default
+    timeout: float = 180.0          # seconds
 
     @classmethod
     def from_dict(cls, d: dict) -> "Settings":
@@ -81,7 +62,6 @@ class Settings:
 
 
 class Transcript:
-    """Append-only record of every question put to a mind, and its answer."""
 
     def __init__(self, path: Optional[Path]):
         self.path = Path(path) if path else None
@@ -95,13 +75,7 @@ class Transcript:
 
 
 def extract_json(text: str) -> Optional[dict]:
-    """Pull the first JSON object out of whatever came back.
-
-    Grammar-constrained models return clean JSON. Unconstrained ones wrap it in
-    prose, fences, or an apology. All three are handled here rather than in the
-    call sites: it is enough to try each ``{`` in turn, and whatever surrounds
-    the object - a fence, a greeting - is skipped by not starting there.
-    """
+    """The first JSON object anywhere in the text, skipping prose and fences."""
     decoder = json.JSONDecoder()
     for brace in re.finditer(r"\{", text or ""):
         try:
@@ -115,12 +89,8 @@ def extract_json(text: str) -> Optional[dict]:
 
 def ask(backend: Backend, call: Call, settings: Settings,
         transcript: Optional[Transcript] = None, attempts: int = 2) -> Optional[dict]:
-    """Put one question to a mind and insist on a usable answer, twice.
-
-    Returns ``None`` if it could not give one. A caller that gets ``None``
-    treats it as the person having nothing to offer - which is a normal thing
-    for a person to have - rather than as an error to retry forever.
-    """
+    """Retries once with a repair instruction. ``None`` means no usable answer,
+    which callers treat as the person having nothing, not as an error."""
     user = call.user
     complaint = None
     for attempt in range(attempts):
@@ -129,7 +99,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
             raw = backend.complete(Call(call.name, call.system, user, call.schema,
                                         call.about), settings)
             error = None
-        except Exception as exception:                      # a backend that is simply down
+        except Exception as exception:
             raw, error = "", f"{type(exception).__name__}: {exception}"
         took = time.time() - started
 
@@ -154,12 +124,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
 
 
 def embed(texts: List[str], settings: Settings) -> List[List[float]]:
-    """Where these read from, as vectors. An empty list back means: no idea.
-
-    A backend that cannot embed, or one that is down, is not an error here.
-    Retrieval falls back on how reachable something is and nothing else,
-    which is what it did before any of this existed.
-    """
+    """Empty list on any failure or if the backend cannot embed."""
     if not texts:
         return []
     backend = get(settings.backend)
@@ -174,7 +139,7 @@ def embed(texts: List[str], settings: Settings) -> List[List[float]]:
 
 
 def probe(settings: Settings) -> tuple:
-    """Can this mind be reached at all? (ok, message). Never raises."""
+    """Returns (ok, message). Never raises."""
     call = Call(name=CallName.PROBE, system="Answer only with JSON.",
                 user='Reply exactly {"ok": true}.',
                 schema=grammar(CallName.PROBE), about="probe")

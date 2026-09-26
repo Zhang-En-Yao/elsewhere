@@ -1,4 +1,4 @@
-"""P3/P4: things happen to the town, telling changes what is told, nights change what is held."""
+"""Events befall the town, telling changes memories, reflection changes beliefs."""
 
 import sys
 import tempfile
@@ -41,7 +41,6 @@ class Town(unittest.TestCase):
         return [c for c in self.stub.calls if c.name == name]
 
     def a_day_on(self):
-        """Move the clock far enough that the once-a-day rates come round again."""
         self.world.at += 24
 
 
@@ -94,9 +93,6 @@ class TestDirector(Town):
         self.assertIn("word of it reached you", lilith.user)
 
     def test_the_town_says_itself_how_long_a_quiet_stretch_it_gets(self):
-        # There used to be two constants here - asked about once a day, and
-        # never inside two days of the last happening - and both were this
-        # project deciding how eventful a town is. The town answers it.
         self.stub.set(CallName.DIRECT, {"why_now": "", "what": "A goat got loose.",
                                  "where": "Beth El", "who": "",
                                  "reach": "the people there", "happens": True,
@@ -131,9 +127,7 @@ class TestRecall(Town):
         self.assertEqual(self.flood.account, "water, and not being able to look away")
         self.assertEqual(self.flood.history,
                          ["the water in the doorway before I could move anything"])
-        # She has the floor twice in one exchange, so she brings it up twice,
-        # and both occasions are counted. A tally of "tellings" could not tell
-        # those two apart from two a year apart; `told` can.
+        # She speaks twice in the exchange, so it is recalled twice.
         self.assertEqual(self.flood.recalls, 2)
         self.assertIsNotNone(report.talks[0].turns[0].reshaped)
 
@@ -144,14 +138,10 @@ class TestRecall(Town):
         self.assertIn("days old", user)
         self.assertIn("told", user)
         self.assertIn("the water in the doorway", user)
-        # How hazy it is after all that is the mind's to judge, not a reach
-        # value cut into three buckets at two numbers this project chose.
         for verdict in ("still clear", "hazy", "barely there"):
             self.assertNotIn(verdict, user)
 
     def test_the_one_sentence_shaped_like_the_answer_is_kept_out(self):
-        # `thought` is a short first-person fragment and so is a rewritten
-        # memory. With it in the prompt a small model hands it straight back.
         self.world.beings["p_havvah"].who.thought = "I did not look up"
         self.stub.set(CallName.RECALL, {"account": "", "means": "", "feeling": "none"})
         tick_mod.tick(self.world, configuration())
@@ -178,14 +168,10 @@ class TestReflect(Town):
                            account="the valley disappearing under the water", feeling="unease")
 
     def reckoning(self):
-        """Live the step in which this person stops for the day."""
         self.stub.answers["act|p_lilith"] = {**STAY, "settling": True}
         return tick_mod.tick(self.world, configuration())
 
     def test_only_whoever_is_stopping_goes_over_their_day(self):
-        # Not everyone at nightfall, and not everyone a day on from their own
-        # last one. Lilith said she was settling; the other two did not, and
-        # the clock has no opinion about either of them.
         self.world.memories("p_lilith").add(self.today)
         self.world.memories("p_havvah").add(Memory(
             id="mem9110", owner="p_havvah", at=self.world.at, account="a long day", told=[self.world.at]))
@@ -214,11 +200,7 @@ class TestReflect(Town):
                                   "belief_from": "1", "belief_again": ""})
         self.reckoning()
 
-        # A day on, something new stays with her and she arrives at the same
-        # place in different words. Whether that is the same belief is hers to
-        # say: it comes back as `belief_again`, pointing at the one she already
-        # holds. No word-overlap ratio would have got this - these two wordings
-        # share no word longer than three letters.
+        # A differently worded restatement, marked by `belief_again`.
         self.world.at += 1 * 24
         self.world.memories("p_lilith").add(Memory(
             id="mem9101", owner="p_lilith", at=self.world.at,
@@ -238,9 +220,6 @@ class TestReflect(Town):
         self.assertEqual(beliefs[0].origin, ["mem9100", "mem9101"])
 
     def test_what_they_thought_becomes_something_they_can_remember(self):
-        # A thought used to live only on the being, as one sentence
-        # overwritten at every reckoning, so it could never come back later,
-        # never be worn down by not coming back, and never be said out loud.
         self.world.memories("p_lilith").add(self.today)
         self.stub.set(CallName.REFLECT, {"thought": "Nobody went down to look",
                                   "belief": "", "belief_again": ""})
@@ -253,8 +232,6 @@ class TestReflect(Town):
         self.assertEqual(thoughts[0].told, [self.world.at])
 
     def test_what_they_did_is_something_to_go_over(self):
-        # Until `lately` existed only what the world had done to somebody was
-        # written down, so a week on a roof left nothing to reflect on.
         self.world.memories("p_lilith").add(self.today)
         self.world.beings["p_lilith"].where.now("walking the ridge path again")
         self.reckoning()
@@ -263,9 +240,6 @@ class TestReflect(Town):
         self.assertIn("walking the ridge path again", user)
 
     def test_how_one_person_holds_another_can_change(self):
-        # `Regard.account` used to be written once by the seed and never
-        # again, so two people could live a year side by side and neither
-        # would change a word about the other.
         self.world.memories("p_lilith").add(self.today)
         before = self.world.beings["p_lilith"].who.regard("p_havvah").account
         self.stub.set(CallName.REFLECT, {"thought": "", "belief": "", "belief_again": "",
@@ -292,9 +266,7 @@ class TestReflect(Town):
                                   "belief_from": "1", "belief_again": ""})
         self.reckoning()
         lilith = self.world.beings["p_lilith"]
-        # Years pass, nobody ever brings that day up again, and enough
-        # ordinary days come after it that when she asks herself why she
-        # believes this, other things come back instead.
+        # Enough newer memories pile up that the origin falls out of reach.
         self.world.at += 400 * 24
         for i in range(retrieval.CONTEXT_MEMORIES):
             self.world.memories("p_lilith").add(Memory(

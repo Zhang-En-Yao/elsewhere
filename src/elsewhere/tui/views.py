@@ -1,24 +1,7 @@
-"""What a window on the world shows, worked out with no terminal in the room.
+"""What the TUI shows, as pure functions of a loaded `World`; no curses here.
 
-Everything here is a pure function of a loaded `World`. A view answers two
-questions - what is there to look at, and what is worth saying about the one
-being looked at - and hands back lines. Nothing in this file imports curses,
-draws anything, or reads a key.
-
-That division is not tidiness. It is what makes a window testable: a view is
-checked by asking it for its lines and reading them, and `screen.py` is left
-with the only question it is any good at, which is where on a terminal each
-line goes.
-
-A line carries a tone and not a colour, for the same reason a memory carries
-no weight: what `dim` is worth is the terminal's business, and this file has
-no opinion about it.
-
-One thing the views do that the printed commands do not: they show what would
-*not* come back. `elsewhere person` prints what is within reach and stops,
-because a printed page has to stop somewhere. A window has room to put the
-rest underneath it, dimmed, under a line saying where reach ended - and that
-is this project's one claim about memory, made visible in a single screen.
+Unlike `elsewhere person`, views also list memories out of reach, below a line
+marking where retrieval stops.
 """
 
 from __future__ import annotations
@@ -32,12 +15,11 @@ from .. import retrieval, schedule
 from ..world import chronicle
 from ..world.store import DAWN, DUSK, World, clock_at, day_of
 
-#: Tones a line can carry. `rule` is not text at all but a divider the drawer
-#: fills out to whatever width it happens to have.
+#: `rule` is a divider drawn to the available width, not text.
 TONES = ("plain", "dim", "bold", "accent", "warn", "rule")
 
-# Written as escapes, and never inside an f-string expression: the rest of this
-# source is ASCII, and a backslash in an f-string is a syntax error before 3.12.
+# Escapes, not literals: keeps the source ASCII, and backslashes are not
+# allowed inside f-string expressions before 3.12.
 DASH = "\u2014"
 NOTHING = DASH
 CUT = "\u2026"
@@ -45,41 +27,31 @@ CUT = "\u2026"
 
 @dataclass(frozen=True)
 class Line:
-    """One line of something to look at, and how much it wants noticing."""
     text: str = ""
     tone: str = "plain"
 
-    #: The column the remainder sits under, when the line has to be wrapped.
-    #: A column and not an extra indent, because what it is nearly always set
-    #: to is where the value after a label begins: a wrapped sentence that
-    #: goes on under itself reads as one thing, and one that goes on under its
-    #: own label reads as a second label. Zero means the line's own indent.
+    #: Column that wrapped continuation lines hang under; 0 means the line's
+    #: own indent.
     under: int = 0
 
 
 @dataclass(frozen=True)
 class Row:
-    """Something in the left-hand list. An empty `key` cannot be landed on."""
+    """An empty `key` cannot be selected."""
     key: str
     text: str = ""
     tone: str = "plain"
 
 
 class View(NamedTuple):
-    """A tab: what it is called, what is in its list, and what one of them is."""
     name: str
     title: str
     rows: Callable[[World], List[Row]]
     detail: Callable[[World, str], List[Line]]
 
 
-# -- how wide a line is ----------------------------------------------------
-# A world can be seeded in any language, and a name that measures two columns
-# while counting as one character wrecks every column in the list. So width is
-# asked of unicodedata rather than of len().
-
+# Measured with unicodedata, since wide characters take two columns.
 def width(text: str) -> int:
-    """How many terminal columns this occupies."""
     total = 0
     for character in text:
         if unicodedata.combining(character):
@@ -89,12 +61,10 @@ def width(text: str) -> int:
 
 
 def pad(text: str, columns: int) -> str:
-    """Left-justify to a column count, measured the way a terminal measures."""
     return text + " " * max(0, columns - width(text))
 
 
 def clip(text: str, columns: int) -> str:
-    """Cut to fit, leaving a mark where something was cut off."""
     if columns <= 0:
         return ""
     if width(text) <= columns:
@@ -111,7 +81,6 @@ def clip(text: str, columns: int) -> str:
 
 
 def _cut(text: str, columns: int) -> int:
-    """The largest index whose text still fits in that many columns."""
     used = 0
     for index, character in enumerate(text):
         step = 0 if unicodedata.combining(character) else (
@@ -123,18 +92,10 @@ def _cut(text: str, columns: int) -> int:
 
 
 def wrap(line: Line, columns: int) -> List[Line]:
-    """One line as however many it takes, each still carrying its tone.
-
-    The line is sliced, never split into words and joined back up. Half of
-    what is on screen is held in columns a space wide - a name, then what they
-    are doing - and a wrapper that normalises whitespace on the way past would
-    take every one of those apart.
-    """
+    """Slices rather than re-joining words, so column-aligned spacing survives."""
     if columns <= 0 or line.tone == "rule" or width(line.text) <= columns:
         return [line]
     indent = len(line.text) - len(line.text.lstrip(" "))
-    # The remainder begins under whatever it is a remainder of, unless that
-    # would leave no room to say anything after it.
     hang = " " * min(line.under or indent, max(0, columns - 12))
     out: List[Line] = []
     rest, floor = line.text, indent + 1
@@ -142,7 +103,7 @@ def wrap(line: Line, columns: int) -> List[Line]:
         at = _cut(rest, columns)
         space = rest.rfind(" ", floor, at + 1)
         if space < floor:
-            # A word longer than the pane. Cut it, rather than loop forever.
+            # A word longer than the pane: hard cut.
             space = max(at, floor)
             out.append(Line(rest[:space], line.tone))
             rest = hang + rest[space:].lstrip(" ")
@@ -154,15 +115,12 @@ def wrap(line: Line, columns: int) -> List[Line]:
     return out
 
 
-# -- saying when, and how long ---------------------------------------------
-
 def when(at: float) -> str:
-    """A world timestamp as a person would say it."""
     return "day " + str(day_of(at)) + ", " + clock_at(at)
 
 
 def span(hours: float) -> str:
-    """A length of time, in the largest unit that does not lie about it."""
+    """In the largest unit that fits."""
     hours = abs(hours)
     if hours < 1.0:
         return "%.0fmin" % (hours * 60)
@@ -172,7 +130,6 @@ def span(hours: float) -> str:
 
 
 def _looks_up(world: World, being) -> Line:
-    """When they next expect to look up from what they are doing."""
     absorbed = ("; deep enough in it that what happens nearby is not their "
                 "business" if being.when.absorbed else "")
     wake = being.when.wake_at
@@ -187,7 +144,6 @@ def _looks_up(world: World, being) -> Line:
 
 def _memory_lines(world: World, being, memory, at: float,
                   tone: str = "plain") -> List[Line]:
-    """One memory, and everything that shows it has been lived with."""
     odds = retrieval.chance(retrieval.activation(memory, at))
     out = [Line("    " + pad(when(memory.at), 16) +
                 "[" + memory.feeling + "] " + memory.account, tone, under=4)]
@@ -195,8 +151,6 @@ def _memory_lines(world: World, being, memory, at: float,
         out.append(Line("        ~ " + memory.means, "dim", under=10))
     out.append(Line("        come up %dx, %.0f%% it comes to mind"
                     % (len(memory.told) or 1, odds * 100), "dim"))
-    # Earlier wordings: the only evidence anywhere that a memory moved, which
-    # is the one thing this whole project is about.
     for was in reversed(memory.history):
         out.append(Line("        was: \"" + was + "\"", "accent", under=13))
     for source in memory.origin:
@@ -206,8 +160,6 @@ def _memory_lines(world: World, being, memory, at: float,
                             "dim", under=16))
     return out
 
-
-# -- the town: the world itself, its places, and who is no longer in it ----
 
 WORLD_KEY = "~world"
 GONE_KEY = "~gone"
@@ -228,7 +180,6 @@ def town_rows(world: World) -> List[Row]:
 
 
 def _world_detail(world: World) -> List[Line]:
-    """The world's own state: its clock, and every timer set in it."""
     out = [Line(world.name, "bold"),
            Line("  " + world.label()),
            Line("  the sun %s   (up at %02.0f:00, down at %02.0f:00)"
@@ -247,8 +198,6 @@ def _world_detail(world: World) -> List[Line]:
             Line("    %d events on record, %d memories made of them"
                  % (len(world.chronicle), kept)),
             Line()]
-    # Every timer in the world, which is the only thing that says when anything
-    # next happens. There is no step size to report, because there is none.
     out.append(Line("  what is next due", "bold"))
     due = schedule.next_at(world)
     if due is None:
@@ -279,7 +228,7 @@ def _world_detail(world: World) -> List[Line]:
 
 
 def _gone_detail(world: World) -> List[Line]:
-    """Everyone the road took, as they stood the hour they went."""
+    """People who left, as they were when they went."""
     gone = sorted((being for being in world.beings.values() if not being.present),
                   key=lambda being: being.when.left_at or 0.0)
     out = [Line("No longer here", "bold"),
@@ -333,8 +282,6 @@ def town_detail(world: World, key: str) -> List[Line]:
     return out
 
 
-# -- the people ------------------------------------------------------------
-
 def people_rows(world: World) -> List[Row]:
     present = sorted((being for being in world.beings.values() if being.present),
                      key=lambda being: being.name)
@@ -358,9 +305,7 @@ def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
     being = world.beings.get(key)
     if being is None:
         return [Line("Nobody.", "dim")]
-    # Somebody who left is read as they stood the hour they went. Going on
-    # fading what they hold would be this world inventing a life for them off
-    # the edge of its own map.
+    # Someone who left is frozen at the moment they went.
     at = world.at if being.present else (being.when.left_at or world.at)
     out = [Line(being.name, "bold")]
     if being.mind == "player":
@@ -405,7 +350,7 @@ def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
             out.append(Line("    [held %dx] %s"
                             % (len(belief.held) or 1, belief.claim), under=4))
             if retrieval.on_faith(belief, world.memories(being.id), at):
-                # As firmly held as ever, with nothing left to point at.
+                # Held on faith: no origin memory is reachable.
                 out.append(Line("        held on faith now: what it grew out of "
                                 "does not come back to them any more",
                                 "warn", under=8))
@@ -426,9 +371,7 @@ def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
     within = retrieval.recallable(memories, at, limit=most)
     out += [Line(), Line("  memory: %d in all, %d of them within reach right now"
                          % (len(memories), len(reach)), "bold", under=2)]
-    # In reach first, then the line where reach ran out, then the rest. The
-    # order is the activation order either side of it, so the line falls
-    # exactly where the engine stops handing things over.
+    # In reach, then the cutoff line, then the rest, all in activation order.
     said_where = False
     for memory in within:
         if memory not in reach and not said_where:
@@ -441,8 +384,6 @@ def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
     return out
 
 
-# -- what happened ---------------------------------------------------------
-
 MARKS = {chronicle.OCCURRENCE: "*", chronicle.ARRIVAL: "+",
          chronicle.DEPARTURE: "-", chronicle.CONVERSATION: "\""}
 
@@ -450,7 +391,7 @@ UNREAD = DASH + " since you last looked " + DASH
 
 
 def chronicle_rows(world: World) -> List[Row]:
-    """The ledger, oldest first, with a line where you stopped reading."""
+    """Oldest first, with a line where you stopped reading."""
     rows: List[Row] = []
     events = world.chronicle.all()
     for index, event in enumerate(events):

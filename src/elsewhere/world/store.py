@@ -1,4 +1,4 @@
-"""Where a world lives on disk, and the lock that stops two ticks at once.
+"""A world on disk, and the lock that allows one tick at a time.
 
     <world>/
       world.json            clock, places, counters
@@ -23,27 +23,19 @@ from .chronicle import Chronicle, Event
 from .entities import Being, Map, Place
 from .memories import MemoryStore
 
-#: The year is the idealised Hindu one, because the town's history is dated in
-#: it: twelve months of thirty tithis, two months to a season, six seasons,
-#: three hundred and sixty days. The months run amanta - a month begins the
-#: day after the new moon, so its waxing half comes first and it ends in the
-#: dark - which is the reckoning the festival dates in `seed.py` are given in.
+#: Idealised Hindu calendar, amanta months (waxing half first), matching the
+#: festival dates in `seed.py`.
 DAYS_PER_MONTH = 30
 TITHIS_PER_PAKSHA = DAYS_PER_MONTH // 2
 MONTHS = ("Chaitra", "Vaishakha", "Jyeshtha", "Ashadha",
           "Shravana", "Bhadrapada", "Ashvina", "Kartika",
           "Margashirsha", "Pausha", "Magha", "Phalguna")
 
-#: Six seasons, two months each, named in plain words rather than as Vasanta
-#: and Grishma and the rest: a mind told "the rains" knows what is falling on
-#: it, and one told "Varsha" has to know the calendar first.
+#: Plain names rather than Sanskrit ones, so a model knows what they mean.
 SEASONS = ("spring", "the heat", "the rains", "autumn", "the cold", "the dry")
 DAYS_PER_SEASON = DAYS_PER_MONTH * 2
 DAYS_PER_YEAR = DAYS_PER_MONTH * len(MONTHS)
 
-#: The sun does not negotiate. This is the one thing about the hour that the
-#: engine states as a fact, because it is one - it is dark or it is not. What
-#: being dark is worth doing about is nobody's business but the person's.
 DAWN, DUSK = 6.0, 20.0
 
 
@@ -53,17 +45,11 @@ def season_at(at: float) -> str:
 
 
 def day_of(at: float) -> int:
-    """Which day of the world a moment falls on. Worked out, never stored."""
     return int(at // HOURS_PER_DAY) + 1
 
 
 def date_at(at: float) -> str:
-    """The date in the world's own calendar: 'Kartika 1 waxing'.
-
-    The two days a lunar month is actually named after get said rather than
-    numbered, because a full moon and a new moon are things anybody in the
-    world can see for themselves.
-    """
+    """E.g. 'Kartika 1 waxing'; full and new moons are named."""
     day = (day_of(at) - 1) % DAYS_PER_YEAR
     month = MONTHS[day // DAYS_PER_MONTH]
     tithi = day % DAYS_PER_MONTH + 1
@@ -77,7 +63,6 @@ def date_at(at: float) -> str:
 
 
 def clock_at(at: float) -> str:
-    """The reading on a clock face: '03:40'. A number, not a name."""
     hour = at % HOURS_PER_DAY
     h = int(hour)
     return f"{h:02d}:{int((hour - h) * 60):02d}"
@@ -94,9 +79,6 @@ class World:
     at: float = 0.0                       # hours since the world began
     places: Dict[str, Place] = field(default_factory=dict)
 
-    #: Which places touch which, and where the road out leaves from. The
-    #: town's geography, kept once, rather than an adjacency list on each
-    #: place that had already drifted out of agreement with itself.
     map: Map = field(default_factory=Map)
 
     beings: Dict[str, Being] = field(default_factory=dict)
@@ -104,22 +86,14 @@ class World:
     closed: bool = False           # set by `elsewhere end`; `cli.open_live` reads it
     last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     news_seen: int = 0                    # chronicle length the last time you looked
-    #: The town and the road keep a timer each, the same as a person does, and
-    #: set it themselves in their own answer: "nothing today, and nothing
-    #: worth asking about for a week". How long a quiet stretch a town gets is
-    #: the town's to say; there are no gap constants in the engine.
+    #: Set by the director's and road's own answers, like `When.wake_at`.
     town_wake_at: Optional[float] = None
     road_wake_at: Optional[float] = None
     chronicle: Chronicle = None          # type: ignore[assignment]
     _memories: Dict[str, MemoryStore] = field(default_factory=dict)
 
-    # -- time -------------------------------------------------------------
-    # Everything below is worked out from `at`. None of it is stored, and none
-    # of it names a part of the day: the engine knows what hour it is and
-    # whether the sun is up, and stops there.
     @property
     def day_index(self) -> int:
-        """Which day of the world this is. A count, not a stored field."""
         return int(self.at // HOURS_PER_DAY) + 1
 
     @property
@@ -152,13 +126,11 @@ class World:
     def advance(self, hours: float) -> None:
         self.at += hours
 
-    # -- ids ---------------------------------------------------------------
     def next_id(self, prefix: str) -> str:
         n = self.counters.get(prefix, 0) + 1
         self.counters[prefix] = n
         return f"{prefix}{n:04d}"
 
-    # -- lookups -----------------------------------------------------------
     def memories(self, being_id: str) -> MemoryStore:
         store = self._memories.get(being_id)
         if store is None:
@@ -190,7 +162,6 @@ class World:
                 return pl
         return None
 
-    # -- recording ---------------------------------------------------------
     def record(self, category: str, account: str, *, place: Optional[str] = None,
                involved: Optional[List[str]] = None,
                reached: Optional[List[str]] = None,
@@ -201,8 +172,6 @@ class World:
                       data=dict(data or {}))
         return self.chronicle.append(event)
 
-
-# --------------------------------------------------------------------------
 
 def _atomic_write(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -237,10 +206,8 @@ def load(root) -> World:
     if schema > SCHEMA_VERSION:
         raise ValueError(f"{root} was written by a newer Elsewhere")
     if schema < SCHEMA_VERSION:
-        # There is no conversion, on purpose. A bump here means a world that
-        # worked differently - not a file that was laid out differently - and
-        # filling in the difference would silently invent history nobody
-        # lived. Worlds that old are read as a record, not resumed.
+        # No migration on purpose: a schema bump means the world worked
+        # differently, and converting would invent history.
         raise ValueError(
             f"{root} was written by Elsewhere schema {schema}, which was a "
             f"differently made world. This one cannot read it.")

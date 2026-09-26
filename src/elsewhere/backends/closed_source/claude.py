@@ -1,8 +1,4 @@
-"""Claude, for the calls where judgement is the whole job.
-
-Schema is given as a tool definition, which is how this API constrains shape.
-Imported lazily: a world that never uses it never needs the package.
-"""
+"""Anthropic backend; the schema is passed as a tool definition."""
 
 from __future__ import annotations
 

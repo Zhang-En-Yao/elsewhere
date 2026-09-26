@@ -10,19 +10,13 @@ from typing import Any, Dict, List, Tuple
 
 from .. import Call, Settings
 
-# Enough for the longest answer any call site asks for, several times over.
-# Under a grammar the answer ends when the JSON closes, not when this runs out.
+# Generous; under a grammar generation stops when the JSON closes.
 MAX_TOKENS = 1024
 
 
 def closed(schema: Any) -> Any:
-    """The schema with every object shut to fields it does not name.
-
-    JSON Schema leaves an object open unless told otherwise, and a grammar
-    compiled from it faithfully lets the model add fields of its own. Ollama
-    closed them by default; this does the same, so a small model spends its
-    tokens on the fields that were asked for.
-    """
+    """Set ``additionalProperties: false`` on every object, so the grammar
+    doesn't let the model invent fields."""
     if isinstance(schema, list):
         return [closed(s) for s in schema]
     if not isinstance(schema, dict):
@@ -34,30 +28,16 @@ def closed(schema: Any) -> Any:
 
 
 class MLXBackend:
-    """A model from the Hugging Face hub, run with ``mlx-lm`` in this process.
-
-    There is no server. The first call loads the weights and every call after
-    that in the same process reuses them, so a tick pays for loading once. The
-    schema is compiled by ``llguidance`` into a mask over the vocabulary at
-    every step - a token-level constraint, not a hint, as with Ollama's
-    ``format``.
-
-    ``extra`` goes to the chat template. Thinking is off unless it says
-    otherwise, because a thinking model puts its JSON after the reasoning, and
-    the grammar would have it skip the reasoning anyway.
-
-    The embedder is the same arrangement through ``mlx-embeddings``.
-
-    Needs ``pip install -e '.[mlx]'``, and Apple silicon.
-    """
+    """Runs ``mlx-lm`` in-process with an ``llguidance`` token mask. Weights
+    load once per process. Thinking is off unless ``extra`` says otherwise.
+    Needs Apple silicon and ``pip install -e '.[mlx]'``."""
 
     name = "mlx"
 
     def __init__(self) -> None:
         self._minds: Dict[str, Tuple[Any, Any, Any, dict]] = {}
         self._embedders: Dict[str, Tuple[Any, Any]] = {}
-        # One GPU, one model at a time: MLX is not safe to drive from two
-        # threads, and nothing here would be faster for trying.
+        # MLX is not thread-safe.
         self._lock = threading.Lock()
 
     def _mind(self, model: str) -> Tuple[Any, Any, Any, dict]:
@@ -69,8 +49,7 @@ class MLXBackend:
             loaded, tokenizer, *_ = load(model)
             where = Path(model) if Path(model).exists() \
                 else Path(snapshot_download(model, local_files_only=True))
-            # How the model was meant to be sampled, apart from temperature,
-            # which is the call site's to choose.
+            # The model's own sampling defaults, except temperature.
             sampling: dict = {}
             generation = where / "generation_config.json"
             if generation.exists():
@@ -103,9 +82,7 @@ class MLXBackend:
             started = [False]
 
             def constrain(tokens, logits):
-                # The first call sees the prompt; every one after it sees
-                # the prompt and one more token, which the grammar has to
-                # hear about before it can say what may come next.
+                # After the first call, feed the grammar the token just sampled.
                 if started[0]:
                     matcher.consume_token(int(tokens[-1]))
                 started[0] = True

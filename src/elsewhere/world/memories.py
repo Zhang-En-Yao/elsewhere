@@ -1,16 +1,5 @@
-"""Memories: what a person has, as opposed to what happened.
-
-A memory is written by a mind and rewritten by a mind. The engine never edits
-the words. It records when the memory came up, and decides - in
-``retrieval.py`` - whether it can be reached at all.
-
-That division is the whole point. Asking a model "do you still remember this?"
-while the memory sits in its context is not a question; it is a leading one.
-Forgetting has to be something the engine does by not handing it over.
-
-Everything a memory carries is read by something. A field nobody reads is
-storage pretending to be design, and nothing here is allowed to become one.
-"""
+"""A person's memories. Only minds write the words; the engine records when a
+memory came up, and `retrieval` decides whether it can be reached."""
 
 from __future__ import annotations
 
@@ -24,72 +13,42 @@ from typing import Iterator, List, Optional
 class Memory:
     id: str
     owner: str
-    at: float                      # hours into the world, when it was laid down
-    account: str                   # what they would say happened
-    means: str = ""                # what they think it meant
+    at: float                      # hours into the world
+    account: str
+    means: str = ""
     feeling: str = "none"
 
-    #: Where this reads from, as a vector, written once when the words are.
-    #: Not a summary and not for a reader - the only thing that ever looks at
-    #: it is the spreading-activation term in `retrieval`. Empty when no
-    #: embedder could be reached, and then a memory is ranked on its history
-    #: alone, which is what it was ranked on before there was an embedder.
-    #:
-    #: There is no weight beside it and no importance score. How much a memory
-    #: is worth is how often anyone has had cause to think of it - `told`,
-    #: below - and not a number a mind was asked to put on it while it was
-    #: still happening.
+    #: Used only by spreading activation in `retrieval`; empty if no embedder.
     embedding: List[float] = field(default_factory=list)
 
-    #: Which event this is somebody's version of, so `elsewhere event <id>`
-    #: can put everyone's account of the same thing side by side.
+    #: Mutually exclusive with `origin`.
     event_id: Optional[str] = None
 
-    #: The memories this one grew out of, when it did not come from an event
-    #: at all. A memory written by `reflect` is somebody's own thought about
-    #: their own day, and what it was a thought *about* is what makes it
-    #: readable a year later. `elsewhere person` prints it.
-    #:
-    #: A memory has one or the other, never both: it is a version of something
-    #: that happened, or it is something they arrived at themselves.
+    #: Source memories, for a thought written by `reflect`.
     origin: List[str] = field(default_factory=list)
 
-    #: Every hour it has come up, its own laying-down first, newest last.
-    #: A count is not enough: three tellings in one week and three a year
-    #: apart leave a memory in very different places, and the decay in
-    #: `retrieval.py` sums a term per occasion rather than reading a number.
-    #: Capped at the most recent few, which are the ones that carry weight -
-    #: the oldest term in the sum is always the smallest.
+    #: Every hour it came up, laying-down first. Occasions rather than a count,
+    #: because decay in `retrieval` sums a term per occasion.
     told: List[float] = field(default_factory=list)
 
-    #: Earlier wordings, newest last, kept when `recall` comes back with the
-    #: memory changed. Printed by `elsewhere person` and `elsewhere event`,
-    #: which is why it is kept: it is the only evidence anywhere that a memory
-    #: moved.
+    #: Earlier wordings, newest last.
     history: List[str] = field(default_factory=list)
 
-    #: How many times it has been brought up, not counting being laid down.
-    #: Derived, because `told` is what decay reads and two answers to the
-    #: same question drift apart.
     @property
     def recalls(self) -> int:
         return max(0, len(self.told) - 1)
 
     def came_up(self, at: float, limit: int = 24) -> None:
-        """It was brought up now. The occasion is kept, not a tally."""
         self.told.append(at)
         del self.told[:-limit]
 
     def rewrite(self, new_account: str, at: float, means: str = "",
                 feeling: str = "", embedding: Optional[List[float]] = None) -> None:
-        """A mind has looked at this again and it came back different."""
         if new_account and new_account != self.account:
             self.history.append(self.account)
             del self.history[:-4]
             self.account = new_account
-            # The words moved, so where they read from moved with them. An
-            # embedder that could not be reached leaves the old vector rather
-            # than none: stale is nearer the truth than absent.
+            # Keep the stale vector if the embedder was unreachable.
             if embedding:
                 self.embedding = list(embedding)
         if means:
@@ -100,8 +59,7 @@ class Memory:
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        # Five places. The vector is only ever compared with other vectors,
-        # and full repr costs 14KB a memory for digits nothing can use.
+        # Rounded: full precision costs ~14KB per memory for nothing.
         d["embedding"] = [round(x, 5) for x in self.embedding]
         d["told"] = [round(x, 2) for x in self.told]
         return {k: v for k, v in d.items()
@@ -121,7 +79,6 @@ class Memory:
 
 
 class MemoryStore:
-    """One file per person. Loaded whole, written whole, small enough to."""
 
     def __init__(self, path: Path):
         self.path = Path(path)

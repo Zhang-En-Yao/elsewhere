@@ -1,4 +1,4 @@
-"""The configuration file is the only thing that decides which mind answers."""
+"""The configuration file alone decides which backend answers each call."""
 
 import contextlib
 import io
@@ -19,9 +19,7 @@ from elsewhere.configuration import (DEFAULTS, MINDS, configure, load_configurat
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "elsewhere"
 
-# Everything the code is allowed to read from the environment. A key decides
-# whether a mind can be reached, never which one; ELSEWHERE_STUB is only read
-# by the stub, which nothing reaches unless the configuration names it.
+# The only environment variables the code may read.
 ALLOWED = {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY",
            "ELSEWHERE_OPENAI_KEY", "ELSEWHERE_STUB"}
 
@@ -123,7 +121,6 @@ if __name__ == "__main__":
 
 
 class ReembedTest(unittest.TestCase):
-    """Changing the embedder leaves no vector from the old one behind."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

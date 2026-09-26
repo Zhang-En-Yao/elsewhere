@@ -1,4 +1,4 @@
-"""The hosted backends that reuse the /v1 dialect: where they go, and with what key."""
+"""GPT and Gemini backends: base URL and API key."""
 
 import os
 import sys
