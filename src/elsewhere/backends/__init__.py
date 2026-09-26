@@ -15,6 +15,7 @@ stub backend instead, with no model and no tape to replay.
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -98,47 +99,17 @@ def extract_json(text: str) -> Optional[dict]:
 
     Grammar-constrained models return clean JSON. Unconstrained ones wrap it in
     prose, fences, or an apology. All three are handled here rather than in the
-    call sites.
+    call sites: it is enough to try each ``{`` in turn, and whatever surrounds
+    the object - a fence, a greeting - is skipped by not starting there.
     """
-    if not text:
-        return None
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1] if "```" in text[3:] else text.strip("`")
-        if text.startswith("json"):
-            text = text[4:]
-    try:
-        value = json.loads(text)
-        return value if isinstance(value, dict) else None
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    while start != -1:
-        depth, in_string, escaped = 0, False, False
-        for i in range(start, len(text)):
-            ch = text[i]
-            if in_string:
-                if escaped:
-                    escaped = False
-                elif ch == "\\":
-                    escaped = True
-                elif ch == '"':
-                    in_string = False
-                continue
-            if ch == '"':
-                in_string = True
-            elif ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-                if depth == 0:
-                    try:
-                        value = json.loads(text[start:i + 1])
-                        if isinstance(value, dict):
-                            return value
-                    except json.JSONDecodeError:
-                        break
-        start = text.find("{", start + 1)
+    decoder = json.JSONDecoder()
+    for brace in re.finditer(r"\{", text or ""):
+        try:
+            value, _ = decoder.raw_decode(text, brace.start())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
     return None
 
 
@@ -158,8 +129,8 @@ def ask(backend: Backend, call: Call, settings: Settings,
             raw = backend.complete(Call(call.name, call.system, user, call.schema,
                                         call.about), settings)
             error = None
-        except Exception as exc:                      # a backend that is simply down
-            raw, error = "", f"{type(exc).__name__}: {exc}"
+        except Exception as exception:                      # a backend that is simply down
+            raw, error = "", f"{type(exception).__name__}: {exception}"
         took = time.time() - started
 
         parsed = extract_json(raw) if raw else None
