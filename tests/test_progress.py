@@ -46,11 +46,11 @@ class Heard:
     def answered(self, call, took, ok):
         self.said.append(("answered", call.name, ok))
 
-    def placing(self, count):
-        self.said.append(("placing", count))
+    def embedding(self, count):
+        self.said.append(("embedding", count))
 
-    def placed(self, took, ok):
-        self.said.append(("placed", ok))
+    def embedded(self, took, ok):
+        self.said.append(("embedded", ok))
 
 
 class WhatItSaysTest(unittest.TestCase):
@@ -184,17 +184,17 @@ class WatchingTest(unittest.TestCase):
         finally:
             backends._bootstrap()
 
-    def test_placing_something_in_meaning_is_reported_too(self):
+    def test_embedding_something_is_reported_too(self):
         backends.register(self.stub)
         try:
             with backends.watched(self.heard):
                 self.assertTrue(embed(["the water came over the stones"],
                                       self.settings))
-            self.assertEqual(self.heard.said, [("placing", 1), ("placed", True)])
+            self.assertEqual(self.heard.said, [("embedding", 1), ("embedded", True)])
         finally:
             backends._bootstrap()
 
-    def test_an_embedder_that_is_down_is_reported_as_nothing_placed(self):
+    def test_an_embedder_that_is_down_is_reported_as_nothing_embedded(self):
         class Down(StubBackend):
             def embed(self, texts, settings=None):
                 raise OSError("no server")
@@ -203,7 +203,7 @@ class WatchingTest(unittest.TestCase):
         try:
             with backends.watched(self.heard):
                 self.assertEqual(embed(["anything"], self.settings), [])
-            self.assertEqual(self.heard.said, [("placing", 1), ("placed", False)])
+            self.assertEqual(self.heard.said, [("embedding", 1), ("embedded", False)])
         finally:
             backends._bootstrap()
 

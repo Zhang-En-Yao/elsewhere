@@ -104,7 +104,7 @@ class Watcher(Protocol):
     method may raise, and neither is told anything a transcript does not
     already have.
 
-    `placing` and `placed` are the same two for `embed`, which is not a
+    `embedding` and `embedded` are the same two for `embed`, which is not a
     question put to anybody but is the other thing that takes seconds - and on
     a machine serving one model at a time it can take more of them than the
     question did.
@@ -113,9 +113,9 @@ class Watcher(Protocol):
 
     def answered(self, call: Call, took: float, ok: bool) -> None: ...
 
-    def placing(self, count: int) -> None: ...
+    def embedding(self, count: int) -> None: ...
 
-    def placed(self, took: float, ok: bool) -> None: ...
+    def embedded(self, took: float, ok: bool) -> None: ...
 
 
 _watchers: List[Watcher] = []
@@ -141,14 +141,14 @@ def _answered(call: Call, took: float, ok: bool) -> None:
         watcher.answered(call, took, ok)
 
 
-def _placing(count: int) -> None:
+def _embedding(count: int) -> None:
     for watcher in list(_watchers):
-        watcher.placing(count)
+        watcher.embedding(count)
 
 
-def _placed(took: float, ok: bool) -> None:
+def _embedded(took: float, ok: bool) -> None:
     for watcher in list(_watchers):
-        watcher.placed(took, ok)
+        watcher.embedded(took, ok)
 
 
 def extract_json(text: str) -> Optional[dict]:
@@ -256,14 +256,14 @@ def embed(texts: List[str], settings: Settings) -> List[List[float]]:
     if backend_embed is None:
         return []
     started = time.time()
-    _placing(len(texts))
+    _embedding(len(texts))
     try:
         out = backend_embed(list(texts), settings)
     except Exception:
-        _placed(time.time() - started, False)
+        _embedded(time.time() - started, False)
         return []
     got = out if len(out) == len(texts) else []
-    _placed(time.time() - started, bool(got))
+    _embedded(time.time() - started, bool(got))
     return got
 
 
