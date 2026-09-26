@@ -189,7 +189,7 @@ def past(world: World, event, configuration, transcript, say) -> None:
     The four events below are the whole wait in making a world - everybody
     reached is asked about each of them, one question at a time, and on a model
     running at home that is minutes. So a line per event, for whoever is
-    watching a terminal; `progress.watching` in `cli` is who usually is.
+    watching a terminal.
     """
     started = time.time()
     kept = remember(world, event, configuration, transcript)
