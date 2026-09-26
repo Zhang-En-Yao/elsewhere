@@ -68,7 +68,7 @@ speaker's.
 | [`backends/`](../src/elsewhere/backends/) | `Call`/`Settings`/`Transcript`/`ask()`, one module per way of reaching a mind |
 | [`seed.py`](../src/elsewhere/seed.py) | the small beginning: three people, one town, a flood |
 | [`cli.py`](../src/elsewhere/cli.py) | everything a resident can do from a terminal |
-| [`tui/`](../src/elsewhere/tui/) | the same, in a window: `views.py` decides what to show, `screen.py` where to put it |
+| [`tui/`](../src/elsewhere/tui/) | the same, in a window that only reads: `views.py` decides what to show, `screen.py` where to put it |
 
 ## The seven questions
 

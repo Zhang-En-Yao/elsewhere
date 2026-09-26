@@ -41,9 +41,10 @@ Landed:
   between a floor of two and a ceiling of eight.
 - **A window** — `elsewhere watch`, which is the printed views with room to
   put two of them side by side: what is in reach above the line where reach
-  ended, and what is not below it, dimmed. It reads the world off disk and
-  picks up whatever moves it, its own `c` or the schedule behind it, and the
-  only thing it writes is where you stopped reading.
+  ended, and what is not below it, dimmed. It reads and only reads - no key on
+  it writes a byte under the world, so what changes a world is still a command
+  you typed, and the window learns about it the same way it learns about the
+  schedule's steps: the files moved.
   [`tui/views.py`](../src/elsewhere/tui/views.py) is a pure function of a
   loaded world and is tested as one; `screen.py` is the half a test cannot
   check.

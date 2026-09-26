@@ -46,7 +46,7 @@ class Road(unittest.TestCase):
         self.stub = StubBackend({"act": STAY, "perceive": {"stuck": False},
                                  "direct": QUIET, "reflect": {}, "arrive": NOBODY})
         register(self.stub)
-        # Lilith begins on the ridge path, which is the way out of Wend.
+        # Lilith begins on the ridge path, which is the way out of Nod.
         self.lilith = self.world.beings["p_lilith"]
 
     def tearDown(self):

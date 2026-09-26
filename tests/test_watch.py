@@ -247,25 +247,81 @@ class TestOneEventManyVersions(Window):
         self.assertIn("nothing stayed", body)
 
 
-class TestOneReport(Window):
-    """A step is shown by a terminal and by a window, and formats itself once."""
+class FakeScreen:
+    """Enough of a curses window to answer a key. It draws nothing.
 
-    def test_the_printed_report_is_the_lines_and_nothing_else(self):
-        import io
-        from contextlib import redirect_stdout
-        from elsewhere.tick import TickReport
+    `screen.App` can be built without a terminal - `_tones()` falls back when
+    curses has not been started - so the key table can be driven here, which
+    is the only way to test the thing that matters about it below.
+    """
 
-        report = TickReport(label="Year 1, day 1, 08:00", hours=2.0)
-        caught = io.StringIO()
-        with redirect_stdout(caught):
-            cli.print_report(self.world, report)
-        self.assertEqual(caught.getvalue().splitlines(),
-                         [""] + cli.report_lines(self.world, report))
+    def getmaxyx(self):
+        return (34, 100)
 
-    def test_a_step_where_nothing_was_scheduled_says_so(self):
-        from elsewhere.tick import TickReport
-        lines = cli.report_lines(self.world, TickReport(label="x", idle=True))
-        self.assertIn("nothing in the world is scheduled", "\n".join(lines))
+
+class TestTheWindowWritesNothing(Window):
+    """The whole claim the window makes, and the only one a test can check.
+
+    Not the clock, not where you stopped reading, not a byte under the world's
+    directory. What changes a world is a command you typed.
+    """
+
+    def files(self):
+        """Every path under the world, with its bytes and the hour it was written."""
+        out = {}
+        for path in sorted(self.world.root.rglob("*")):
+            if path.is_file():
+                out[path] = (path.read_bytes(), path.stat().st_mtime_ns)
+            else:
+                out[path] = None          # a directory, and tick.lock is one
+        return out
+
+    def setUp(self):
+        super().setUp()
+        from elsewhere.world import store
+        store.save(self.world)
+        self.world.memories("p_eve").save(force=True)
+
+    def test_looking_at_all_of_it_changes_none_of_it(self):
+        was = self.files()
+        for view in views.VIEWS:
+            for row in view.rows(self.world):
+                if row.key:
+                    view.detail(self.world, row.key)
+        self.assertEqual(self.files(), was)
+
+    def test_no_key_on_it_writes_anything(self):
+        from elsewhere.tui import screen
+
+        app = screen.App(self.world.root, FakeScreen())
+        was = self.files()
+        # Every key it answers, and a few it does not, several times over.
+        pressed = [ord(ch) for ch in "123456789jkhlgGb rfcmxyz?\t"]
+        pressed += [screen.curses.KEY_DOWN, screen.curses.KEY_UP,
+                    screen.curses.KEY_NPAGE, screen.curses.KEY_PPAGE,
+                    screen.curses.KEY_RESIZE, screen.curses.KEY_LEFT,
+                    screen.curses.KEY_RIGHT, screen.curses.KEY_BTAB]
+        for _ in range(3):
+            for key in pressed:
+                app.key(key)
+                app.shown(60)             # what a frame would ask it to work out
+        self.assertEqual(self.files(), was,
+                         "some key in the window wrote to the world")
+
+    def test_it_holds_nothing_that_could_write(self):
+        """A guard on the next person to add a key, including me.
+
+        A window that saves a world is one line away at any time, and a test
+        that drives the keys can only catch the keys that exist today.
+        """
+        source = Path(__file__).resolve().parents[1] / "src" / "elsewhere" / "tui"
+        for path in sorted(source.glob("*.py")):
+            body = path.read_text(encoding="utf-8")
+            for writer in ("store.save", "tick_lock", ".save(", "open(",
+                           "write_text", "news_seen ="):
+                self.assertNotIn(writer, body,
+                                 f"{path.name} reaches for {writer!r}; the "
+                                 f"window is supposed to only read")
 
 
 if __name__ == "__main__":
