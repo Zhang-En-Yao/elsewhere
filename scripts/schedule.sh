@@ -7,7 +7,7 @@
 #   scripts/schedule.sh log         # what it has been doing
 #   scripts/schedule.sh uninstall   # stop
 #
-# The agent runs `elsewhere catchup`, which does nothing unless the wall clock
+# The agent runs `elsewhere continue`, which does nothing unless the wall clock
 # has moved past the next thing anybody in the world said they wanted waking
 # for. There is no step size: a town where everyone has settled for the night
 # sleeps through it in one move, and a town in the middle of something is
@@ -18,18 +18,18 @@
 #
 # The model has to be running for any of this to happen - with Homebrew:
 #   brew services start ollama
-# If it is not, catchup logs that the world is waiting and lives nothing.
+# If it is not, continue logs that the world is waiting and lives nothing.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO="$PWD"
 
-LABEL="com.elsewhere.catchup"
+LABEL="com.elsewhere.continue"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 WORLD="${WORLD:-$REPO/world}"
 MAX="${MAX:-8}"
 CHECK_EVERY="${CHECK_EVERY:-1800}"
-LOG="$REPO/.elsewhere/catchup.log"
+LOG="$REPO/.elsewhere/continue.log"
 
 find_cli() {
   for candidate in "${VIRTUAL_ENV:-}/bin/elsewhere" "$REPO/.venv/bin/elsewhere" \
@@ -90,7 +90,7 @@ plist() {
   <array>
     <string>$cli</string>
     <string>--world</string><string>$WORLD</string>
-    <string>catchup</string>
+    <string>continue</string>
     <string>--max</string><string>$MAX</string>
   </array>
   <key>WorkingDirectory</key><string>$REPO</string>
@@ -106,7 +106,7 @@ XML
 
 case "${1:-status}" in
   install)
-    [ -f "$WORLD/world.json" ] || { echo "No world at $WORLD - run: elsewhere init"; exit 1; }
+    [ -f "$WORLD/world.json" ] || { echo "No world at $WORLD - run: elsewhere initialize"; exit 1; }
     cli="$(find_cli)"
     mkdir -p "$(dirname "$PLIST")" "$REPO/.elsewhere"
     plist "$cli" > "$PLIST"

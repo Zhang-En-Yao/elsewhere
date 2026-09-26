@@ -311,7 +311,7 @@ class TestOwedTime(unittest.TestCase):
             tick_mod.settle_clock(0, 25 * 3600, lived=24.0, owed=24.0), 24 * 3600)
 
 
-class TestCatchup(unittest.TestCase):
+class TestContinue(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
@@ -338,9 +338,9 @@ class TestCatchup(unittest.TestCase):
         world.last_tick_at = time.time() - hours_ago * 3600
         store.save(world)
 
-    def test_the_first_catchup_only_starts_the_clock(self):
+    def test_the_first_continue_only_starts_the_clock(self):
         before = store.load(self.root)
-        out = self.run_cli("catchup")
+        out = self.run_cli("continue")
         after = store.load(self.root)
         self.assertIn("clock started", out)
         self.assertEqual(after.at, before.at)
@@ -348,7 +348,7 @@ class TestCatchup(unittest.TestCase):
     def test_it_lives_what_is_owed(self):
         self.set_last_tick(13)
         before = store.load(self.root).at
-        self.run_cli("catchup")
+        self.run_cli("continue")
         # At least the thirteen hours the wall clock says. It may be a little
         # more, because a step is however long the person who wanted waking
         # soonest asked for and the last one cannot be cut in half.
@@ -359,7 +359,7 @@ class TestCatchup(unittest.TestCase):
     def test_it_never_lives_more_than_the_cap(self):
         self.set_last_tick(24 * 7)
         before = store.load(self.root).at
-        out = self.run_cli("catchup", "--max", "1")
+        out = self.run_cli("continue", "--max", "1")
         after = store.load(self.root)
         self.assertLess(after.at - before, 24, "one step, whatever it was worth")
         self.assertIn("slept through", out)
@@ -369,17 +369,17 @@ class TestCatchup(unittest.TestCase):
         # Everyone has said they will be six hours at what they are doing and
         # the wall clock has moved one: there is nothing to live, and saying
         # so is a heartbeat.
-        self.run_cli("catchup")                  # starts the clock
+        self.run_cli("continue")                  # starts the clock
         self.set_last_tick(7)
-        self.run_cli("catchup")                  # lives up to the next thing due
+        self.run_cli("continue")                  # lives up to the next thing due
         self.set_last_tick(1)
-        out = self.run_cli("catchup")
+        out = self.run_cli("continue")
         self.assertIn("nothing is due", out)
 
     def test_a_running_tick_is_not_joined(self):
         self.set_last_tick(13)
         with store.tick_lock(self.root):
-            out = self.run_cli("catchup")
+            out = self.run_cli("continue")
         self.assertIn("skipped", out)
 
     def test_news_is_what_you_have_not_seen(self):
