@@ -1,10 +1,4 @@
-"""A backend that does not think at all.
-
-It answers every call with the smallest valid thing, so the plumbing - storage,
-retrieval, the tick loop, the CLI - can be tested without a model, a key, or a
-second of latency. It is not a rule engine pretending to be a person; it is a
-dial tone.
-"""
+"""A backend that answers every call with a minimal valid answer, for tests."""
 
 from __future__ import annotations
 
@@ -17,9 +11,6 @@ from typing import Dict, Optional
 from . import Call, Settings
 from ..schemas import CallName
 
-#: The dial tone. The durations here are the stub's, not the world's: the
-#: engine has no step size, so a world run against this backend has the rhythm
-#: this dict has and nothing else does.
 DEFAULTS: Dict[str, dict] = {
     CallName.PERCEIVE: {"stuck": False},
     CallName.ACT: {"because": "", "doing": "", "action": "stay", "target": "",
@@ -35,11 +26,8 @@ DEFAULTS: Dict[str, dict] = {
 class StubBackend:
     name = "stub"
 
-    #: Deterministic, offline, and meaningless on purpose. The tests need
-    #: vectors that are stable and that make identical text identical, so the
-    #: wiring can be checked without a model; they are not meant to put two
-    #: memories about water anywhere near each other. Anything asserting that
-    #: wants a real embedder.
+    #: Deterministic hash vectors: identical text matches, but nothing is
+    #: semantically near anything else.
     def embed(self, texts, settings: Optional[Settings] = None):
         import hashlib
         out = []
@@ -52,14 +40,12 @@ class StubBackend:
 
     def __init__(self, answers: Optional[Dict[str, object]] = None,
                  script_from_env: bool = False):
-        #: keyed by "<call>|<person id>" or just "<call>". The value may be a
-        #: dict, a raw string (to send back something unusable on purpose), a
-        #: callable taking the Call, or a list that is worked through in order.
+        #: keyed by "<call>|<person id>" or "<call>". Values: dict, raw string,
+        #: callable taking the Call, or a list cycled in order.
         self.answers: Dict[str, object] = dict(answers or {})
         self.calls: list = []
         self._taken: Dict[str, int] = defaultdict(int)
-        # Only the registered default reads the environment. A stub a test
-        # builds for itself stays exactly what the test said it was.
+        # Only the registered default reads ELSEWHERE_STUB.
         script = os.environ.get("ELSEWHERE_STUB") if script_from_env else None
         if script:
             self.answers.update(json.loads(Path(script).read_text(encoding="utf-8")))
@@ -79,5 +65,5 @@ class StubBackend:
         if callable(answer):
             answer = answer(call)
         if isinstance(answer, str):
-            return answer                          # let a test send back garbage
+            return answer
         return json.dumps(answer, ensure_ascii=False)

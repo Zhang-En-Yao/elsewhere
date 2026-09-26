@@ -1,10 +1,5 @@
-"""The places where the world asks a mind a question.
-
-Each function here does the same four things: gather what this person could
-possibly draw on, ask, check the answer is usable, and write the consequence
-into the ledger. None of them decide anything themselves - if a mind declines
-to answer, the person simply had nothing, which is allowed.
-"""
+"""Every model call a person, the town or the road makes, and how its answer
+is written into the world."""
 
 from __future__ import annotations
 
@@ -27,13 +22,8 @@ def _settings(configuration, name: CallName) -> Settings:
 
 
 def vectorize(configuration, account: str) -> List[float]:
-    """Where an account of something sits in meaning, or nowhere at all.
-
-    Nothing here is required to work. An embedder that is missing or down
-    gives back an empty vector, `recallable` falls through to how reachable
-    a memory is, and the world carries on slightly less pointedly - which is
-    how it worked before there was an embedder.
-    """
+    """Empty when no embedder is configured or it fails; retrieval then falls
+    back to activation alone."""
     settings = configuration.get("embed")
     if settings is None or not account.strip():
         return []
@@ -46,25 +36,10 @@ def _others_here(world, being: Being) -> List[Being]:
 
 
 def held_beliefs(being: Being, at: float, limit: int = 3) -> List:
-    """What this person holds, the most live of it first.
-
-    The same equation that decides which memories come to mind decides which
-    beliefs do, because a belief is a thing somebody carries and ACT-R does
-    not care what kind of chunk it is looking at. What replaced a confidence
-    number is what a confidence number was standing in for: how often somebody
-    has arrived at this again, and how lately.
-    """
     return retrieval.recallable(being.who.beliefs, at, limit=limit)
 
 
 def vantage(world, being: Being, event: Event) -> str:
-    """Where this person stood when it happened. World state, not interpretation.
-
-    Nobody perceives "the water reached the waterline". They perceive what
-    reaches them from where they are - the sound of it in the night, a light
-    seen from the ridge, a story the next morning. The engine knows where
-    people were; saying so is its job. What they make of it is not.
-    """
     told = (event.data.get("vantage") or {}).get(being.id)
     if told:
         return told
@@ -81,7 +56,6 @@ def vantage(world, being: Being, event: Event) -> str:
 
 def perceive(world, being: Being, event: Event, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Memory]:
-    """Ask what this event leaves in this person. Usually the answer is nothing."""
     settings = _settings(configuration, CallName.PERCEIVE)
     being_memories = world.memories(being.id)
     cue = vectorize(configuration, event.account)
@@ -117,9 +91,6 @@ def perceive(world, being: Being, event: Event, configuration,
     if not text:
         return None
 
-    # Nothing is written down about how much this mattered. What decides
-    # whether it is still here in a year is whether anybody ever brings it up,
-    # which `retrieval` reads off `told`.
     memory = Memory(
         id=world.next_id("mem"),
         owner=being.id,
@@ -137,7 +108,6 @@ def perceive(world, being: Being, event: Event, configuration,
 
 def perceive_all(world, event: Event, configuration,
                  transcript: Optional[Transcript] = None) -> List[Memory]:
-    """Hand the event to everyone who was there, one mind at a time."""
     out = []
     for being in world.beings.values():
         if not being.present or being.id not in event.reached:
@@ -148,9 +118,6 @@ def perceive_all(world, event: Event, configuration,
     return out
 
 
-# --------------------------------------------------------------------------
-# act
-
 from dataclasses import dataclass as _dataclass
 
 
@@ -160,40 +127,24 @@ class Decision:
     action: str = "stay"
     target: Optional[str] = None      # place id or person id, resolved
     because: str = ""
-    doing: str = ""                   # what it looks like, in their words
-    #: Whether this is them stopping for the day, which is the only thing
-    #: anywhere that makes somebody go over one. How long they will be at it
-    #: is not here: `schedule.set_timer` has already written it onto the
-    #: being, and a second copy on the report is a second thing to keep true.
+    doing: str = ""
     settling: bool = False
     answered: bool = True             # False when the mind gave nothing usable
 
 
 def when_label(world) -> str:
-    """The time, and whether the sun is up. Not what either of those means.
-
-    A named quarter of the day would be the engine deciding that this hour is
-    for working or for sleeping, the same for everybody. The clock and the
-    light are facts; what this hour is worth doing with is read off the person.
-    """
     light = "light" if world.daylight else "dark"
     return f"{world.clock} and {light}, {world.season}, {world.date}"
 
 
 def act(world, being: Being, configuration,
         transcript: Optional[Transcript] = None) -> Decision:
-    """Ask what this person does next. The grammar only offers what exists."""
     settings = _settings(configuration, CallName.ACT)
     place = world.places.get(being.where.place)
     others = _others_here(world, being)
     reachable = [world.places[n] for n in world.map.beside(being.where.place)
                  if n in world.places]
     being_memories = world.memories(being.id)
-    # What this moment reads from: the room, and what this person is already
-    # carrying around in it. The room alone is prose an author wrote once and
-    # the same for everybody standing in it; their thought and their wants are
-    # their own sentences, and a memory near *those* is the one that would
-    # actually come to somebody here.
     cue = vectorize(configuration, ". ".join(x for x in (
         f"{place.name}. {place.description}" if place else "",
         being.who.thought, "; ".join(being.who.wants)) if x))
@@ -214,10 +165,8 @@ def act(world, being: Being, configuration,
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
-    # Whatever they decided, they also said how long they will be at it, and
-    # that is what says when they are asked anything again. A mind that gave
-    # nothing usable is left without a timer and comes round with the rest of
-    # the world - see `schedule.advance_to_next_due`.
+    # Set before the None check: no usable answer means no timer, see
+    # `schedule.advance_to_next_due`.
     schedule.set_timer(being, world, answer)
     if answer is None:
         return Decision(being.id, "stay", None, "", answered=False)
@@ -237,28 +186,16 @@ def act(world, being: Being, configuration,
         # Only reachable with a lenient backend; the grammar forbids it.
         action = "stay"
     if action == schemas.LEAVE and not going:
-        # Likewise: nobody walks out of the world from somewhere the road
-        # does not go, however the answer got here.
         action = "stay"
     return Decision(being.id, action, target, because, doing,
                     settling=bool(answer.get("settling")))
 
 
-# --------------------------------------------------------------------------
-# speak
-
 def speak(world, speaker: Being, listener: Being, configuration,
           transcript: Optional[Transcript] = None):
-    """One thing said out loud. Returns (line, memory drawn on) or (None, None).
-
-    Bringing something up is rehearsal: the memory it came from is touched and
-    stays within reach longer. Rewriting it in the telling is recall's job (P3).
-    """
+    """Returns (line, memory drawn on) or (None, None)."""
     settings = _settings(configuration, CallName.SPEAK)
     speaker_memories = world.memories(speaker.id)
-    # Who is in front of them, in words: the listener's name and the speaker's
-    # own account of them, which is text a mind wrote. Every retrieval cue in
-    # this file is that, and never a string the engine glued together.
     regard = speaker.who.regards.get(listener.id)
     cue = vectorize(configuration, " ".join(x for x in (
         listener.name, regard.account if regard else "",
@@ -292,26 +229,15 @@ def speak(world, speaker: Being, listener: Being, configuration,
     return line, drawn
 
 
-# --------------------------------------------------------------------------
-# direct
-
-#: How much of the record the town is shown before it answers. A prompt
-#: budget, not a rate.
 DIRECTOR_RECENT_EVENTS = 8
 
 
 def may_direct(world) -> bool:
-    """Whether the town is worth asking, now. The town said when.
-
-    How eventful a town is is the town's own answer: it sets its timer in
-    `direct` below, and this only reads it.
-    """
     return schedule.town_due(world)
 
 
 def direct(world, configuration,
            transcript: Optional[Transcript] = None) -> Optional[Event]:
-    """Ask the town whether anything happens to it. Usually nothing does."""
     settings = _settings(configuration, CallName.DIRECT)
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
@@ -324,9 +250,7 @@ def direct(world, configuration,
         about="town",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
-    # However it answered, it also said when it is worth asking again - and
-    # that is set before anything else, so that a town which says "not for a
-    # fortnight" gets its fortnight whether or not the rest was usable.
+    # Set before anything else so the timer holds even if the rest is unusable.
     world.town_wake_at = _asked_again(world, answer)
     if not answer or not answer.get("happens"):
         return None
@@ -337,7 +261,6 @@ def direct(world, configuration,
     who = beings.get(answer.get("who") or "")
     place = places.get(answer.get("where") or "")
     if who is not None:
-        # Something that happens to someone happens where they are standing.
         place = world.places.get(who.where.place, place)
     if place is None:
         return None
@@ -361,43 +284,21 @@ def direct(world, configuration,
     )
 
 
-# --------------------------------------------------------------------------
-# the road, which runs both ways
-
-#: What size of thing this world is, which is the author's design and not a
-#: rate the engine is guessing at: below two people there is nobody to talk
-#: to, and above eight it stops being a town where everybody knows everybody.
-#: These are the only two numbers left on the road. The three that went with
-#: them - forty-five days between departures, thirty between askings of the
-#: road, a hundred and twenty once the town was settled - were rates, and
-#: rates are what the timers replaced.
 TOWN_FLOOR = 2
 TOWN_CEILING = 8
 
 
 def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
-    """When whatever just answered wants to be asked again.
-
-    None when it said nothing usable, which leaves it with no timer - and
-    `schedule.advance_to_next_due` then brings it round with everyone else rather than
-    the engine picking an interval on its behalf.
-    """
+    """None when the answer gave nothing usable, leaving no timer."""
     hours = schedule.in_hours(answer, "ask_again_in_hours")
     return world.at + hours if hours is not None else None
 
 
 def leaving_place(world):
-    """Where the road goes out. A fact about the map, not about anybody."""
     return world.places.get(world.map.road_out)
 
 
 def may_leave(world, being: Being) -> bool:
-    """Whether this person could walk out of the world right now.
-
-    Two facts, and neither is about what anybody wants: the road goes out from
-    where they are standing, and there would still be a town behind them.
-    Whether to take it, and at what hour, is theirs.
-    """
     if not world.map.road_out or being.where.place != world.map.road_out:
         return False
     return sum(1 for p in world.beings.values() if p.present) > TOWN_FLOOR
@@ -405,13 +306,7 @@ def may_leave(world, being: Being) -> bool:
 
 def depart(world, being: Being, because: str, configuration,
            transcript: Optional[Transcript] = None):
-    """Somebody takes the road. Returns (event, what it left in people).
-
-    They are still present while it is happening, so the last thing in their
-    file is the town from the top of the road. After that nobody asks them
-    anything again - but what they have stays where it is, and so does every
-    note the people they left behind wrote about them.
-    """
+    """Returns (event, memories it left in people)."""
     place = world.places.get(being.where.place)
     where = place.name if place else "the road"
     reached = [p.id for p in world.beings.values() if p.present]
@@ -432,30 +327,18 @@ def depart(world, being: Being, because: str, configuration,
         data={"because": because, "person": being.id, "vantage": vantage},
     )
     kept = perceive_all(world, event, configuration, transcript)
-    # Going is one fact, written once: they are not here *because* this is
-    # when they went. `Being.present` reads it back.
     being.when.left_at = world.at
     being.where.now("took the road out of town")
     return event, kept
 
 
 def short_of_somebody(world) -> bool:
-    """Has this town lost more people than it has taken in?
-
-    A fact about the town, shown to the road so it can make something of it.
-    """
     lost = sum(1 for p in world.beings.values() if not p.present)
     taken = sum(1 for e in world.chronicle.all() if e.category == ARRIVAL)
     return lost > taken
 
 
 def may_arrive(world) -> bool:
-    """Whether the road is worth asking, now. The road said when.
-
-    A town already at the ceiling is never asked, because there is nowhere to
-    put anybody; otherwise the road keeps its own timer, the same as the town
-    and the same as a person.
-    """
     here = sum(1 for p in world.beings.values() if p.present)
     if here >= TOWN_CEILING:
         return False
@@ -472,7 +355,6 @@ def _free_being_id(world, name: str) -> str:
 
 def arrive(world, configuration,
            transcript: Optional[Transcript] = None) -> Optional[Event]:
-    """Ask the road whether anybody comes up it today. Usually nobody does."""
     settings = _settings(configuration, CallName.ARRIVE)
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     call = Call(
@@ -500,10 +382,6 @@ def arrive(world, configuration,
         name=name,
         who=Who(card=(answer.get("card") or "").strip(),
                 manner=(answer.get("manner") or "").strip()),
-        # Nowhere of their own yet. Somewhere to sleep is a thing they will
-        # have to come by here, like anyone else. Nothing keeping them awake
-        # either: they have not had a night here, and the engine does not get
-        # to say what is on their mind.
         where=Where(place=place.id, home=""),
         when=When(arrived_at=world.at),
     )
@@ -532,20 +410,12 @@ def arrive(world, configuration,
     )
 
 
-# --------------------------------------------------------------------------
-# reflect
-
 MAX_BELIEFS = 6
+
+
 def may_reflect(world, being: Being, settling: bool) -> bool:
-    """Whether this person is going over their day, now.
-
-    A day ends when the person says it does: `settling` comes back from `act`
-    and means they are stopping, not that the clock reached an hour.
-
-    The one thing the engine checks is that there is something to go over.
-    Somebody who has been handed nothing since they last did this has nothing
-    to be left with, and is not asked.
-    """
+    """Only when they say they are stopping for the day, and only if anything
+    has happened to them since they last reflected."""
     if not settling:
         return False
     since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
@@ -554,21 +424,13 @@ def may_reflect(world, being: Being, settling: bool) -> bool:
 
 def reflect(world, being: Being, configuration,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
-    """What this person is left with, after a day of their own."""
     being_memories = world.memories(being.id)
     since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
     being.when.reflected_at = world.at
-    # Their day is whatever has happened to them since they last stopped and
-    # went over one, which for somebody who was awake for thirty hours is
-    # thirty hours.
     today = [t for t in being_memories if t.at > since]
     if not today:
         return None
-    # The most live of the day, by the same equation as everything else.
     today = retrieval.recallable(today, world.at, limit=3)
-    # What the day was about, in the mind's own words, is the cue for what
-    # older things come back beside it - so a reckoning connects today to the
-    # past it actually points at.
     cue = vectorize(configuration, " ".join(t.account for t in today))
     older = [t for t in retrieval.recallable(being_memories, world.at, cue, limit=7)
              if t not in today][:3]
@@ -596,15 +458,11 @@ def reflect(world, being: Being, configuration,
     if text:
         from .world.entities import Belief
 
-        # Whether this is a thing they already hold is theirs to say: it is a
-        # question about meaning, and no amount of word overlap settles it.
         again = answer.get("belief_again") or ""
         existing = (holds[int(again) - 1]
                     if again.isdigit() and 1 <= int(again) <= len(holds) else None)
         if existing is not None:
-            # Holding it again. The old wording stays; what changes is that
-            # there is now one more occasion of having held it, which is the
-            # only thing anywhere that makes a belief harder to lose.
+            # Restated: keep the old wording, record another occasion of holding it.
             existing.came_up(world.at)
             for memory_id in origin:
                 if memory_id not in existing.origin and len(existing.origin) < 3:
@@ -614,17 +472,11 @@ def reflect(world, being: Being, configuration,
                                         held=[world.at],
                                         embedding=vectorize(configuration, text)))
             if len(being.who.beliefs) > MAX_BELIEFS:
-                # What goes is whatever is furthest from coming to mind, which
-                # is a belief nobody has arrived at in a long time.
                 keep = set(id(b) for b in
                            retrieval.recallable(being.who.beliefs, world.at,
                                                 limit=MAX_BELIEFS))
                 being.who.beliefs = [b for b in being.who.beliefs if id(b) in keep]
 
-    # How they now hold somebody. This is the only thing in the world that
-    # ever rewrites a regard after the seed wrote it, which is why two people
-    # could live a year beside each other and neither change a word about the
-    # other.
     whom = (answer.get("about_someone") or "").strip()
     now_say = (answer.get("now_say") or "").strip()
     if whom and now_say:
@@ -639,12 +491,7 @@ def reflect(world, being: Being, configuration,
     thought = (answer.get("thought") or "").strip()
     if thought:
         being.who.thought = thought
-        # And it is laid down like anything else they are left holding, so it
-        # can be brought to mind later, worn down by not being brought to
-        # mind, and said out loud. This is `generative_agents`' reflection,
-        # whose insights go back into associative memory carrying the ids of
-        # what they came from (`cognitive_modules/reflect.py`), rather than
-        # onto the persona.
+            # Stored as a memory too, so it can be recalled, decay and be spoken.
         being_memories.add(Memory(
             id=world.next_id("mem"),
             owner=being.id,
@@ -658,16 +505,10 @@ def reflect(world, being: Being, configuration,
     return answer
 
 
-# --------------------------------------------------------------------------
-# recall
-
 def recall(world, being: Being, memory: Memory, configuration,
            transcript: Optional[Transcript] = None) -> bool:
-    """The memory has just been brought up; ask how it comes back now.
-
-    The words are the mind's. The engine only files the older wording in the
-    memory's history, so the earlier version is not lost to anyone reading.
-    """
+    """Ask how a just-mentioned memory comes back now; the old wording is kept
+    in the memory's history."""
     settings = _settings(configuration, CallName.RECALL)
     age = max(0, int((world.at - memory.at) // HOURS_PER_DAY))
     call = Call(

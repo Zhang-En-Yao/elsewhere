@@ -1,25 +1,7 @@
-"""The terminal half: where each line goes, and what a key does.
+"""Terminal layout and key handling for the TUI.
 
-Everything with an opinion about the world is in `views.py`. This file knows
-about columns, tones as colours, and a cursor.
-
-Two things here are worth saying out loud, because both are decisions rather
-than mechanics:
-
-*The window writes nothing.* Not the clock, not where you stopped reading, not
-a single byte under the world's directory. Every key on it either moves the
-cursor or reads the files again. Anything that changes a world is a command you
-have to type - `elsewhere continue` to let it go on, `elsewhere news` to mark
-what you have read, `elsewhere end` to close it for good - and that is the
-point rather than an omission: you are one of this world's inhabitants and not
-its console. It also means the window cannot corrupt a world, cannot race the
-schedule, and needs no lock.
-
-*The world is reloaded, never held.* The only way this window learns anything
-is that the files on disk moved, which is how it sees a step the launchd agent
-lived, a `continue` you ran in another terminal, and an `end`. So there is
-nothing to keep in sync: watching a world that something else is running is
-the only case there is.
+Writes nothing, so it needs no lock; it reloads the world whenever the files
+on disk change.
 """
 
 from __future__ import annotations
@@ -33,9 +15,7 @@ from ..world import store
 from . import views
 from .views import VIEWS, Line, Row
 
-#: How long the window waits on a key before looking at the files again. Short
-#: enough that a step somebody else lived shows up while you are still looking
-#: at it; long enough to be asleep the rest of the time.
+#: Key wait before re-checking the files for changes.
 PAUSE_MS = 500
 
 KEYS = ("1-3 view   TAB pane   j/k move   g/G ends   r read again   f follow   "
@@ -72,7 +52,6 @@ This window only reads
 
 
 def _tones() -> Dict[str, int]:
-    """Tones as this terminal's attributes, and defaults where it has none."""
     plain = curses.A_NORMAL
     accent, warn = plain, plain
     try:
@@ -88,7 +67,6 @@ def _tones() -> Dict[str, int]:
 
 
 class App:
-    """One window on one world. It reads the world and nothing else."""
 
     def __init__(self, root: Path, screen) -> None:
         self.root = Path(root)
@@ -112,10 +90,8 @@ class App:
             self.cursor[index], self.top[index] = 0, 0
         self._settle()
 
-    # -- the world underneath ---------------------------------------------
-
     def _stamp(self) -> tuple:
-        """Enough of the files to notice that something moved the world."""
+        """Cheap fingerprint of the files, to detect changes."""
         out = []
         for path in (self.root / "world.json", self.root / "chronicle.jsonl"):
             try:
@@ -130,7 +106,7 @@ class App:
         return tuple(out)
 
     def reload(self, say: bool = False) -> None:
-        """Read the world off disk again, staying on whatever was selected."""
+        """Reload, keeping the current selection."""
         keep = self.selected()
         try:
             self.world = store.load(self.root)
@@ -148,19 +124,12 @@ class App:
         if say:
             self.message = "read again at " + time.strftime("%H:%M:%S")
 
-    # -- what is on screen ------------------------------------------------
-
     def view(self):
         return VIEWS[self.tab]
 
     def rows(self) -> List[Row]:
-        """This tab's list, worked out once per change rather than per draw.
-
-        A frame asks for the list three or four times - to draw it, to settle
-        the cursor on it, and to find out what is selected - and in a world
-        with a long chronicle that is a walk over every event that ever
-        happened, twice a second, for a list that has not moved.
-        """
+        """Cached per change: a frame asks several times and it walks the
+        whole chronicle."""
         key = (self.tab, self.stamp)
         if key != self._listed:
             self._listed, self._rows = key, self.view().rows(self.world)
@@ -172,7 +141,6 @@ class App:
         return rows[index].key if 0 <= index < len(rows) else ""
 
     def _settle(self) -> None:
-        """Land the cursor on something that can be landed on."""
         rows = self.rows()
         index = min(max(0, self.cursor.get(self.tab, 0)), max(0, len(rows) - 1))
         if rows and not rows[index].key:
@@ -182,7 +150,7 @@ class App:
         self.cursor[self.tab] = index
 
     def shown(self, columns: int) -> List[Line]:
-        """The right-hand side, wrapped, and worked out once per change."""
+        """Wrapped detail pane, cached per change."""
         key = (self.tab, self.selected(), columns, self.stamp, self.helping)
         if key == self._shown:
             return self._lines
@@ -196,8 +164,6 @@ class App:
         self._shown, self._lines = key, out
         return out
 
-    # -- drawing ----------------------------------------------------------
-
     def put(self, y: int, x: int, text: str, attr: int, columns: int) -> None:
         if columns <= 0 or y < 0:
             return
@@ -207,7 +173,6 @@ class App:
             pass                        # the last cell of the last line
 
     def rule(self, y: int, width: int) -> None:
-        """A line across. Whatever this terminal draws lines with."""
         try:
             self.screen.hline(y, 0, curses.ACS_HLINE, width)
         except curses.error:
@@ -222,7 +187,6 @@ class App:
             curses.doupdate()
             return
         world = self.world
-        # the world, and the hour it is at
         left = (world.name + "   " + world.label() + "   the sun "
                 + ("is up" if world.daylight else "is down"))
         if world.closed:
@@ -231,14 +195,12 @@ class App:
         right = str(unseen) + " new" if unseen > 0 else "all read"
         if not self.follow:
             right += "   not following"
-        # The hour gives up its room to the state of things, not the other way
-        # round: on a narrow terminal the clock is worth less than "2 new".
+        # On a narrow terminal the clock is dropped before the status.
         room = max(0, width - views.width(right) - 2)
         self.put(0, 0, views.pad(views.clip(left, room), width),
                  curses.A_REVERSE, width)
         self.put(0, max(0, width - views.width(right) - 1), right,
                  curses.A_REVERSE | curses.A_BOLD, width)
-        # the tabs
         x = 1
         for index, view in enumerate(VIEWS):
             label = str(index + 1) + " " + view.title
@@ -303,10 +265,7 @@ class App:
             self.put(top + body - 1, x + max(0, columns - 6), " more ",
                      self.tone["dim"], 6)
 
-    # -- what the keys do; none of them writes anything -------------------
-
     def move(self, step: int) -> None:
-        """Down or up: the cursor in the list, or what is being shown beside it."""
         if self.helping or self.on_detail:
             self.scroll(step)
             return
@@ -325,7 +284,7 @@ class App:
         self.down = max(0, self.down + step)
 
     def key(self, pressed: int) -> bool:
-        """Answer a key. False when it was the one that closes the window."""
+        """False when the key closes the window."""
         self.message = ""
         if pressed in (ord("q"), 27):
             if self.helping:
@@ -375,8 +334,6 @@ class App:
                             else "not following; r reads again")
         return True
 
-    # -- the loop ---------------------------------------------------------
-
     def loop(self) -> None:
         curses.curs_set(0)
         self.screen.timeout(PAUSE_MS)
@@ -388,14 +345,11 @@ class App:
                 return
             if pressed != -1 and not self.key(pressed):
                 return
-            # Something may have moved the world: a schedule behind it, or a
-            # command in another terminal. Never this window.
             if self.follow and self._stamp() != self.stamp:
                 self.reload()
 
 
 def run(root) -> None:
-    """Open a window on the world at `root`, and keep it open."""
     root = Path(root)
     if not store.exists(root):
         raise FileNotFoundError(root)

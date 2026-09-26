@@ -1,4 +1,4 @@
-"""The MLX backend's one piece that needs no model: what it hands the grammar."""
+"""What the MLX backend hands the grammar; needs no model."""
 
 import sys
 import unittest

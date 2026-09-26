@@ -1,20 +1,11 @@
 #!/usr/bin/env bash
 #
-# Put a model on this Mac, point the world's configuration at it, and check
-# that every call site can reach it.
-# Everything here has to run on macOS itself: MLX does not exist anywhere
-# else. There is no server - the model runs inside whichever process asks.
+# Install an MLX model on this Mac (macOS only), write it into the world's
+# configuration, and check every call site can reach it.
 #
 #   scripts/live.sh                       # Gemma 4 E2B, the default
 #   MODEL=mlx-community/Llama-3.2-3B-Instruct-4bit scripts/live.sh
 #   WORLD=elsewhere scripts/live.sh       # a world other than ./world
-#
-# The choice is written into $WORLD/configuration.json, which is what every run
-# after this reads - including the scheduled one, which sees none of this
-# shell's environment. Nothing here is exported for the world to pick up.
-#
-# The first run downloads the weights, which on a slow line takes longer than
-# anything else here. They are cached, so every run after that is quick.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."

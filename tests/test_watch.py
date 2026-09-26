@@ -1,10 +1,4 @@
-"""The window: what it shows, and that it never claims more than the engine would.
-
-Only the pure half is tested, and that is the whole reason it is a pure half.
-`views.py` is asked for its lines and the lines are read; nothing here opens a
-terminal. What is left in `screen.py` is where on a screen to put a line, which
-a test cannot check and a person can see at a glance.
-"""
+"""The TUI's pure views, and that the window never writes. No terminal needed."""
 
 import sys
 import tempfile
@@ -41,7 +35,7 @@ class Window(unittest.TestCase):
 
 
 class TestMeasuring(unittest.TestCase):
-    """A world can be seeded in any language, so len() is not a width."""
+    """Wide characters count as two columns."""
 
     def test_a_wide_character_is_two_columns(self):
         self.assertEqual(views.width("ab"), 2)
@@ -62,7 +56,6 @@ class TestMeasuring(unittest.TestCase):
 
 
 class TestWrapping(unittest.TestCase):
-    """Half of what is on screen is held in columns a space wide."""
 
     def test_nothing_comes_back_wider_than_asked_for(self):
         line = views.Line("    Havvah   " + "a sentence that will not fit " * 4,
@@ -116,7 +109,6 @@ class TestEveryViewAnswers(Window):
                     self.assertIn(line.tone, views.TONES)
 
     def test_a_key_the_world_does_not_have_is_answered_and_not_raised(self):
-        # A world reloaded under the cursor can lose whatever was selected.
         for view in views.VIEWS:
             self.assertTrue(view.detail(self.world, "no-such-thing"))
 
@@ -156,7 +148,6 @@ class TestWhereYouStoppedReading(Window):
 
 
 class TestItShowsWhatTheEngineWouldHandOver(Window):
-    """The one thing a window can do that a printed page cannot."""
 
     def test_out_of_reach_is_shown_as_out_of_reach_and_not_left_out(self):
         havvah = self.world.beings["p_havvah"]
@@ -176,7 +167,6 @@ class TestItShowsWhatTheEngineWouldHandOver(Window):
         self.assertIn("below here", body,
                       "and has to say where reach ended, or it is claiming "
                       "they hold all of it equally")
-        # Everything above the line is in reach; everything below it is not.
         dim = [line for line in lines if line.tone == "dim"]
         for memory in memories:
             if memory in reach:
@@ -216,8 +206,7 @@ class TestSomebodyWhoLeft(Window):
         self.assertIn("the ridge path, and the valley", was)
         self.assertIn("left on", was)
 
-        # A year of world time passes for everybody else. Nothing about them
-        # may move: the world has no idea what has become of them.
+        # Frozen at the moment she left.
         self.world.at += 24 * 360
         self.assertEqual(text(views.person_detail(self.world, lilith.id)), was)
         self.assertIn(memory.account,
@@ -248,32 +237,21 @@ class TestOneEventManyVersions(Window):
 
 
 class FakeScreen:
-    """Enough of a curses window to answer a key. It draws nothing.
-
-    `screen.App` can be built without a terminal - `_tones()` falls back when
-    curses has not been started - so the key table can be driven here, which
-    is the only way to test the thing that matters about it below.
-    """
+    """Enough of a curses window to drive `screen.App.key`; draws nothing."""
 
     def getmaxyx(self):
         return (34, 100)
 
 
 class TestTheWindowWritesNothing(Window):
-    """The whole claim the window makes, and the only one a test can check.
-
-    Not the clock, not where you stopped reading, not a byte under the world's
-    directory. What changes a world is a command you typed.
-    """
 
     def files(self):
-        """Every path under the world, with its bytes and the hour it was written."""
         out = {}
         for path in sorted(self.world.root.rglob("*")):
             if path.is_file():
                 out[path] = (path.read_bytes(), path.stat().st_mtime_ns)
             else:
-                out[path] = None          # a directory, and tick.lock is one
+                out[path] = None
         return out
 
     def setUp(self):
@@ -295,7 +273,6 @@ class TestTheWindowWritesNothing(Window):
 
         app = screen.App(self.world.root, FakeScreen())
         was = self.files()
-        # Every key it answers, and a few it does not, several times over.
         pressed = [ord(ch) for ch in "123456789jkhlgGb rfcmxyz?\t"]
         pressed += [screen.curses.KEY_DOWN, screen.curses.KEY_UP,
                     screen.curses.KEY_NPAGE, screen.curses.KEY_PPAGE,
@@ -309,11 +286,7 @@ class TestTheWindowWritesNothing(Window):
                          "some key in the window wrote to the world")
 
     def test_it_holds_nothing_that_could_write(self):
-        """A guard on the next person to add a key, including me.
-
-        A window that saves a world is one line away at any time, and a test
-        that drives the keys can only catch the keys that exist today.
-        """
+        """Static guard: drive-the-keys only covers keys that exist today."""
         source = Path(__file__).resolve().parents[1] / "src" / "elsewhere" / "tui"
         for path in sorted(source.glob("*.py")):
             body = path.read_text(encoding="utf-8")

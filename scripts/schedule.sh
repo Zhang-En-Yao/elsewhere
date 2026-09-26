@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
 #
-# Let the world keep going while you are away.
+# Keep the world going via a launchd agent that runs `elsewhere continue`.
 #
-#   scripts/schedule.sh install     # start: a launchd agent checks every 30 min
-#   scripts/schedule.sh status      # is it loaded, when did it last run, can it reach a mind
-#   scripts/schedule.sh log         # what it has been doing
-#   scripts/schedule.sh uninstall   # stop
+#   scripts/schedule.sh install     # check every 30 min (CHECK_EVERY)
+#   scripts/schedule.sh status      # loaded? last run? can it reach a mind?
+#   scripts/schedule.sh log
+#   scripts/schedule.sh uninstall
 #
-# The agent runs `elsewhere continue`, which does nothing unless the wall clock
-# has moved past the next thing anybody in the world said they wanted waking
-# for. There is no step size: a town where everyone has settled for the night
-# sleeps through it in one move, and a town in the middle of something is
-# asked again in minutes. Checking every half hour means a Mac that was asleep
-# catches up soon after it wakes; launchd folds the missed checks into one.
-# At most MAX steps are lived per run, so a week away does not become an hour
-# of model calls.
-#
-# The default model runs inside the job itself, through MLX, so there is no
-# server to keep running: each wake loads the weights from the Hugging Face
-# cache, which takes a few seconds. If it cannot, continue logs that the
-# world is waiting and lives nothing.
+# At most MAX steps are lived per run.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."

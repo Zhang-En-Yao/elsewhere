@@ -17,14 +17,11 @@ from elsewhere.schemas import CallName
 
 
 class MakingAWorldTest(unittest.TestCase):
-    """The four events, and the line each one gets while everybody takes it in."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
-        # Everybody keeps something of everything, and no two of them keep the
-        # same words - so a line saying "3 of 3" has counted three people and
-        # not three copies of one memory.
+        # Distinct memories per person, so "3 of 3" counts people, not copies.
         counted = itertools.count()
         register(StubBackend({
             CallName.PERCEIVE: lambda call: {
@@ -41,8 +38,6 @@ class MakingAWorldTest(unittest.TestCase):
         return {name: settings for name in CallName}
 
     def test_a_world_built_in_silence_says_nothing(self):
-        # `build` is a library call before it is anything else, and every other
-        # test in this suite makes worlds by it.
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             seed.build(self.root, configuration=self.configuration())
@@ -57,7 +52,6 @@ class MakingAWorldTest(unittest.TestCase):
             self.assertIn("3 of 3 kept", line)
 
     def test_with_no_mind_there_is_nothing_to_account_for(self):
-        # Nobody was asked anything, so there is no wait to report on.
         said = []
         seed.build(self.root, configuration=None, say=said.append)
         self.assertEqual(said, [])

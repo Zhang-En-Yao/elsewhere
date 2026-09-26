@@ -24,20 +24,16 @@ where = ["src"]
 
 [tool.mypy]
 files = ["src/elsewhere"]
-# Not strict. The one thing this is here for is the class of mistake a test
-# cannot reach: an attribute that stopped existing, in code nothing calls.
-# Chronicle.all() is annotated, so `e.day` on an Event is an error the day
-# it is written rather than whenever somebody next reads the file.
+# Not strict: only here to catch stale attributes in code no test reaches.
 warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-# The Claude backend is an optional extra; it is expected to be missing.
+# Optional extras.
 module = ["anthropic", "anthropic.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# So is MLX, which only exists on Apple silicon.
 module = ["mlx", "mlx.*", "mlx_lm", "mlx_lm.*", "mlx_embeddings", "mlx_embeddings.*",
           "llguidance", "llguidance.*", "huggingface_hub"]
 ignore_missing_imports = true

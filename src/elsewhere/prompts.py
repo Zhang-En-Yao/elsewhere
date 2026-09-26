@@ -1,9 +1,4 @@
-"""What a mind is shown before it is asked anything.
-
-A person is never handed the world. They are handed themselves, the room they
-are standing in, and the few things they can currently bring to mind - which
-is the retrieval layer's decision, not theirs.
-"""
+"""The prompts each model call is shown."""
 
 from __future__ import annotations
 
@@ -16,24 +11,14 @@ from .world.store import clock_at, day_of
 
 
 def _when(at: float) -> str:
-    """A moment as the record says it: 'day 68, 02:00'. No name for the hour."""
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
 def being_block(being: Being, with_thought: bool = True,
                 beliefs: Optional[Sequence] = None) -> str:
-    """Who this person is, as they would be told it.
-
-    `with_thought` is off in one place, `perceive`, and for a reason that is
-    about the shape of an answer rather than about privacy. `thought` is a
-    short first-person fragment in their own voice, which is exactly what
-    `perceive` asks to be given - and unlike their memories, which are many
-    and differ, it is one sentence that is the same at every event. Left in,
-    it is a constant standing where the answer goes, and a small model hands
-    it straight back: three fresh worlds each way, 77% of what got written
-    was a copy of something with it there, 20% without, and not one copy of
-    it in the second run.
-    """
+    """`with_thought` is off for `perceive`: `thought` is one constant
+    first-person sentence and small models copy it straight into the answer
+    (measured 77% copies with it, 20% without)."""
     lines = [f"You are {being.name}."]
     if being.who.card:
         lines.append(being.who.card)
@@ -43,11 +28,7 @@ def being_block(being: Being, with_thought: bool = True,
         lines.append(f"What you keep coming back to: {being.who.thought}")
     if being.who.wants:
         lines.append("What you want at the moment: " + "; ".join(being.who.wants) + ".")
-    # Which of their beliefs are in front of them is the retrieval layer's
-    # answer, not a sort by a confidence number - there is no confidence
-    # number. `beliefs` is what `agents.held_beliefs` gave back for this
-    # moment; the stored order is the fallback for the few call sites that
-    # have no clock to hand.
+    # `beliefs` comes from `agents.held_beliefs`; stored order is the fallback.
     held = list(beliefs) if beliefs is not None else being.who.beliefs[:3]
     if held:
         lines.append("What you hold to be true: " +
@@ -70,12 +51,6 @@ def memories_block(memories: Sequence[Memory], header: str = "What you can bring
 
 
 def _since(regard, at: float) -> str:
-    """How long since they last spoke, as a fact and not as a verdict.
-
-    The engine does not decide what a season of silence means - some people
-    pick up where they left off and some never do. It says how long it has
-    been and leaves the reading of it to them.
-    """
     if regard.last_seen_at <= 0.0:
         return ""
     days = int((at - regard.last_seen_at) // HOURS_PER_DAY)
@@ -87,12 +62,7 @@ def _since(regard, at: float) -> str:
 
 
 def regards_block(being: Being, others: Sequence[Being], at: float) -> str:
-    """Who is here, as this person would account for them.
-
-    Knowing somebody is having something to say about them - not a number
-    above a threshold. A mind that has never formed an account of this face
-    does not know it, however many times they have passed in the road.
-    """
+    """Only people this person has an account of are shown as known."""
     if not others:
         return "You are alone."
     lines = ["Who is here:"]
@@ -164,7 +134,7 @@ Three people, another town, another day - the form, not the content:
      "stuck": false}"""
 
 
-#: The example memories above, so the eval can tell a copied example from a memory.
+#: Used by the eval to tell a copied example from a real memory.
 PERCEIVE_EXAMPLE_MEMORIES = (
     "its eye was open the whole time they were deciding",
     "two sacks of flour split open in the mud",
@@ -175,18 +145,11 @@ PERCEIVE_EXAMPLE_MEMORIES = (
 def perceive_user(being: Being, what_happened: str, where: str, when: str,
                   at: float, others: Sequence[Being], memories: Sequence[Memory],
                   part_of_it: bool, vantage: str = "") -> str:
-    """Scene first, person last.
+    """Scene first, person last: small models weight the end of the prompt
+    most, so a card at the top gets drowned by the scene.
 
-    A small model weights the end of a prompt far more than the start. With the
-    character card at the top, by the time it reaches the question the card
-    has been drowned by the scene - and everyone answers as the same narrator.
-
-    Their own memories are here, and taking them out was tried and put back.
-    They do get copied - but they are many and they differ, and with them gone
-    the model does not stop copying, it copies the one thing left in the prompt
-    shaped like a memory, which is `thought`, and `thought` is the same
-    sentence at every event. Three fresh worlds each way: with them, 22% of
-    what got written was a copy of something; without them, 52%.
+    Memories stay in despite being copied sometimes; without them the model
+    copies `thought` instead (measured 22% copies with memories, 52% without).
     """
     parts = [
         f"It was {when}, at {where}.",
@@ -202,9 +165,6 @@ def perceive_user(being: Being, what_happened: str, where: str, when: str,
     ]
     return "\n\n".join(part for part in parts if part)
 
-
-# --------------------------------------------------------------------------
-# act: what someone does with the next few hours
 
 ACT_SYSTEM = """You are one person in a small town, deciding what to do with
 the next few hours. You are not narrating and not explaining yourself to anyone.
@@ -321,9 +281,6 @@ def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
     return "\n\n".join(part for part in parts if part)
 
 
-# --------------------------------------------------------------------------
-# speak: one thing said out loud to one person
-
 SPEAK_SYSTEM = """You are one person in a small town, and you have turned to
 someone to say something. Say one thing, the way this person actually talks.
 
@@ -368,9 +325,6 @@ def speak_user(being: Being, listener: Being, when: str, place_name: str,
     lines.append(f"What does {being.name} say to {listener.name}?")
     return "\n\n".join(lines)
 
-
-# --------------------------------------------------------------------------
-# direct: what the world does to the people in it
 
 DIRECT_SYSTEM = """You are not a person. You are the town itself - its weather,
 its roads, its strangers, its accidents - deciding whether anything happens to
@@ -439,11 +393,6 @@ def direct_user(world, recent) -> str:
             continue
         place = world.places.get(being.where.place)
         wants = f" Lately after: {'; '.join(being.who.wants)}." if being.who.wants else ""
-        # And what they have actually been doing, which is the only way
-        # anything anybody does can ever have a consequence in this world. The
-        # engine does not resolve an action into an outcome - nothing here
-        # decides whether the roof got finished - but the town can see that
-        # somebody has been on it for a fortnight and say so.
         doings = (" Lately doing: " + "; ".join(being.where.lately[-3:]) + "."
                   if being.where.lately else "")
         beings.append(f"  - {being.name}, at "
@@ -458,9 +407,6 @@ def direct_user(world, recent) -> str:
         "Does anything happen to this town today?",
     ])
 
-
-# --------------------------------------------------------------------------
-# arrive: who comes up the road
 
 ARRIVE_SYSTEM = """You are not a person. You are the road into a small town,
 deciding whether anybody comes up it today, and who that would be.
@@ -533,9 +479,6 @@ def arrive_user(world, recent) -> str:
     ])
 
 
-# --------------------------------------------------------------------------
-# reflect: what someone makes of their day, at night
-
 REFLECT_SYSTEM = """This person has stopped for the day and is alone with the
 day they had - whatever hour of the clock that turned out to be. Most of the
 time people do not arrive at anything; they just go over it.
@@ -592,17 +535,9 @@ Three people, another town - the form, not the content:
 def reflect_user(being: Being, today: Sequence[Memory], older: Sequence[Memory],
                  beliefs: Sequence = (), at: float = 0.0,
                  lately: Sequence[str] = ()) -> str:
-    """Their day, the older things still in reach, and what they already hold.
-
-    The beliefs are numbered because the answer may point back at one: whether
-    tonight's belief is a thing they already believe, said again, is a question
-    about meaning and so it is theirs. The engine only has to be told which.
-    """
+    """Beliefs are numbered so the answer can point back at one it restates."""
     lines = []
     if lately:
-        # What they did, which until now was nowhere: only what the world had
-        # done to *them* was written down, so somebody who spent a week on a
-        # roof arrived at their own reckoning with nothing to go over.
         lines.append("What you have been doing:\n" + "\n".join(
             f"  - {d}" for d in lately))
     if today:
@@ -618,9 +553,6 @@ def reflect_user(being: Being, today: Sequence[Memory], older: Sequence[Memory],
     lines.append(f"They are stopping for the day. What is {being.name} left with?")
     return "\n\n".join(lines)
 
-
-# --------------------------------------------------------------------------
-# recall: remembering something again changes it
 
 RECALL_SYSTEM = """This person has just brought up something they remember, and
 in the telling it has come back to them. Write it as it now exists in their
@@ -650,23 +582,13 @@ Two memories, another town - the form, not the content:
 
 
 def recall_user(being: Being, memory: Memory, age_days: int, at: float) -> str:
-    """How old it is and how often it has been told. Not how clear it is.
-
-    How hazy a thing is after eight months and two tellings is exactly the
-    judgement that belongs to a mind, and the facts it needs to make it are
-    already on the line.
-    """
     was = f'"{memory.account}"' + (f" (what it meant: {memory.means})" if memory.means else "")
     told = {0: "never told", 1: "told once"}.get(memory.recalls, f"told {memory.recalls} times")
     last = memory.told[-2] if len(memory.told) > 1 else None
     since = (f", last brought up {max(0, int((at - last) // HOURS_PER_DAY))} days ago"
              if last is not None else "")
-    # `thought` is kept out for the same reason `perceive` keeps it out: it
-    # is one short first-person fragment, which is exactly the shape of the
-    # answer being asked for, and it is the same sentence every time. Left in,
-    # it is a constant standing where the answer goes. Measured on a flood
-    # memory recalled sixteen times each way, 44% of the rewrites drifted into
-    # the person's thought with it there and none did without it.
+    # `thought` left out, as in `perceive`: with it, 44% of rewrites drifted
+    # into copying it; without, none.
     return "\n\n".join([
         f"The memory, {age_days} days old, {told}{since}. It was: {was}",
         being_block(being, with_thought=False),
