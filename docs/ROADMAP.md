@@ -24,8 +24,16 @@ Landed:
   a single float; days, seasons and a clock reading are worked out from it and
   never stored. A mind is told the time and whether the sun is up, and decides
   for itself what that is worth - naming a quarter of the day was the engine
-  suggesting what everyone ought to be doing at it. Scheduling stayed with the
-  engine but became rates rather than hours, and memory decays continuously.
+  suggesting what everyone ought to be doing at it.
+- **Nothing anybody here made up** — what is left on the engine's side is a
+  published algorithm used as published, or it is not an algorithm. Retrieval
+  is ACT-R's declarative memory at its own parameters, with no threshold and
+  so no number that had to be picked; the five-word weight ladder, the floats
+  under it, the belief confidence, the word-overlap belief matcher and its
+  stop-word list, the bare cosine threshold for a cued return, and all seven
+  scarcity constants are gone. Scheduling went with them: there is no step
+  size, every entity keeps one timer and sets it itself, and a day ends when
+  the person says it does. See [ARCHITECTURE.md](ARCHITECTURE.md).
 - **The road** — people leave and are not got back, and a town is asked who
   comes up the road: about monthly while it is down somebody, about yearly
   when it is not. A seventh call site, `arrive`, and a sixth verb for `act`
@@ -78,7 +86,7 @@ be wrong in some specific way.
 
 ## P5 — Making things
 
-**The gap.** `ACTIONS` is five verbs
+**The gap.** `ACTIONS` is three verbs
 ([`schemas.py`](../src/elsewhere/schemas.py)) and the comment there already
 names the plan: `make` and `tend` arrive with art. `Trace.source = "made"`
 is reserved and unwritten.
@@ -99,14 +107,15 @@ an event with a maker and a durable presence in a place.
 - `elsewhere art` to see what has been made, and out of what.
 
 **Watch out for.** A small model asked to write a poem will write a bad poem
-every phase. Making should be rare and expensive — gated on a trace that is
-still in reach and weighted heavily, and on nothing else. A cooldown was the
-obvious second gate and it is the wrong kind of rule: it would have the engine
-decide whether somebody makes something today, on the same clock for everyone.
-The engine decides what can be reached; a mind decides what to do about it.
-Rarity has to come from the fact that a memory still strong enough to make
-something out of is itself rare - and rare at a different time for each being,
-because `salience` is theirs and not the engine's.
+every step. Making should be rare and expensive — gated on a trace that is
+still in reach, and on nothing else. A cooldown was the obvious second gate
+and it is the wrong kind of rule: it would have the engine decide whether
+somebody makes something today, on the same clock for everyone. The engine
+decides what can be reached; a mind decides what to do about it. Rarity has to
+come from the fact that a memory still active enough to make something out of
+is itself rare - and rare at a different moment for each being, because
+activation is a fact about their own history of thinking about it and not a
+weight the engine keeps.
 
 ## P6 — Above the individual
 

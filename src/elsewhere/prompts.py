@@ -20,7 +20,8 @@ def _when(at: float) -> str:
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
-def being_block(being: Being, with_thought: bool = True) -> str:
+def being_block(being: Being, with_thought: bool = True,
+                beliefs: Optional[Sequence] = None) -> str:
     """Who this person is, as they would be told it.
 
     `with_thought` is off in one place, `perceive`, and for a reason that is
@@ -34,18 +35,23 @@ def being_block(being: Being, with_thought: bool = True) -> str:
     it in the second run.
     """
     lines = [f"You are {being.name}."]
-    if being.card:
-        lines.append(being.card)
-    if being.manner:
-        lines.append(f"How you talk: {being.manner}")
-    if being.thought and with_thought:
-        lines.append(f"What you keep coming back to: {being.thought}")
-    if being.wants:
-        lines.append("What you want at the moment: " + "; ".join(being.wants) + ".")
-    if being.beliefs:
-        held = sorted(being.beliefs, key=lambda b: -b.confidence)[:3]
+    if being.who.card:
+        lines.append(being.who.card)
+    if being.who.manner:
+        lines.append(f"How you talk: {being.who.manner}")
+    if being.who.thought and with_thought:
+        lines.append(f"What you keep coming back to: {being.who.thought}")
+    if being.who.wants:
+        lines.append("What you want at the moment: " + "; ".join(being.who.wants) + ".")
+    # Which of their beliefs are in front of them is the retrieval layer's
+    # answer, not a sort by a confidence number - there is no confidence
+    # number. `beliefs` is what `agents.held_beliefs` gave back for this
+    # moment; the stored order is the fallback for the few call sites that
+    # have no clock to hand.
+    held = list(beliefs) if beliefs is not None else being.who.beliefs[:3]
+    if held:
         lines.append("What you hold to be true: " +
-                     " ".join(f"{b.belief}." for b in held))
+                     " ".join(f"{b.claim}." for b in held))
     return "\n".join(lines)
 
 
@@ -91,7 +97,7 @@ def regards_block(being: Being, others: Sequence[Being], at: float) -> str:
         return "You are alone."
     lines = ["Who is here:"]
     for other in others:
-        regard = being.regards.get(other.id)
+        regard = being.who.regards.get(other.id)
         if regard is None or not regard.account:
             lines.append(f"  - {other.name}, who you do not know.")
         else:
@@ -120,18 +126,16 @@ still the feeling they had, and "relief that came out wrong" is a better
 answer than the nearest word off a list. Empty, or "none", when there is
 nothing.
 
-weight, last: how much of that survives in this person.
-  nothing  - it is gone by tomorrow
-  faint    - it might come back if something pointed at it
-  ordinary - they will bring it up this week, and not next year
-  stays    - they will still have it years from now
-  marks    - it changes who they are
+stuck, last: whether any of it stayed with them at all - true if they are
+still carrying it when they lie down tonight, false if it is gone by morning.
+Nothing else is asked. How long it lasts after tonight is not yours to say and
+not theirs: a memory survives here by being brought up, the way memories do,
+and nobody knows on the day which of them they will still have.
 
-Weigh it by who this person is, not by how big the event was. The same fire
-can mark one person for life and pass the next one by entirely - read who
-they are before you decide. An ordinary day is nothing for almost everyone.
-
-Almost nothing is "marks". Be sparing, or this person ends up with a hundred
+Answer it about this person, not about the event. The same fire can stay with
+one person for life and pass the next one by entirely - read who they are
+before you decide. Most of an ordinary day sticks to nobody, so false is the
+usual answer, and a person for whom everything sticks has a hundred
 unforgettable days and no life.
 
 Other people were there too, and each of them kept something different: what
@@ -148,16 +152,16 @@ Three people, another town, another day - the form, not the content:
 
   Mira, who minds the neighbours' children. At her door, forty paces off.
     {"trace": "its eye was open the whole time they were deciding",
-     "means": "", "feeling": "grief", "weight": "stays"}
+     "means": "", "feeling": "grief", "stuck": true}
 
   Oskar, a trader who counts everything. Behind the cart, holding his own horse.
     {"trace": "two sacks of flour split open in the mud",
      "means": "someone is paying for that, and it is not me",
-     "feeling": "unease", "weight": "faint"}
+     "feeling": "unease", "stuck": true}
 
   Pell, an old ferryman who has seen it before. On the far bank.
     {"trace": "a cart on its side", "means": "", "feeling": "none",
-     "weight": "nothing"}"""
+     "stuck": false}"""
 
 
 #: The example traces above, so the eval can tell a copied example from a memory.
@@ -222,6 +226,23 @@ only three because there are only three things it can do.
 target: the place or the person, exactly as written in the options; empty for
 stay.
 
+for_hours: how long you will be at this before you look up, as a number of
+hours. Say what it actually takes: a conversation is a half, mending a net is
+three or four, sleeping is seven or eight, sitting up because you cannot
+sleep is two. Nobody is asked anything again until this runs out - so a small
+number is a restless hour and a large one is a person who has settled to
+something. If something happens near you, you will be asked sooner.
+
+settling: true only when this is you stopping for the day - lying down, done,
+nothing else until tomorrow. You will go over your day before you sleep.
+False every other time, including a nap in a chair at noon.
+
+absorbed: true when you are far enough into this that what goes on around you
+is not your business - deep in work, asleep, walking somewhere on your own.
+Then nothing will interrupt you before your hours are up except something that
+happens to you. False when you would look up: most of a life is false here,
+and somebody absorbed all day is somebody nothing can reach.
+
 Some days one more verb is there: leave. It only ever appears when this person
 is standing where the road goes out of the town, and it is not a walk to the
 next place - it is the end of their life here. Almost nobody takes it. Take it
@@ -242,38 +263,44 @@ reason not to, and then that reason is your "because".
 
 Four people, another town, another day - the form, not the content:
 
-  Morning. Mira is at her door. Here: nobody. Can go to: the ford, the well.
+  07:00. Mira is at her door. Here: nobody. Can go to: the ford, the well.
     {"because": "the children arrive soon and the step needs scrubbing",
      "doing": "scrubbing the step, badly, because there is no time",
-     "action": "stay", "target": ""}
+     "action": "stay", "target": "", "for_hours": 1, "settling": false,
+     "absorbed": false}
 
-  Afternoon. Oskar is at the ford. Here: Mira. Can go to: the market.
+  15:00. Oskar is at the ford. Here: Mira. Can go to: the market.
     {"because": "she saw the cart go over; I want to know what she told the reeve",
      "doing": "working round to asking her about it",
-     "action": "talk", "target": "Mira"}
+     "action": "talk", "target": "Mira", "for_hours": 0.5, "settling": false,
+     "absorbed": false}
 
-  Night. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
+  22:00. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
     {"because": "tired",
      "doing": "asleep in the chair before he gets as far as the bed",
-     "action": "stay", "target": ""}
+     "action": "stay", "target": "", "for_hours": 8, "settling": true,
+     "absorbed": true}
 
-  Night. Sula, who has not slept right since the flood, is at her door.
+  02:00. Sula, who has not slept right since the flood, is at her door.
   Here: nobody. Can go to: the waterline.
     {"because": "lying there is worse than walking",
      "doing": "going down to look at the water, which she knows does not help",
-     "action": "go", "target": "the waterline"}
+     "action": "go", "target": "the waterline", "for_hours": 2,
+     "settling": false, "absorbed": true}
 
-  Afternoon. Carin is on the ridge, where the road goes out. Here: nobody.
+  16:00. Carin is on the ridge, where the road goes out. Here: nobody.
   Can go to: the well. Leaving is possible today.
     {"because": "I said I would go before winter and I have not",
-     "action": "go", "target": "the well"}"""
+     "action": "go", "target": "the well", "for_hours": 1, "settling": false,
+     "absorbed": false}"""
 
 
 def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
              reachable: Sequence[str], traces: Sequence[Trace],
-             home_name: str = "", may_leave: bool = False) -> str:
+             home_name: str = "", may_leave: bool = False,
+             beliefs: Optional[Sequence] = None) -> str:
     here = ", ".join(o.name for o in others) if others else "nobody"
-    if place and being.home == place.id:
+    if place and being.where.home == place.id:
         where = f"You are at home, {place.name}. {place.description}".strip()
     else:
         where = f"You are at {place.name}. {place.description}".strip() if place else ""
@@ -288,7 +315,7 @@ def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
          "today and not come back.") if may_leave else "",
         regards_block(being, others, at) if others else "",
         traces_block(traces),
-        being_block(being),
+        being_block(being, beliefs=beliefs),
         f"Now decide as {being.name}: what do you do for the next few hours?",
     ]
     return "\n\n".join(part for part in parts if part)
@@ -322,8 +349,9 @@ Three people, another town - the form, not the content:
 
 
 def speak_user(being: Being, listener: Being, when: str, place_name: str,
-               topics: Sequence[Trace]) -> str:
-    regard = being.regards.get(listener.id)
+               topics: Sequence[Trace],
+               beliefs: Optional[Sequence] = None) -> str:
+    regard = being.who.regards.get(listener.id)
     knows = f" {regard.account}" if regard and regard.account else ""
     lines = [
         f"It is {when}, at {place_name}.",
@@ -336,7 +364,7 @@ def speak_user(being: Being, listener: Being, when: str, place_name: str,
             lines.append(f"  {i}. {t.trace}{extra}")
     else:
         lines.append("On your mind: nothing in particular.")
-    lines.append(being_block(being))
+    lines.append(being_block(being, beliefs=beliefs))
     lines.append(f"What does {being.name} say to {listener.name}?")
     return "\n\n".join(lines)
 
@@ -353,7 +381,10 @@ what they have been after lately, and what has happened here recently. You do
 not see inside anyone.
 
 why_now: first, what about this town, today, makes something likely - a season,
-a want someone has been circling, something left unfinished, a long quiet.
+a want someone has been circling, something left unfinished, a long quiet, or
+a thing somebody has been at long enough that it would now be done. Nobody in
+this town can finish anything by themselves: what they do is written down and
+you are the only one who can say what came of it.
 
 what: then the thing itself, in one plain sentence, in the voice of a record,
 not a story. Something that happens TO people, not something they decide to
@@ -363,10 +394,19 @@ where: the place it happens. who: the one person it happens to directly, or
 empty if it is not about anyone in particular. reach: whether only the people
 there notice, or the whole town does - a storm, a fire, a death reach everyone.
 
-happens: last. Most days, nothing does. Say true only when this day really
-would bring something, and never twice in a row for the same kind of thing.
-Small things are better than large ones: a letter, a stranger, a leak, a lost
-goat. A town that has a disaster every week is not a town anyone lives in.
+happens: most of the time, nothing does. Say true only when this stretch
+really would bring something, and never twice in a row for the same kind of
+thing. Small things are better than large ones: a letter, a stranger, a leak,
+a lost goat. A town that has a disaster every week is not a town anyone lives
+in.
+
+ask_again_in_hours: last, and asked whether anything happened or not - when
+this town is worth asking again, in hours. Nothing in the engine decides this
+for you and nothing else paces the town: say a long time and the town has a
+long quiet, say a short one and it is asked again soon. A town that has just
+had something happen to it wants a fortnight (336) or more. A settled town in
+an ordinary season wants a few days (72). A dry summer with the river falling
+and everyone watching it wants a day (24).
 
 Three mornings, another town - the form, not the content:
 
@@ -375,18 +415,18 @@ Three mornings, another town - the form, not the content:
     {"why_now": "weeks without rain and the river is low",
      "what": "The ferry ran aground in the shallows and would not come free.",
      "where": "the ferry house", "who": "Pell", "reach": "the people there",
-     "happens": true}
+     "happens": true, "ask_again_in_hours": 240}
 
   Autumn. Oskar has been owed money since the cart went over.
     {"why_now": "a debt nobody has settled",
      "what": "A man from upriver came to the ford asking for Oskar by name.",
      "where": "the ford", "who": "Oskar", "reach": "the people there",
-     "happens": true}
+     "happens": true, "ask_again_in_hours": 336}
 
   Autumn, the next day. Yesterday a stranger came.
     {"why_now": "yesterday was already enough",
      "what": "", "where": "the ford", "who": "", "reach": "the people there",
-     "happens": false}"""
+     "happens": false, "ask_again_in_hours": 120}"""
 
 
 def direct_user(world, recent) -> str:
@@ -397,10 +437,17 @@ def direct_user(world, recent) -> str:
     for being in sorted(world.beings.values(), key=lambda p: p.name):
         if not being.present:
             continue
-        place = world.places.get(being.place)
-        wants = f" Lately after: {'; '.join(being.wants)}." if being.wants else ""
+        place = world.places.get(being.where.place)
+        wants = f" Lately after: {'; '.join(being.who.wants)}." if being.who.wants else ""
+        # And what they have actually been doing, which is the only way
+        # anything anybody does can ever have a consequence in this world. The
+        # engine does not resolve an action into an outcome - nothing here
+        # decides whether the roof got finished - but the town can see that
+        # somebody has been on it for a fortnight and say so.
+        doings = (" Lately doing: " + "; ".join(being.where.lately[-3:]) + "."
+                  if being.where.lately else "")
         beings.append(f"  - {being.name}, at "
-                      f"{place.name if place else 'nowhere'}.{wants}")
+                      f"{place.name if place else 'nowhere'}.{wants}{doings}")
     record = ["Lately, in the record:"]
     record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
@@ -440,8 +487,15 @@ you already know the answer to", "you talk around a thing for a while first".
 Not "terse", not "warm", not "short sentences": those describe the writing,
 and this is a person.
 
-comes: last. Say false unless this town, today, really would take somebody in.
+comes: say false unless this town really would take somebody in just now.
 Nobody is the usual answer.
+
+ask_again_in_hours: last, and asked either way - when this road is worth
+asking again, in hours. Nothing else paces it. A town nobody has left and
+nobody is needed in is worth asking about once a year (8760). A town that has
+just lost the only person who could do a thing it needs doing notices
+strangers, and is worth asking about once a month (720). A town that has just
+taken somebody in does not want another for a long while.
 
 Two mornings, another town - the form, not the content:
 
@@ -451,11 +505,11 @@ Two mornings, another town - the form, not the content:
      "name": "Hesper", "from_where": "downriver, past the weir",
      "card": "You came for the ferry and you are good on water. You do not ask for much and you do not explain yourself.",
      "manner": "You say as little as will do, and never about yourself.",
-     "comes": true}
+     "comes": true, "ask_again_in_hours": 8760}
 
   The same town, a week later. Hesper has the ferry.
     {"why_now": "nothing here is short of anybody", "name": "", "from_where": "",
-     "card": "", "manner": "", "comes": false}"""
+     "card": "", "manner": "", "comes": false, "ask_again_in_hours": 4380}"""
 
 
 def arrive_user(world, recent) -> str:
@@ -482,8 +536,9 @@ def arrive_user(world, recent) -> str:
 # --------------------------------------------------------------------------
 # reflect: what someone makes of their day, at night
 
-REFLECT_SYSTEM = """It is night and this person is alone with the day they had.
-Most nights people do not arrive at anything; they just go over it.
+REFLECT_SYSTEM = """This person has stopped for the day and is alone with the
+day they had - whatever hour of the clock that turned out to be. Most of the
+time people do not arrive at anything; they just go over it.
 
 thought: first, the one thing from today that keeps coming back, in their own
 voice, as they would think it - not a summary of the day.
@@ -492,31 +547,75 @@ belief: then, only if today changed what they hold to be true, the new belief
 in one plain sentence they would say out loud. Usually empty.
 belief_from: the number of the memory it came from, or empty.
 
+belief_again: if what you just wrote is something they already hold, said
+again in different words, the number of that one; empty if it is new. Say the
+same thing twice a year and it is one belief held twice, not two beliefs - and
+the words a person reaches for are never the same words twice, so judge it by
+what it means and not by which words are in it. Empty when there is no belief.
+
 want: what they want now, in a few words - the same as before if nothing moved.
 
-Two people, another town - the form, not the content:
+about_someone, now_say: if one person has been on their mind - because of
+something that happened, something said, or something they have slowly come
+round to - name them, and write what this person would now say about them, in
+their own words, the way you would describe somebody to a third person. It
+replaces whatever they thought before, so write the whole of it and not the
+change.
+Leave both empty most times: people do not revise their opinion of a neighbour
+every night. Nobody is the usual answer, and somebody is the interesting one.
+
+Three people, another town - the form, not the content:
 
   Mira. Today: 1. its eye was open the whole time they were deciding.
+  Already holds: nothing.
     {"thought": "Why did nobody close its eye", "belief": "",
-     "belief_from": "", "want": "keep the children away from the river bend"}
+     "belief_from": "", "belief_again": "",
+     "about_someone": "", "now_say": "",
+     "want": "keep the children away from the river bend"}
 
   Oskar. Today: 1. a man from upriver asked for me by name.
+  Already holds: 1. Nobody settles a debt without being made to.
     {"thought": "He knew my name before he knew my face",
      "belief": "Somebody upriver has been talking about me",
-     "belief_from": "1", "want": "find out who sent him"}"""
+     "belief_from": "1", "belief_again": "",
+     "about_someone": "", "now_say": "", "want": "find out who sent him"}
+
+  Oskar, a season later. Today: 1. the reeve would not look at me.
+  Already holds: 1. Nobody settles a debt without being made to.
+    {"thought": "He looked at the door the whole time",
+     "belief": "You get nothing here unless you stand over them for it",
+     "belief_from": "1", "belief_again": "1",
+     "about_someone": "Pell", "now_say": "He knew and he said nothing. I have stopped going down to the ferry.",
+     "want": "be paid"}"""
 
 
-def reflect_user(being: Being, today: Sequence[Trace],
-                 older: Sequence[Trace]) -> str:
+def reflect_user(being: Being, today: Sequence[Trace], older: Sequence[Trace],
+                 beliefs: Sequence = (), at: float = 0.0,
+                 lately: Sequence[str] = ()) -> str:
+    """Their day, the older things still in reach, and what they already hold.
+
+    The beliefs are numbered because the answer may point back at one: whether
+    tonight's belief is a thing they already believe, said again, is a question
+    about meaning and so it is theirs. The engine only has to be told which.
+    """
     lines = []
+    if lately:
+        # What they did, which until now was nowhere: only what the world had
+        # done to *them* was written down, so somebody who spent a week on a
+        # roof arrived at their own reckoning with nothing to go over.
+        lines.append("What you have been doing:\n" + "\n".join(
+            f"  - {d}" for d in lately))
     if today:
         lines.append("Today, what stayed with you:")
         for i, t in enumerate(today, 1):
             extra = f" ({t.means})" if t.means else ""
             lines.append(f"  {i}. {t.trace}{extra}")
     lines.append(traces_block(older, "Older things you can still bring to mind"))
-    lines.append(being_block(being))
-    lines.append(f"It is night. What is {being.name} left with?")
+    if beliefs:
+        lines.append("What you already hold to be true:\n" + "\n".join(
+            f"  {i}. {b.claim}" for i, b in enumerate(beliefs, 1)))
+    lines.append(being_block(being, beliefs=beliefs))
+    lines.append(f"They are stopping for the day. What is {being.name} left with?")
     return "\n\n".join(lines)
 
 
@@ -550,19 +649,26 @@ Two memories, another town - the form, not the content:
      "means": "not my loss", "feeling": "none"}"""
 
 
-def clarity(reach_value: float) -> str:
-    if reach_value > 0.5:
-        return "still clear"
-    if reach_value > 0.25:
-        return "hazy"
-    return "barely there"
+def recall_user(being: Being, trace: Trace, age_days: int, at: float) -> str:
+    """How old it is and how often it has been told. Not how clear it is.
 
-
-def recall_user(being: Being, trace: Trace, age_days: int, reach_value: float) -> str:
+    How hazy a thing is after eight months and two tellings is exactly the
+    judgement that belongs to a mind, and the facts it needs to make it are
+    already on the line.
+    """
     was = f'"{trace.trace}"' + (f" (what it meant: {trace.means})" if trace.means else "")
     told = {0: "never told", 1: "told once"}.get(trace.recalls, f"told {trace.recalls} times")
+    last = trace.told[-2] if len(trace.told) > 1 else None
+    since = (f", last brought up {max(0, int((at - last) // HOURS_PER_DAY))} days ago"
+             if last is not None else "")
+    # `thought` is kept out for the same reason `perceive` keeps it out: it
+    # is one short first-person fragment, which is exactly the shape of the
+    # answer being asked for, and it is the same sentence every time. Left in,
+    # it is a constant standing where the answer goes. Measured on a flood
+    # memory recalled sixteen times each way, 44% of the rewrites drifted into
+    # the person's thought with it there and none did without it.
     return "\n\n".join([
-        f"The memory, {age_days} days old, {clarity(reach_value)}, {told}. It was: {was}",
-        being_block(being),
+        f"The memory, {age_days} days old, {told}{since}. It was: {was}",
+        being_block(being, with_thought=False),
         f"How does it come back to {being.name} now?",
     ])

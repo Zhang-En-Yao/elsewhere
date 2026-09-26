@@ -14,31 +14,22 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-# There is no list of feelings. There was one - thirteen words and "none" -
-# and the engine never did anything with it: a feeling is stored, printed,
-# and handed back to a mind as text, and not one line anywhere compares two
-# of them or sorts by one. It was a vocabulary a person had to squeeze into
-# for the engine's convenience, and the engine had no convenience in it.
+# Two things a mind is never given a vocabulary for, on purpose.
 #
-# Compare `thought` in REFLECT, which has never been constrained and is
-# whatever the day left somebody holding. Both are the same kind of thing.
-# The unconstrained one was right.
-
-# A small ladder instead of a float: a 4B model has no idea what 0.73 means,
-# and neither does a person. The engine maps these onto numbers itself.
-WEIGHTS = ["nothing", "faint", "ordinary", "stays", "marks"]
-
-# Three, because the engine can only do three things about an answer: move
-# somebody, put two people in a conversation, or take somebody out of the
-# world. There used to be five - 'work' and 'rest' were in here too - and
-# the engine did nothing with either of them except print a different canned
-# sentence. They were a vocabulary a life had to be squeezed into so that the
-# display could say "worked" instead of "rested".
+# A feeling is stored, printed, and handed back to a mind as text; not one
+# line anywhere compares two of them or sorts by one. A list to pick from
+# would be a constraint on a person for nobody's benefit.
 #
-# What somebody is doing is not the engine's to enumerate. It goes in `doing`,
-# in their words, and 'work' and 'rest' are two of the infinite things it can
-# say. 'make' and 'tend' come back with art (P5), because those two do change
-# the world and so the engine does have to know them apart.
+# How much a memory weighs is not asked at all. What a memory is worth is how
+# often anybody has had cause to think of it, which `retrieval` counts from
+# `Trace.told` rather than taking anyone's word for on the day. The one thing
+# a mind can actually answer about a moment it has just lived is whether any
+# of it stayed - see PERCEIVE.
+
+# Three verbs, because there are exactly three things the engine can do about
+# an answer: move somebody, put two people in a conversation, or take somebody
+# out of the world. What they are *doing* is not enumerated anywhere - it goes
+# in `doing`, in their own words, and can be anything.
 ACTIONS = ["stay", "go", "talk"]
 
 # Not a fourth everyday verb. Leaving is added to the grammar only where the
@@ -46,28 +37,29 @@ ACTIONS = ["stay", "go", "talk"]
 # that picks it has been standing somewhere that means it. See agents.may_leave.
 LEAVE = "leave"      # a fourth, offered only where the road goes out
 
-# Order matters under a grammar: keys are generated in this order, so a model
-# that is asked "stuck?" first commits to an answer in one token, before it has
-# written a word about what happened. Asking for the fragment first and the
-# verdict last lets the decision be about something it has already said.
+# Order matters under a grammar: keys are generated in the order they appear
+# here, so a model asked for a verdict first commits to it in one token, before
+# it has written a word about what happened. Every schema below therefore puts
+# the reasoning and the description first and the decision last, so the
+# decision is about something the model has already said.
+#
+# One field per decision, too. Two fields for one decision is how a model gets
+# to contradict itself.
 PERCEIVE = {
     "type": "object",
     "properties": {
-        "trace": {"type": "string"},
-        "means": {"type": "string"},
-        "feeling": {"type": "string"},
-        "weight": {"type": "string", "enum": WEIGHTS},
+        "trace": {"type": "string"},      # the fragment they are left holding
+        "means": {"type": "string"},      # what they make of it, if anything
+        "feeling": {"type": "string"},    # in their words, from no vocabulary
+        "stuck": {"type": "boolean"},     # did any of it stay at all
     },
-    # One decision in one field. An earlier version also asked for a boolean
-    # 'stuck', and a small model happily answered weight "stays", stuck false.
     "required": [],
 }
 
-# Reason, then what it looks like, then the verb - the same lesson as
-# PERCEIVE: under a grammar the first key is committed before anything else
-# is written, so the description comes before the classification rather than
-# after it. By the time a verb is picked they have already said what they are
-# doing, and the verb is only which of three things the world must do about it.
+# Reason, then what it looks like, then the verb: by the time a verb is picked
+# they have already said what they are doing, and the verb is only which of
+# three things the world must do about it. The last three fields are how this
+# person schedules themselves - see `schedule`.
 ACT = {
     "type": "object",
     "properties": {
@@ -79,6 +71,25 @@ ACT = {
         # actually stops somebody walking out of their kitchen.
         "action": {"type": "string", "enum": ACTIONS + [LEAVE]},
         "target": {"type": "string"},
+        # How long they expect to be at it. This is the only thing anywhere
+        # that says when they are asked anything again - the engine has no
+        # step size. A person mending a net says four; a person who cannot
+        # settle says one; a person going to bed says eight.
+        #
+        # A number of hours rather than "a few hours", so there is nothing to
+        # parse. Non-positive or missing is not usable, and somebody who gives
+        # nothing usable is woken when the world next stirs.
+        "for_hours": {"type": "number"},
+        # Whether this is them stopping for the day, which is the only thing
+        # that sends anybody to `reflect`. Not an hour on a clock.
+        "settling": {"type": "boolean"},
+        # Whether anything short of the roof coming off gets their attention
+        # before `for_hours` is up. Concordia's interrupt mask
+        # (`interrupt_scheduling.InterruptMask`) with one bit instead of a
+        # list of tag prefixes, because a town has four kinds of event and a
+        # person does not think in prefixes. A thing that happens *to* them
+        # reaches them regardless, which is what non-maskable means there.
+        "absorbed": {"type": "boolean"},
     },
     "required": ["action"],
 }
@@ -112,7 +123,17 @@ REFLECT = {
         "thought": {"type": "string"},
         "belief": {"type": "string"},
         "belief_from": {"type": "string"},
+        # Whether this is a thing they already hold, said again. Asked of the
+        # mind, because it is a question about meaning: "the river is not to
+        # be trusted" and "I do not go down there after rain" are the same
+        # belief or two, and no amount of word overlap settles which.
+        "belief_again": {"type": "string"},
         "want": {"type": "string"},
+        # Somebody who has been on their mind, and what they would now say
+        # about them. This is the only thing in the world that rewrites a
+        # `Regard`, and it rewrites one side of it.
+        "about_someone": {"type": "string"},
+        "now_say": {"type": "string"},
     },
     "required": [],
 }
@@ -130,6 +151,10 @@ DIRECT = {
         "who": {"type": "string"},
         "reach": {"type": "string", "enum": REACH},
         "happens": {"type": "boolean"},
+        # When this town is worth asking again, in hours. Nothing else paces
+        # the town: one that has just had a fire says a fortnight, one in a
+        # dry summer with the river falling says a day.
+        "ask_again_in_hours": {"type": "number"},
     },
     "required": ["happens"],
 }
@@ -146,6 +171,10 @@ ARRIVE = {
         "card": {"type": "string"},
         "manner": {"type": "string"},
         "comes": {"type": "boolean"},
+        # And when the road is worth asking again. Nothing else paces it: a
+        # town short of nobody says a year, one that has just lost the only
+        # person who could do a thing it needs doing says a month.
+        "ask_again_in_hours": {"type": "number"},
     },
     "required": ["comes"],
 }
@@ -155,15 +184,6 @@ BY_NAME: Dict[str, dict] = {
     "recall": RECALL, "reflect": REFLECT, "direct": DIRECT,
     "arrive": ARRIVE,
 }
-
-# What the ladder is worth, once the engine has to sort things by it.
-WEIGHT_VALUE = {"nothing": 0.0, "faint": 0.15, "ordinary": 0.4,
-                "stays": 0.7, "marks": 0.95}
-
-
-def weight_to_salience(weight: Optional[str]) -> float:
-    return WEIGHT_VALUE.get(weight or "ordinary", 0.4)
-
 
 class Invalid(ValueError):
     """The answer came back in a shape the world cannot use."""
@@ -221,9 +241,9 @@ def grammar(name: str) -> dict:
     """The schema as handed to a decoder: every field required.
 
     Under grammar-constrained decoding an optional field is an invitation to
-    stop early - the shortest valid answer to PERCEIVE would be {"weight":
-    "stays"}, which says something stayed and nothing about what. The validator
-    stays lenient (other backends and recorded tapes may omit fields); the
+    stop early: the shortest valid answer to PERCEIVE would be {"stuck": true},
+    which says something stayed and nothing about what. The validator stays
+    lenient, because a backend without grammar support may omit fields; the
     grammar does not.
     """
     import copy
@@ -237,13 +257,13 @@ def act_grammar(places: List[str], beings: List[str],
                 may_leave: bool = False) -> dict:
     """ACT with its target narrowed to what is actually there.
 
-    A target the model can only choose from what exists cannot be a place that
-    is not adjacent or a person who is not in the room - the grammar makes the
-    wrong answer unwritable instead of the engine repairing it afterwards.
+    A target chosen from what exists cannot be a place that is not adjacent or
+    a person who is not in the room: the grammar makes the wrong answer
+    unwritable rather than leaving the engine to repair it afterwards.
 
-    The same applies to the verb. Leaving for good is in the vocabulary only
-    when the engine has already decided it is possible from here today, so a
-    model cannot walk somebody out of the world from their own kitchen.
+    The same applies to the verb. Leaving for good enters the vocabulary only
+    where `agents.may_leave` has already said it is possible, so a model cannot
+    walk somebody out of the world from their own kitchen.
     """
     schema = grammar("act")
     options = [""] + sorted(set(places) | set(beings))
@@ -269,9 +289,21 @@ def direct_grammar(places: List[str], beings: List[str]) -> dict:
     return schema
 
 
-def reflect_grammar(sources: int) -> dict:
-    """REFLECT with belief_from narrowed to today's numbered memories."""
+def reflect_grammar(sources: int, held: int = 0,
+                    known: Optional[List[str]] = None) -> dict:
+    """REFLECT with every pointer narrowed to something that exists.
+
+    `belief_from` is one of today's numbered memories; `belief_again` is one of
+    the beliefs this person already holds, which is how the engine learns that
+    a belief is being restated rather than found; `about_someone` is a person
+    they could actually have been thinking about. All three are enums, so none
+    of them can name something that is not there.
+    """
     schema = grammar("reflect")
     schema["properties"]["belief_from"] = {
         "type": "string", "enum": [""] + [str(i) for i in range(1, sources + 1)]}
+    schema["properties"]["belief_again"] = {
+        "type": "string", "enum": [""] + [str(i) for i in range(1, held + 1)]}
+    schema["properties"]["about_someone"] = {
+        "type": "string", "enum": [""] + sorted(known or [])}
     return schema

@@ -11,14 +11,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import cli, schemas, seed, tick as tick_mod
+from elsewhere import cli, schedule, schemas, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle, store
 from elsewhere.world.memories import Trace
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
-STAY = {"because": "", "doing": "", "action": "stay", "target": ""}
+STAY = {"because": "", "doing": "", "action": "stay", "target": "",
+        "for_hours": 6.0, "settling": False}
 
 
 def config():
@@ -30,7 +31,7 @@ class TownTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
         self.world = seed.build(self.root)
-        self.stub = StubBackend({"act": STAY, "perceive": {"weight": "nothing"}})
+        self.stub = StubBackend({"act": STAY, "perceive": {"stuck": False}})
         register(self.stub)
 
     def tearDown(self):
@@ -48,15 +49,54 @@ class TownTest(unittest.TestCase):
 
 
 class TestTime(TownTest):
-    def test_a_tick_is_one_step_of_the_clock(self):
+    def test_a_step_is_as_long_as_the_next_thing_due(self):
+        # There is no step size. Everyone answered "six hours" because that is
+        # what the stub says; the clock moved six because of that and for no
+        # other reason.
+        tick_mod.tick(self.world, config())              # the opening step
         was = self.world.at
-        tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.at, was + tick_mod.STEP_HOURS)
+        report = tick_mod.tick(self.world, config())
+        self.assertEqual(self.world.at, was + 6.0)
+        self.assertEqual(report.hours, 6.0)
 
-    def test_a_step_can_be_any_length(self):
+    def test_a_step_is_as_long_as_whoever_asked_for_the_least(self):
+        tick_mod.tick(self.world, config())
+        self.acts(p_eve={**STAY, "for_hours": 1.5})
+        tick_mod.tick(self.world, config())              # Eve now wants 1.5h
         was = self.world.at
-        tick_mod.tick(self.world, config(), hours=1.5)
+        report = tick_mod.tick(self.world, config())
+        self.assertEqual(report.hours, 1.5)
         self.assertEqual(self.world.at, was + 1.5)
+        # and only she was asked anything: the others said six and meant it
+        asked = [c.about for c in self.calls_for("act")[-1:]]
+        self.assertEqual(asked, ["p_eve"])
+
+    def test_somebody_absorbed_is_not_woken_by_what_is_not_about_them(self):
+        # Concordia's interrupt mask, with one bit. Without it every
+        # conversation anywhere woke everybody in earshot, and nobody in this
+        # town could concentrate on anything.
+        tick_mod.tick(self.world, config())
+        for pid in ("p_adam", "p_eve", "p_lilith"):
+            self.world.beings[pid].where.place = "shelter"
+        deep = self.world.beings["p_lilith"]
+        deep.when.absorbed = True
+        deep.when.wake_at = self.world.at + 100.0
+        schedule.rouse(self.world, ["p_lilith"], about=["p_eve"])
+        self.assertEqual(deep.when.wake_at, self.world.at + 100.0,
+                         "it was not about her")
+        schedule.rouse(self.world, ["p_lilith"], about=["p_lilith"])
+        self.assertEqual(deep.when.wake_at, self.world.at,
+                         "and a thing that happens to her is not maskable")
+
+    def test_a_world_nobody_scheduled_stops_rather_than_inventing_an_hour(self):
+        self.say("act", {"because": "", "action": "stay", "target": ""})
+        self.say("direct", {"happens": False})
+        self.say("arrive", {"comes": False})
+        tick_mod.tick(self.world, config())              # everyone answers, nobody says when
+        was = self.world.at
+        report = tick_mod.tick(self.world, config())
+        self.assertTrue(report.idle)
+        self.assertEqual(self.world.at, was, "the engine does not pick an hour for them")
 
     def test_everyone_is_asked_once(self):
         tick_mod.tick(self.world, config())
@@ -65,9 +105,9 @@ class TestTime(TownTest):
 
     def test_a_mind_that_gives_nothing_stays_put(self):
         self.acts(p_eve="I would rather not say")
-        before = self.world.beings["p_eve"].place
+        before = self.world.beings["p_eve"].where.place
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.beings["p_eve"].place, before)
+        self.assertEqual(self.world.beings["p_eve"].where.place, before)
         self.assertEqual(report.silent, 1)
 
 
@@ -77,13 +117,18 @@ class TestChoices(TownTest):
         eve_call = next(c for c in self.calls_for("act") if c.about == "p_eve")
         options = eve_call.schema["properties"]["target"]["enum"]
         # Eve is at the garden: next to the shelter and the waterline, and alone.
-        self.assertEqual(sorted(options), ["", "The Shelter", "The Waterline"])
+        # Adam's Yard is in reach from The Garden because the way between
+        # them is one entry now. It used to be two lists, and the garden's
+        # copy had lost it - so Adam could walk to Eve and Eve could not walk
+        # back, and nothing anywhere could have noticed.
+        self.assertEqual(sorted(options),
+                         ["", "Adam's Yard", "The Shelter", "The Waterline"])
 
     def test_going_somewhere(self):
         self.acts(p_eve={"because": "the seedbed can wait", "action": "go",
                          "target": "The Shelter"})
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.world.beings["p_eve"].place, "shelter")
+        self.assertEqual(self.world.beings["p_eve"].where.place, "shelter")
         self.assertIn(("p_eve", "garden", "shelter"), report.moves)
         self.assertEqual(report.decisions["p_eve"].because, "the seedbed can wait")
 
@@ -92,11 +137,10 @@ class TestConversation(TownTest):
     def setUp(self):
         super().setUp()
         for pid in ("p_eve", "p_adam"):
-            self.world.beings[pid].place = "yard"
+            self.world.beings[pid].where.place = "yard"
         self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
                            trace="the water in the doorway before I could move anything",
-                           means="", feeling="fear", salience=0.95,
-                           touched_at=68 * 24)
+                           means="", feeling="fear")
         self.world.traces("p_eve").add(self.flood)
 
     def test_something_said_is_something_someone_else_can_keep(self):
@@ -105,14 +149,15 @@ class TestConversation(TownTest):
         self.say("speak", {"about": "1", "line": "You were up there. Could you feel it?"})
         self.stub.answers["perceive|p_adam"] = {
             "trace": "she asked if I could feel it", "means": "", "feeling": "unease",
-            "weight": "ordinary"}
+            "stuck": True}
 
         report = tick_mod.tick(self.world, config())
 
         self.assertEqual(len(report.talks), 1)
         talk = report.talks[0]
-        self.assertEqual((talk.speaker, talk.listener), ("p_eve", "p_adam"))
-        event = self.world.chronicle.get(talk.event_id)
+        self.assertEqual(talk.between, ("p_eve", "p_adam"))
+        opening = talk.turns[0]
+        event = self.world.chronicle.get(opening.event_id)
         self.assertIn("Could you feel it?", event.account)
 
         kept = self.world.traces("p_adam").about_event(event.id)
@@ -121,12 +166,33 @@ class TestConversation(TownTest):
         self.assertEqual(self.world.traces("p_eve").about_event(event.id), [],
                          "the speaker is not asked to perceive her own sentence")
 
+    def test_the_other_one_answers(self):
+        # It used to be one line in one direction: somebody said a thing,
+        # everybody kept their version, and nobody ever answered anybody.
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
+        self.say("speak", {"about": "nothing in particular", "line": "Cold."})
+        talk = tick_mod.tick(self.world, config()).talks[0]
+        self.assertGreater(len(talk.turns), 1)
+        self.assertEqual([t.speaker for t in talk.turns[:2]], ["p_eve", "p_adam"])
+        # Adam answers what he kept of her line, not the line itself: each
+        # turn is an event, and he was handed a version of it first.
+        his = [c for c in self.calls_for("speak") if c.about == "p_adam"]
+        self.assertTrue(his)
+
+    def test_an_exchange_ends_when_somebody_has_nothing_to_say(self):
+        self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
+        self.stub.answers["speak|p_eve"] = {"about": "nothing in particular",
+                                            "line": "Cold."}
+        self.stub.answers["speak|p_adam"] = {"line": ""}
+        talk = tick_mod.tick(self.world, config()).talks[0]
+        self.assertEqual(len(talk.turns), 1, "he had nothing; that is the end of it")
+
     def test_saying_it_keeps_it_in_reach(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "1", "line": "That night."})
         tick_mod.tick(self.world, config())
-        self.assertEqual(self.flood.recalls, 1)
-        self.assertEqual(self.flood.touched_at, self.world.at)
+        self.assertEqual(self.flood.recalls, 2, "she had the floor twice")
+        self.assertEqual(self.flood.told[-1], self.world.at)
 
     def test_the_speaker_is_offered_what_they_can_reach(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
@@ -144,7 +210,7 @@ class TestConversation(TownTest):
         report = tick_mod.tick(self.world, config())
         self.assertEqual(report.talks, [])
         self.assertIn(("p_eve", "p_adam"), report.missed)
-        self.assertIn("who had gone", self.world.beings["p_eve"].doing)
+        self.assertIn("who had gone", self.world.beings["p_eve"].where.doing)
 
     def test_two_beings_reaching_for_each_other_have_one_conversation(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"},
@@ -158,7 +224,7 @@ class TestConversation(TownTest):
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
         tick_mod.tick(self.world, config())
         for a, b in (("p_adam", "p_eve"), ("p_eve", "p_adam")):
-            self.assertEqual(self.world.beings[a].regards[b].last_seen_at,
+            self.assertEqual(self.world.beings[a].who.regards[b].last_seen_at,
                              self.world.at)
 
 
@@ -178,12 +244,12 @@ class TestStayingPut(TownTest):
             "action": "stay", "target": ""}
         tick_mod.tick(self.world, config())
         self.assertEqual(
-            self.world.beings["p_eve"].doing,
+            self.world.beings["p_eve"].where.doing,
             "sitting in the doorway with the seed trays, not sorting them")
 
     def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
         tick_mod.tick(self.world, config())      # the stub's doing is ""
-        self.assertEqual(self.world.beings["p_eve"].doing,
+        self.assertEqual(self.world.beings["p_eve"].where.doing,
                          "stayed where they were")
 
 
@@ -195,8 +261,8 @@ class TestCategories(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         world = seed.build(Path(tmp.name) / "world")
         for pid in ("p_adam", "p_eve"):
-            world.beings[pid].place = "shelter"
-        stub = StubBackend({"act": STAY, "perceive": {"weight": "nothing"},
+            world.beings[pid].where.place = "shelter"
+        stub = StubBackend({"act": STAY, "perceive": {"stuck": False},
                             "direct": {"happens": False}, "reflect": {},
                             "arrive": {"comes": False},
                             "speak": {"about": "nothing in particular", "line": "Cold."}})
@@ -204,7 +270,8 @@ class TestCategories(unittest.TestCase):
         register(stub)
         tick_mod.tick(world, config())
         said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
-        self.assertEqual(len(said), 1)
+        self.assertEqual(len(said), tick_mod.TURNS,
+                         "one event per turn, and the stub always has a line")
 
     def test_the_three_kinds_account_for_everything_the_engine_writes(self):
         # The taxonomy is the point: the world acting on people, a being's
@@ -227,16 +294,21 @@ class TestCategories(unittest.TestCase):
 
 
 class TestOwedTime(unittest.TestCase):
-    def test_owed_steps(self):
-        self.assertEqual(tick_mod.owed_steps(None, 1e9), 0)
-        self.assertEqual(tick_mod.owed_steps(0, 5.9 * 3600), 0)
-        self.assertEqual(tick_mod.owed_steps(0, 25 * 3600), 4)
+    def test_what_is_owed_is_hours_and_not_steps(self):
+        # A day here is a day there, which is the promise. How many steps that
+        # comes to is the town's business and differs from day to day.
+        self.assertEqual(tick_mod.owed_hours(None, 1e9), 0.0)
+        self.assertEqual(tick_mod.owed_hours(0, 5.9 * 3600), 5.9)
+        self.assertEqual(tick_mod.owed_hours(0, 25 * 3600), 25.0)
+        self.assertEqual(tick_mod.owed_hours(100 * 3600, 0), 0.0)
 
     def test_a_capped_backlog_is_slept_through(self):
-        self.assertEqual(tick_mod.settle_clock(0, 100 * 3600, ran=4, owed=16), 100 * 3600)
+        self.assertEqual(
+            tick_mod.settle_clock(0, 100 * 3600, lived=24.0, owed=96.0), 100 * 3600)
 
     def test_an_uncapped_backlog_keeps_its_remainder(self):
-        self.assertEqual(tick_mod.settle_clock(0, 25 * 3600, ran=4, owed=4), 24 * 3600)
+        self.assertEqual(
+            tick_mod.settle_clock(0, 25 * 3600, lived=24.0, owed=24.0), 24 * 3600)
 
 
 class TestCatchup(unittest.TestCase):
@@ -245,7 +317,7 @@ class TestCatchup(unittest.TestCase):
         self.root = Path(self.tmp.name) / "world"
         self.env = os.environ.get("ELSEWHERE_BACKEND")
         os.environ["ELSEWHERE_BACKEND"] = "stub"
-        register(StubBackend({"act": STAY, "perceive": {"weight": "nothing"}}))
+        register(StubBackend({"act": STAY, "perceive": {"stuck": False}}))
         seed.create(self.root, remember=False)
 
     def tearDown(self):
@@ -277,17 +349,32 @@ class TestCatchup(unittest.TestCase):
         self.set_last_tick(13)
         before = store.load(self.root).at
         self.run_cli("catchup")
-        self.assertEqual(store.load(self.root).at,
-                         before + 2 * tick_mod.STEP_HOURS)
+        # At least the thirteen hours the wall clock says. It may be a little
+        # more, because a step is however long the person who wanted waking
+        # soonest asked for and the last one cannot be cut in half.
+        lived = store.load(self.root).at - before
+        self.assertGreaterEqual(lived, 13)
+        self.assertLess(lived, 13 + 6)
 
     def test_it_never_lives_more_than_the_cap(self):
         self.set_last_tick(24 * 7)
         before = store.load(self.root).at
         out = self.run_cli("catchup", "--max", "1")
         after = store.load(self.root)
-        self.assertEqual(after.at, before + tick_mod.STEP_HOURS)
+        self.assertLess(after.at - before, 24, "one step, whatever it was worth")
         self.assertIn("slept through", out)
         self.assertLess(time.time() - after.last_tick_at, 60)
+
+    def test_nothing_is_owed_until_the_world_has_something_due(self):
+        # Everyone has said they will be six hours at what they are doing and
+        # the wall clock has moved one: there is nothing to live, and saying
+        # so is a heartbeat.
+        self.run_cli("catchup")                  # starts the clock
+        self.set_last_tick(7)
+        self.run_cli("catchup")                  # lives up to the next thing due
+        self.set_last_tick(1)
+        out = self.run_cli("catchup")
+        self.assertIn("nothing is due", out)
 
     def test_a_running_tick_is_not_joined(self):
         self.set_last_tick(13)
