@@ -24,8 +24,8 @@ START_DAY = 121          # year 2, day 1: the town already has a past
 START_AT = (START_DAY - 1) * HOURS_PER_DAY + 8.0      # and it starts mid-morning
 
 
-def _place(world: World, touches: dict, pid: str, name: str, description: str,
-           beside, road_out: bool = False):
+def add_place(world: World, neighbours: dict, pid: str, name: str,
+               description: str, adjacent, road_out: bool = False):
     """A place, and the ways out of it as this line happens to name them.
 
     Naming a way from one end is enough: `entities.ways_from_neighbours` folds
@@ -33,12 +33,34 @@ def _place(world: World, touches: dict, pid: str, name: str, description: str,
     come out with a path that runs one direction only.
     """
     world.places[pid] = Place(id=pid, name=name, description=description)
-    touches[pid] = list(beside)
+    neighbours[pid] = list(adjacent)
     if road_out:
         world.map.road_out = pid
 
 
-def _clear(root: Path) -> None:
+def add_being(world: World, bid: str, name: str, card: str, manner: str,
+               thought: str, wants, place: str, home: str) -> None:
+    """A person, standing at `place`, with `home` as where they go back to."""
+    world.beings[bid] = Being(
+        id=bid, name=name,
+        who=Who(card=card, manner=manner, thought=thought, wants=wants),
+        where=Where(place=place, home=home),
+    )
+
+
+def add_regard(world: World, a: str, b: str, account: str,
+               days_ago: float) -> None:
+    """What `a` makes of `b`, in their own words, and when they last saw them.
+
+    One-sided on both sides - and so is the last time they spoke, which both
+    of them can see and neither of them is told what to make of.
+    """
+    world.beings[a].who.regard(b).account = account
+    world.beings[a].who.regard(b).last_seen_at = (
+        START_AT - days_ago * HOURS_PER_DAY)
+
+
+def clear_world(root: Path) -> None:
     """A new world starts with an empty past.
 
     The chronicle is append-only by design, which means building a world into
@@ -57,98 +79,81 @@ def _clear(root: Path) -> None:
 
 def build(root, name: str = "Nod") -> World:
     root = Path(root)
-    _clear(root)
+    clear_world(root)
     world = World(root=root, name=name, at=0.0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
-    touches: dict = {}
+    neighbours: dict = {}
 
-    _place(world, touches, "garden", "The Garden",
+    add_place(world, neighbours, "garden", "The Garden",
            "What survived on the higher ground, replanted twice since the water came.",
            ["shelter", "waterline"])
-    _place(world, touches, "shelter", "The Shelter",
+    add_place(world, neighbours, "shelter", "The Shelter",
            "Raised on posts now, so the next flood has somewhere to leave them alone.",
            ["garden", "waterline", "yard", "ridge"])
-    _place(world, touches, "waterline", "The Waterline",
+    add_place(world, neighbours, "waterline", "The Waterline",
            "Where the water reached, and where it stopped. The mark is still on the rock.",
            ["garden", "shelter", "ridge"])
-    _place(world, touches, "yard", "Adam's Yard",
+    add_place(world, neighbours, "yard", "Adam's Yard",
            "Timber stacked higher than it needs to be. He says that is the point.",
            ["shelter", "garden"])
-    _place(world, touches, "ridge", "The Ridge Path",
+    add_place(world, neighbours, "ridge", "The Ridge Path",
            "The last dry ground you can see the valley from.",
            ["shelter", "waterline", "grove"], road_out=True)
-    _place(world, touches, "grove", "The Far Grove",
+    add_place(world, neighbours, "grove", "The Far Grove",
            "Apart from everything else. She likes it that way.",
            ["ridge", "waterline"])
 
-    world.map.ways = ways_from_neighbours(touches)
+    world.map.ways = ways_from_neighbours(neighbours)
 
-    beings = [
-        Being(
-            id="p_adam", name="Adam",
-            who=Who(
-                card=("You build what holds, and you would rather fix a thing "
-                      "than discuss it. You are steady to the point of being "
-                      "dull about it. You remember what your hands were doing, "
-                      "never how you felt. You rebuilt the shelter after the "
-                      "water went down and that is, to you, the end of the "
-                      "story."),
-                manner="You answer the question that was asked, and not the "
-                       "one behind it.",
-                thought="The roof is not finished and the rains are not waiting",
-                wants=["get the shelter's roof finished before the rains come back"],
-            ),
-            where=Where(place="yard", home="yard"),
-        ),
-        Being(
-            id="p_eve", name="Eve",
-            who=Who(
-                card=("You tend the garden, and you are good at it, and you do "
-                      "not much like being watched while you work. You startle "
-                      "easily and you know it. You were standing at the "
-                      "garden's edge the night the water came and you have "
-                      "never been able to put that down. You are warmer with "
-                      "people than you let them see."),
-                manner="You say as little as will do, and you leave the "
-                       "important part unsaid.",
-                thought="Somebody was at the garden's edge again and I did not look up",
-                wants=["get the new seedbed through one more season",
-                       "not be asked about the water"],
-            ),
-            where=Where(place="garden", home="garden"),
-        ),
-        Being(
-            id="p_lilith", name="Lilith",
-            who=Who(
-                card=("You know the plants on the ridge better than anyone and "
-                      "you are not sure you will be here next year. You notice "
-                      "change before other people do and it makes you "
-                      "impatient with them. The flood is when you first "
-                      "understood you could leave."),
-                manner="You are quick, and sharper than you mean to be.",
-                thought="The ridge path goes somewhere and nobody here has asked where",
-                wants=["walk the ridge path as far as it goes, one day"],
-            ),
-            where=Where(place="ridge", home="grove"),
-        ),
-    ]
-    for being in beings:
-        world.beings[being.id] = being
+    add_being(
+        world, "p_adam", "Adam",
+        card=("You build what holds, and you would rather fix a thing "
+              "than discuss it. You are steady to the point of being "
+              "dull about it. You remember what your hands were doing, "
+              "never how you felt. You rebuilt the shelter after the "
+              "water went down and that is, to you, the end of the "
+              "story."),
+        manner="You answer the question that was asked, and not the "
+               "one behind it.",
+        thought="The roof is not finished and the rains are not waiting",
+        wants=["get the shelter's roof finished before the rains come back"],
+        place="yard", home="yard",
+    )
+    add_being(
+        world, "p_eve", "Eve",
+        card=("You tend the garden, and you are good at it, and you do "
+              "not much like being watched while you work. You startle "
+              "easily and you know it. You were standing at the "
+              "garden's edge the night the water came and you have "
+              "never been able to put that down. You are warmer with "
+              "people than you let them see."),
+        manner="You say as little as will do, and you leave the "
+               "important part unsaid.",
+        thought="Somebody was at the garden's edge again and I did not look up",
+        wants=["get the new seedbed through one more season",
+               "not be asked about the water"],
+        place="garden", home="garden",
+    )
+    add_being(
+        world, "p_lilith", "Lilith",
+        card=("You know the plants on the ridge better than anyone and "
+              "you are not sure you will be here next year. You notice "
+              "change before other people do and it makes you "
+              "impatient with them. The flood is when you first "
+              "understood you could leave."),
+        manner="You are quick, and sharper than you mean to be.",
+        thought="The ridge path goes somewhere and nobody here has asked where",
+        wants=["walk the ridge path as far as it goes, one day"],
+        place="ridge", home="grove",
+    )
 
-    # Who already knows whom, in their own words. One-sided on both sides -
-    # and so is the last time they spoke, which both of them can see and
-    # neither of them is told what to make of.
-    def regard(a: str, b: str, account: str, days_ago: float):
-        world.beings[a].who.regard(b).account = account
-        world.beings[a].who.regard(b).last_seen_at = (
-            START_AT - days_ago * HOURS_PER_DAY)
-
-    regard("p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 1)
-    regard("p_eve", "p_adam", "He works too late. Good hands.", 1)
-    regard("p_eve", "p_lilith", "Young. Always about to go somewhere.", 6)
-    regard("p_lilith", "p_eve", "She is kind and she will never leave this place.", 6)
-    regard("p_adam", "p_lilith", "Restless. Not unkind.", 11)
-    regard("p_lilith", "p_adam", "He would rebuild this whole place plank by plank and never ask why.", 11)
+    # Who already knows whom, in their own words.
+    add_regard(world, "p_adam", "p_eve", "We raised the shelter's frame together. She is easy to be quiet with.", 1)
+    add_regard(world, "p_eve", "p_adam", "He works too late. Good hands.", 1)
+    add_regard(world, "p_eve", "p_lilith", "Young. Always about to go somewhere.", 6)
+    add_regard(world, "p_lilith", "p_eve", "She is kind and she will never leave this place.", 6)
+    add_regard(world, "p_adam", "p_lilith", "Restless. Not unkind.", 11)
+    add_regard(world, "p_lilith", "p_adam", "He would rebuild this whole place plank by plank and never ask why.", 11)
 
     # ---- the first page of the chronicle ---------------------------------
     # Where each of them stood is part of what happened, so it is written into
