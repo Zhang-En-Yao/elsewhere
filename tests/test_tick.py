@@ -2,7 +2,6 @@
 
 import io
 import contextlib
-import os
 import sys
 import tempfile
 import time
@@ -13,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import cli, schedule, schemas, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
+from elsewhere.configuration import DEFAULTS, configure
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle, store
 from elsewhere.world.memories import Memory
@@ -22,7 +22,7 @@ STAY = {"because": "", "doing": "", "action": "stay", "target": "",
         "for_hours": 6.0, "settling": False}
 
 
-def config():
+def configuration():
     return {name: Settings(backend="stub", model="stub") for name in CALLS}
 
 
@@ -53,18 +53,18 @@ class TestTime(TownTest):
         # There is no step size. Everyone answered "six hours" because that is
         # what the stub says; the clock moved six because of that and for no
         # other reason.
-        tick_mod.tick(self.world, config())              # the opening step
+        tick_mod.tick(self.world, configuration())              # the opening step
         was = self.world.at
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(self.world.at, was + 6.0)
         self.assertEqual(report.hours, 6.0)
 
     def test_a_step_is_as_long_as_whoever_asked_for_the_least(self):
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.acts(p_eve={**STAY, "for_hours": 1.5})
-        tick_mod.tick(self.world, config())              # Eve now wants 1.5h
+        tick_mod.tick(self.world, configuration())              # Eve now wants 1.5h
         was = self.world.at
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(report.hours, 1.5)
         self.assertEqual(self.world.at, was + 1.5)
         # and only she was asked anything: the others said six and meant it
@@ -75,7 +75,7 @@ class TestTime(TownTest):
         # Concordia's interrupt mask, with one bit. Without it every
         # conversation anywhere woke everybody in earshot, and nobody in this
         # town could concentrate on anything.
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         for pid in ("p_adam", "p_eve", "p_lilith"):
             self.world.beings[pid].where.place = "shelter"
         deep = self.world.beings["p_lilith"]
@@ -92,28 +92,28 @@ class TestTime(TownTest):
         self.say("act", {"because": "", "action": "stay", "target": ""})
         self.say("direct", {"happens": False})
         self.say("arrive", {"comes": False})
-        tick_mod.tick(self.world, config())              # everyone answers, nobody says when
+        tick_mod.tick(self.world, configuration())              # everyone answers, nobody says when
         was = self.world.at
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertTrue(report.idle)
         self.assertEqual(self.world.at, was, "the engine does not pick an hour for them")
 
     def test_everyone_is_asked_once(self):
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         asked = sorted(c.about for c in self.calls_for("act"))
         self.assertEqual(asked, sorted(self.world.beings))
 
     def test_a_mind_that_gives_nothing_stays_put(self):
         self.acts(p_eve="I would rather not say")
         before = self.world.beings["p_eve"].where.place
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(self.world.beings["p_eve"].where.place, before)
         self.assertEqual(report.silent, 1)
 
 
 class TestChoices(TownTest):
     def test_the_grammar_only_offers_what_is_there(self):
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         eve_call = next(c for c in self.calls_for("act") if c.about == "p_eve")
         options = eve_call.schema["properties"]["target"]["enum"]
         # Eve is at the garden: next to the shelter and the waterline, and alone.
@@ -127,7 +127,7 @@ class TestChoices(TownTest):
     def test_going_somewhere(self):
         self.acts(p_eve={"because": "the seedbed can wait", "action": "go",
                          "target": "The Shelter"})
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(self.world.beings["p_eve"].where.place, "shelter")
         self.assertIn(("p_eve", "garden", "shelter"), report.moves)
         self.assertEqual(report.decisions["p_eve"].because, "the seedbed can wait")
@@ -151,7 +151,7 @@ class TestConversation(TownTest):
             "account": "she asked if I could feel it", "means": "", "feeling": "unease",
             "stuck": True}
 
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
 
         self.assertEqual(len(report.talks), 1)
         talk = report.talks[0]
@@ -171,7 +171,7 @@ class TestConversation(TownTest):
         # everybody kept their version, and nobody ever answered anybody.
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "nothing in particular", "line": "Cold."})
-        talk = tick_mod.tick(self.world, config()).talks[0]
+        talk = tick_mod.tick(self.world, configuration()).talks[0]
         self.assertGreater(len(talk.turns), 1)
         self.assertEqual([t.speaker for t in talk.turns[:2]], ["p_eve", "p_adam"])
         # Adam answers what he kept of her line, not the line itself: each
@@ -184,20 +184,20 @@ class TestConversation(TownTest):
         self.stub.answers["speak|p_eve"] = {"about": "nothing in particular",
                                             "line": "Cold."}
         self.stub.answers["speak|p_adam"] = {"line": ""}
-        talk = tick_mod.tick(self.world, config()).talks[0]
+        talk = tick_mod.tick(self.world, configuration()).talks[0]
         self.assertEqual(len(talk.turns), 1, "he had nothing; that is the end of it")
 
     def test_saying_it_keeps_it_in_reach(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "1", "line": "That night."})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.recalls, 2, "she had the floor twice")
         self.assertEqual(self.flood.told[-1], self.world.at)
 
     def test_the_speaker_is_offered_what_they_can_reach(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "nothing in particular", "line": "Cold."})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         call = self.calls_for("speak")[0]
         self.assertIn("the water in the doorway", call.user)
         self.assertEqual(call.schema["properties"]["about"]["enum"],
@@ -207,7 +207,7 @@ class TestConversation(TownTest):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"},
                   p_adam={"because": "the roof", "action": "go",
                           "target": "The Shelter"})
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(report.talks, [])
         self.assertIn(("p_eve", "p_adam"), report.missed)
         self.assertIn("who had gone", self.world.beings["p_eve"].where.doing)
@@ -216,13 +216,13 @@ class TestConversation(TownTest):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"},
                   p_adam={"because": "", "action": "talk", "target": "Eve"})
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(len(report.talks), 1)
 
     def test_meeting_is_written_into_both_ties(self):
         self.acts(p_eve={"because": "", "action": "talk", "target": "Adam"})
         self.say("speak", {"about": "nothing in particular", "line": "Evening."})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         for a, b in (("p_adam", "p_eve"), ("p_eve", "p_adam")):
             self.assertEqual(self.world.beings[a].who.regards[b].last_seen_at,
                              self.world.at)
@@ -242,13 +242,13 @@ class TestStayingPut(TownTest):
             "because": "nothing I could name",
             "doing": "sitting in the doorway with the seed trays, not sorting them",
             "action": "stay", "target": ""}
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.assertEqual(
             self.world.beings["p_eve"].where.doing,
             "sitting in the doorway with the seed trays, not sorting them")
 
     def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
-        tick_mod.tick(self.world, config())      # the stub's doing is ""
+        tick_mod.tick(self.world, configuration())      # the stub's doing is ""
         self.assertEqual(self.world.beings["p_eve"].where.doing,
                          "stayed where they were")
 
@@ -268,7 +268,7 @@ class TestCategories(unittest.TestCase):
                             "speak": {"about": "nothing in particular", "line": "Cold."}})
         stub.answers["act|p_adam"] = {"because": "", "action": "talk", "target": "Eve"}
         register(stub)
-        tick_mod.tick(world, config())
+        tick_mod.tick(world, configuration())
         said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
         self.assertEqual(len(said), tick_mod.TURNS,
                          "one event per turn, and the stub always has a line")
@@ -315,16 +315,13 @@ class TestContinue(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "world"
-        self.env = os.environ.get("ELSEWHERE_BACKEND")
-        os.environ["ELSEWHERE_BACKEND"] = "stub"
         register(StubBackend({"act": STAY, "perceive": {"stuck": False}}))
+        # Said in the world's own configuration, the way anyone would, so
+        # nothing here can reach a real model.
+        configure(self.root, "stub", "stub", calls=list(DEFAULTS))
         seed.create(self.root, remember=False)
 
     def tearDown(self):
-        if self.env is None:
-            os.environ.pop("ELSEWHERE_BACKEND", None)
-        else:
-            os.environ["ELSEWHERE_BACKEND"] = self.env
         self.tmp.cleanup()
 
     def run_cli(self, *argv):

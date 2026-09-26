@@ -119,10 +119,10 @@ def _meet(world, a: Being, b: Being) -> None:
 TURNS = 4
 
 
-def _say(world, speaker: Being, listener: Being, config,
+def _say(world, speaker: Being, listener: Being, configuration,
          transcript: Optional[Transcript] = None) -> Optional[Said]:
     """One turn: somebody says a thing, and everyone in earshot keeps a version."""
-    line, drawn = agents.speak(world, speaker, listener, config, transcript)
+    line, drawn = agents.speak(world, speaker, listener, configuration, transcript)
     if line is None:
         return None
 
@@ -144,7 +144,7 @@ def _say(world, speaker: Being, listener: Being, config,
     reshaped = None
     if drawn is not None:
         before = drawn.account
-        if agents.recall(world, speaker, drawn, config, transcript):
+        if agents.recall(world, speaker, drawn, configuration, transcript):
             reshaped = (before, drawn.account)
 
     # The speaker already has what they said; the people who heard it do not -
@@ -154,13 +154,13 @@ def _say(world, speaker: Being, listener: Being, config,
     for pid in here:
         if pid == speaker.id:
             continue
-        memory = agents.perceive(world, world.beings[pid], event, config, transcript)
+        memory = agents.perceive(world, world.beings[pid], event, configuration, transcript)
         if memory is not None:
             kept.append(memory)
     return Said(speaker.id, listener.id, line, event.id, kept, reshaped)
 
 
-def converse(world, a: Being, b: Being, config,
+def converse(world, a: Being, b: Being, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Talk]:
     """An exchange between two people, and what it leaves in everyone in earshot.
 
@@ -174,7 +174,7 @@ def converse(world, a: Being, b: Being, config,
     talk = Talk(between=(a.id, b.id))
     speaker, listener = a, b
     for _ in range(TURNS):
-        said = _say(world, speaker, listener, config, transcript)
+        said = _say(world, speaker, listener, configuration, transcript)
         if said is None:
             break
         talk.turns.append(said)
@@ -191,7 +191,7 @@ def converse(world, a: Being, b: Being, config,
     return talk
 
 
-def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
+def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickReport:
     """Live one step of the world: up to whatever is next due, and no further."""
     was = world.at
     moved = schedule.advance(world)
@@ -207,18 +207,18 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
     #    walked up the road lives the day they arrived. Each keeps its own
     #    timer, set in its own answer.
     if agents.may_direct(world):
-        event = agents.direct(world, config, transcript)
+        event = agents.direct(world, configuration, transcript)
         if event is not None:
             # It wakes whoever it happened near, and pulls whoever it
             # happened *to* out of whatever they said they were deep in.
             schedule.rouse(world, event.reached, about=event.involved)
-            kept = agents.perceive_all(world, event, config, transcript)
+            kept = agents.perceive_all(world, event, configuration, transcript)
             report.occurrence = Occurrence(event.id, event.account, kept)
     if agents.may_arrive(world):
-        event = agents.arrive(world, config, transcript)
+        event = agents.arrive(world, configuration, transcript)
         if event is not None:
             schedule.rouse(world, event.reached, about=event.involved)
-            kept = agents.perceive_all(world, event, config, transcript)
+            kept = agents.perceive_all(world, event, configuration, transcript)
             report.arrival = Arrival(event.involved[0], event.id, event.account, kept)
 
     # 1. Whoever is due decides, from where they stand, before anyone moves.
@@ -227,7 +227,7 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
     #    above woke them.
     minds = schedule.due(world)
     for being in minds:
-        decision = agents.act(world, being, config, transcript)
+        decision = agents.act(world, being, configuration, transcript)
         report.decisions[being.id] = decision
         if not decision.answered:
             report.silent += 1
@@ -238,7 +238,7 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
     for being in minds:
         d = report.decisions[being.id]
         if d.action == schemas.LEAVE:
-            event, kept = agents.depart(world, being, d.because, config, transcript)
+            event, kept = agents.depart(world, being, d.because, configuration, transcript)
             schedule.rouse(world, [p for p in event.reached if p != being.id],
                            about=event.reached)
             report.departures.append(Departure(being.id, event.id, d.because, kept))
@@ -270,7 +270,7 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
         if other.id in engaged:
             being.where.now(f"waited to speak with {other.name}")
             continue
-        talk = converse(world, being, other, config, transcript)
+        talk = converse(world, being, other, configuration, transcript)
         engaged |= {being.id, other.id}
         if talk is not None:
             report.talks.append(talk)
@@ -289,7 +289,7 @@ def tick(world, config, transcript: Optional[Transcript] = None) -> TickReport:
         settling = being.id in report.decisions and report.decisions[being.id].settling
         if not agents.may_reflect(world, being, settling):
             continue
-        answer = agents.reflect(world, being, config, transcript)
+        answer = agents.reflect(world, being, configuration, transcript)
         if answer is not None:
             report.reflections[being.id] = answer
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol
 
@@ -38,8 +38,7 @@ class Call:
 class Backend(Protocol):
     name: str
 
-    def complete(self, call: Call, model: str, temperature: float,
-                 extra: Optional[dict] = None) -> str:
+    def complete(self, call: Call, settings: "Settings") -> str:
         """Return the raw text of one answer. Must not raise on model nonsense."""
         ...
 
@@ -54,7 +53,7 @@ class Embedder(Protocol):
     """
     name: str
 
-    def embed(self, texts: List[str], model: str) -> List[List[float]]:
+    def embed(self, texts: List[str], settings: "Settings") -> List[List[float]]:
         """One vector per text, in order. Must not raise on nonsense input."""
         ...
 
@@ -65,12 +64,16 @@ class Settings:
     model: str = "stub"
     temperature: float = 0.8
     extra: Dict = field(default_factory=dict)
+    base: str = ""                  # where the server is; "" for the backend's own default
+    timeout: float = 180.0          # seconds to wait for one answer
 
     @classmethod
     def from_dict(cls, d: dict) -> "Settings":
         return cls(backend=d.get("backend", "stub"), model=d.get("model", "stub"),
                    temperature=float(d.get("temperature", 0.8)),
-                   extra=dict(d.get("extra", {})))
+                   extra=dict(d.get("extra", {})),
+                   base=str(d.get("base", "")),
+                   timeout=float(d.get("timeout", 180.0)))
 
 
 class Transcript:
@@ -150,8 +153,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
         started = time.time()
         try:
             raw = backend.complete(Call(call.name, call.system, user, call.schema,
-                                        call.about),
-                                   settings.model, settings.temperature, settings.extra)
+                                        call.about), settings)
             error = None
         except Exception as exc:                      # a backend that is simply down
             raw, error = "", f"{type(exc).__name__}: {exc}"
@@ -191,7 +193,7 @@ def place(texts: List[str], settings: Settings) -> List[List[float]]:
     if embed is None:
         return []
     try:
-        out = embed(list(texts), settings.model)
+        out = embed(list(texts), settings)
     except Exception:
         return []
     return out if len(out) == len(texts) else []
@@ -205,7 +207,8 @@ def probe(settings: Settings) -> tuple:
                         "required": ["ok"]}, about="probe")
     started = time.time()
     try:
-        raw = get(settings.backend).complete(call, settings.model, 0.0, settings.extra)
+        raw = get(settings.backend).complete(
+            call, replace(settings, temperature=0.0))
     except Exception as exc:
         return False, f"unreachable: {type(exc).__name__}: {exc}"
     if extract_json(raw) is None:

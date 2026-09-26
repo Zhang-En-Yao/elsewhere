@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Serve a model on this machine and check that every call site can reach it.
+# Serve a model on this machine, point the world's configuration at it, and
+# check that every call site can reach it.
 # Everything here has to run on macOS itself: MLX does not exist anywhere
 # else, and a server bound to this machine's localhost is not reachable from
 # anywhere but this machine.
@@ -9,6 +10,11 @@
 #   MODEL=llama3.2:3b scripts/live.sh
 #   RUNTIME=vllm-mlx scripts/live.sh      # MLX server
 #   KEEP=1 scripts/live.sh                # leave the server up between runs
+#   WORLD=elsewhere scripts/live.sh       # a world other than ./world
+#
+# The choice is written into $WORLD/configuration.json, which is what every run
+# after this reads - including the scheduled one, which sees none of this
+# shell's environment. Nothing here is exported for the world to pick up.
 #
 # The first run downloads the weights, which on a slow line takes longer than
 # anything else here. They are cached, so every run after that is quick.
@@ -24,6 +30,7 @@ else
   MODEL="${MODEL:-mlx-community/Llama-3.2-3B-Instruct-4bit}"
 fi
 VENV="${VENV:-.venv}"
+WORLD="${WORLD:-world}"
 SERVER_PID=""
 mkdir -p .elsewhere
 LOG="${LOG:-$PWD/.elsewhere/server.log}"      # inside the repo, so it can be read back
@@ -84,7 +91,7 @@ case "$RUNTIME" in
     SERVER_PID=$!
     BASE="http://localhost:$PORT/v1"
     HEALTH="$BASE/models"
-    export ELSEWHERE_BACKEND=openai ELSEWHERE_OPENAI_BASE="$BASE"
+    BACKEND=openai
     ;;
   ollama)
     say "2/5  ollama"
@@ -94,12 +101,12 @@ case "$RUNTIME" in
     ollama pull "$MODEL"
     say "4/5  serving $MODEL on :11434"
     HEALTH="http://localhost:11434/api/tags"
-    export ELSEWHERE_BACKEND=ollama
+    BASE=""
+    BACKEND=ollama
     ;;
   *) echo "RUNTIME must be vllm-mlx or ollama"; exit 1 ;;
 esac
 
-export ELSEWHERE_MODEL="$MODEL"
 printf "     waiting for it to load:"
 wait_for "$HEALTH" 600 && ready=0 || ready=$?
 if [ "${ready:-1}" -eq 2 ]; then
@@ -113,8 +120,10 @@ elif [ "${ready:-1}" -ne 0 ]; then
 fi
 echo " up"
 
-say "5/5  can every call site reach a mind?"
-elsewhere doctor
+say "5/5  pointing $WORLD at it; can every call site reach a mind?"
+elsewhere --world "$WORLD" configure --backend "$BACKEND" --model "$MODEL" \
+  ${BASE:+--base "$BASE"}
+elsewhere --world "$WORLD" doctor
 
 say "done"
 echo "Server log: $LOG"

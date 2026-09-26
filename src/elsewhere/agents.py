@@ -21,11 +21,11 @@ from . import HOURS_PER_DAY
 from .world.store import clock_at, season_at
 
 
-def _settings(config, name: str) -> Settings:
-    return config[name]
+def _settings(configuration, name: str) -> Settings:
+    return configuration[name]
 
 
-def _placed(config, text: str) -> List[float]:
+def _placed(configuration, text: str) -> List[float]:
     """Where this reads from, or nothing at all.
 
     Nothing here is required to work. An embedder that is missing or down
@@ -33,7 +33,7 @@ def _placed(config, text: str) -> List[float]:
     a memory is, and the world carries on slightly less pointedly - which is
     how it worked before there was an embedder.
     """
-    settings = config.get("embed")
+    settings = configuration.get("embed")
     if settings is None or not text.strip():
         return []
     got = place_in_meaning([text], settings)
@@ -78,12 +78,12 @@ def vantage(world, being: Being, event: Event) -> str:
     return "nearby"
 
 
-def perceive(world, being: Being, event: Event, config,
+def perceive(world, being: Being, event: Event, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Memory]:
     """Ask what this event leaves in this person. Usually the answer is nothing."""
-    settings = _settings(config, "perceive")
+    settings = _settings(configuration, "perceive")
     store = world.memories(being.id)
-    near = _placed(config, event.account)
+    near = _placed(configuration, event.account)
     context = retrieval.recallable(store, world.at, near)
 
     place = world.places.get(event.place or "")
@@ -126,7 +126,7 @@ def perceive(world, being: Being, event: Event, config,
         account=text,
         means=(answer.get("means") or "").strip(),
         feeling=answer.get("feeling", "none"),
-        embedding=_placed(config, text),
+        embedding=_placed(configuration, text),
         event_id=event.id,
         told=[world.at],
     )
@@ -134,14 +134,14 @@ def perceive(world, being: Being, event: Event, config,
     return memory
 
 
-def perceive_all(world, event: Event, config,
+def perceive_all(world, event: Event, configuration,
                  transcript: Optional[Transcript] = None) -> List[Memory]:
     """Hand the event to everyone who was there, one mind at a time."""
     out = []
     for being in world.beings.values():
         if not being.present or being.id not in event.reached:
             continue
-        memory = perceive(world, being, event, config, transcript)
+        memory = perceive(world, being, event, configuration, transcript)
         if memory is not None:
             out.append(memory)
     return out
@@ -181,10 +181,10 @@ def when_label(world) -> str:
     return f"{world.clock} and {light}, {world.season}, day {doy}"
 
 
-def act(world, being: Being, config,
+def act(world, being: Being, configuration,
         transcript: Optional[Transcript] = None) -> Decision:
     """Ask what this person does next. The grammar only offers what exists."""
-    settings = _settings(config, "act")
+    settings = _settings(configuration, "act")
     place = world.places.get(being.where.place)
     others = _others_here(world, being)
     reachable = [world.places[n] for n in world.map.beside(being.where.place)
@@ -195,7 +195,7 @@ def act(world, being: Being, config,
     # the same for everybody standing in it; their thought and their wants are
     # their own sentences, and a memory near *those* is the one that would
     # actually come to somebody here.
-    near = _placed(config, ". ".join(x for x in (
+    near = _placed(configuration, ". ".join(x for x in (
         f"{place.name}. {place.description}" if place else "",
         being.who.thought, "; ".join(being.who.wants)) if x))
     context = retrieval.recallable(store, world.at, near, limit=4)
@@ -248,20 +248,20 @@ def act(world, being: Being, config,
 # --------------------------------------------------------------------------
 # speak
 
-def speak(world, speaker: Being, listener: Being, config,
+def speak(world, speaker: Being, listener: Being, configuration,
           transcript: Optional[Transcript] = None):
     """One thing said out loud. Returns (line, memory drawn on) or (None, None).
 
     Bringing something up is rehearsal: the memory it came from is touched and
     stays within reach longer. Rewriting it in the telling is recall's job (P3).
     """
-    settings = _settings(config, "speak")
+    settings = _settings(configuration, "speak")
     store = world.memories(speaker.id)
     # Who is in front of them, in words: the listener's name and the speaker's
     # own account of them, which is text a mind wrote. Every retrieval cue in
     # this file is that, and never a string the engine glued together.
     regard = speaker.who.regards.get(listener.id)
-    near = _placed(config, " ".join(x for x in (
+    near = _placed(configuration, " ".join(x for x in (
         listener.name, regard.account if regard else "",
         world.places[speaker.where.place].name if speaker.where.place in world.places else "",
     ) if x))
@@ -310,9 +310,10 @@ def may_direct(world) -> bool:
     return schedule.town_due(world)
 
 
-def direct(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
+def direct(world, configuration,
+           transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the town whether anything happens to it. Usually nothing does."""
-    settings = _settings(config, "direct")
+    settings = _settings(configuration, "direct")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
     beings = {p.name: p for p in world.beings.values() if p.present}
@@ -403,7 +404,7 @@ def may_leave(world, being: Being) -> bool:
     return sum(1 for p in world.beings.values() if p.present) > TOWN_FLOOR
 
 
-def depart(world, being: Being, because: str, config,
+def depart(world, being: Being, because: str, configuration,
            transcript: Optional[Transcript] = None):
     """Somebody takes the road. Returns (event, what it left in people).
 
@@ -431,7 +432,7 @@ def depart(world, being: Being, because: str, config,
         place=being.where.place, involved=[being.id], reached=reached,
         data={"because": because, "person": being.id, "vantage": vantage},
     )
-    kept = perceive_all(world, event, config, transcript)
+    kept = perceive_all(world, event, configuration, transcript)
     # Going is one fact, written once: they are not here *because* this is
     # when they went. `Being.present` reads it back.
     being.when.left_at = world.at
@@ -470,9 +471,10 @@ def _free_being_id(world, name: str) -> str:
     return candidate
 
 
-def arrive(world, config, transcript: Optional[Transcript] = None) -> Optional[Event]:
+def arrive(world, configuration,
+           transcript: Optional[Transcript] = None) -> Optional[Event]:
     """Ask the road whether anybody comes up it today. Usually nobody does."""
-    settings = _settings(config, "arrive")
+    settings = _settings(configuration, "arrive")
     recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
     call = Call(
         name="arrive",
@@ -551,7 +553,7 @@ def may_reflect(world, being: Being, settling: bool) -> bool:
     return any(t.at > since for t in world.memories(being.id))
 
 
-def reflect(world, being: Being, config,
+def reflect(world, being: Being, configuration,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
     """What this person is left with, after a day of their own."""
     store = world.memories(being.id)
@@ -568,7 +570,7 @@ def reflect(world, being: Being, config,
     # What the day was about, in the mind's own words, is the cue for what
     # older things come back beside it - so a reckoning connects today to the
     # past it actually points at.
-    cue = _placed(config, " ".join(t.account for t in today))
+    cue = _placed(configuration, " ".join(t.account for t in today))
     older = [t for t in retrieval.recallable(store, world.at, cue, limit=7)
              if t not in today][:3]
     holds = held_beliefs(being, world.at, limit=MAX_BELIEFS)
@@ -576,7 +578,7 @@ def reflect(world, being: Being, config,
              if i in world.beings]
     known += [p.name for p in _others_here(world, being)
               if p.name not in known]
-    settings = _settings(config, "reflect")
+    settings = _settings(configuration, "reflect")
     call = Call(
         name="reflect",
         system=prompts.REFLECT_SYSTEM,
@@ -611,7 +613,7 @@ def reflect(world, being: Being, config,
         else:
             being.who.beliefs.append(Belief(claim=text, origin=origin,
                                         held=[world.at],
-                                        embedding=_placed(config, text)))
+                                        embedding=_placed(configuration, text)))
             if len(being.who.beliefs) > MAX_BELIEFS:
                 # What goes is whatever is furthest from coming to mind, which
                 # is a belief nobody has arrived at in a long time.
@@ -650,7 +652,7 @@ def reflect(world, being: Being, config,
             at=world.at,
             account=thought,
             means="", feeling="",
-            embedding=_placed(config, thought),
+            embedding=_placed(configuration, thought),
             origin=[t.id for t in today],
             told=[world.at],
         ))
@@ -660,14 +662,14 @@ def reflect(world, being: Being, config,
 # --------------------------------------------------------------------------
 # recall
 
-def recall(world, being: Being, memory: Memory, config,
+def recall(world, being: Being, memory: Memory, configuration,
            transcript: Optional[Transcript] = None) -> bool:
     """The memory has just been brought up; ask how it comes back now.
 
     The words are the mind's. The engine only files the older wording in the
     memory's history, so the earlier version is not lost to anyone reading.
     """
-    settings = _settings(config, "recall")
+    settings = _settings(configuration, "recall")
     age = max(0, int((world.at - memory.at) // HOURS_PER_DAY))
     call = Call(
         name="recall",
@@ -684,7 +686,7 @@ def recall(world, being: Being, memory: Memory, config,
         return False
     memory.rewrite(new, world.at, means=(answer.get("means") or "").strip(),
                   feeling=answer.get("feeling") or "",
-                  embedding=_placed(config, new))
+                  embedding=_placed(configuration, new))
     # rewrite() logs the occasion; speak() already logged this one.
     del memory.told[-1:]
     world.memories(being.id).touch()

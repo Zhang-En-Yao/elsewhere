@@ -587,7 +587,7 @@ source .venv/bin/activate   # activate it
 pip install -e ".[dev]"     # install Elsewhere, and mypy for `make test`
 ```
 
-Then a mind for the town to think with. The default config expects
+Then a mind for the town to think with. The default configuration expects
 [Ollama](https://ollama.com) on this machine:
 
 ```bash
@@ -595,11 +595,17 @@ ollama pull phi4-mini       # ~2.5GB at Q4; the default for every call site
 elsewhere doctor            # can each of the seven call sites be reached?
 ```
 
-`world/config.json` names a model per call site, so the cheap decisions can run
-at home while the ones that need judgement go somewhere larger. Anything with
-an OpenAI-compatible `/v1` works (vLLM, llama-server, LM Studio), as does
+`world/configuration.json` names a model per call site, so the cheap decisions
+can run at home while the ones that need judgement go somewhere larger. Anything
+with an OpenAI-compatible `/v1` works (vLLM, llama-server, LM Studio), as does
 Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`. The notes at the
-top of that file say how; `elsewhere doctor` says whether it worked.
+top of that file say how; `elsewhere configure --backend … --model …` changes
+every mind at once; `elsewhere doctor` says whether it worked.
+
+That file is the only thing that decides. No environment variable overrides it,
+so what it says is what runs - from a terminal or from the schedule alike. Keys
+are the one thing read from the environment, because a secret does not belong
+in a file.
 
 Nothing above is needed to run the tests or the demo — both use a stub.
 
@@ -646,6 +652,7 @@ elsewhere end                   # end the world for good; what happened stays re
 
 elsewhere remember ev0002       # put an event past everyone again
 elsewhere doctor                # can the configured minds be reached?
+elsewhere configure --backend ollama --model llama3.2:3b   # point every mind at one model
 ```
 
 Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`

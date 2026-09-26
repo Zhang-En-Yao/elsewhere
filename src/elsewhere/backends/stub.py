@@ -14,7 +14,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Optional
 
-from . import Call
+from . import Call, Settings
 
 #: The dial tone. The durations here are the stub's, not the world's: the
 #: engine has no step size, so a world run against this backend has the rhythm
@@ -39,7 +39,7 @@ class StubBackend:
     #: wiring can be checked without a model; they are not meant to put two
     #: memories about water anywhere near each other. Anything asserting that
     #: wants a real embedder.
-    def embed(self, texts, model: str = "stub"):
+    def embed(self, texts, settings: Optional[Settings] = None):
         import hashlib
         out = []
         for text in texts:
@@ -66,8 +66,7 @@ class StubBackend:
     def set(self, call_name: str, answer) -> None:
         self.answers[call_name] = answer
 
-    def complete(self, call: Call, model: str, temperature: float,
-                 extra: Optional[dict] = None) -> str:
+    def complete(self, call: Call, settings: Settings) -> str:
         self.calls.append(call)
         key = f"{call.name}|{call.about}"
         answer = self.answers.get(key, self.answers.get(

@@ -21,7 +21,7 @@ QUIET = {"why_now": "", "what": "", "where": "The Shelter", "who": "",
          "ask_again_in_hours": 24.0}
 
 
-def config():
+def configuration():
     return {n: Settings(backend="stub", model="stub") for n in CALLS}
 
 
@@ -47,15 +47,15 @@ class Town(unittest.TestCase):
 class TestDirector(Town):
     def test_asked_about_once_a_day_whatever_the_hour(self):
         for _ in range(4):                       # four steps: a whole day
-            tick_mod.tick(self.world, config())
+            tick_mod.tick(self.world, configuration())
         self.assertEqual(len(self.calls("direct")), 1,
                          "asked on the first step, then not again inside the day")
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.assertEqual(len(self.calls("direct")), 2,
                          "a day on, it is worth asking again")
 
     def test_it_can_only_name_what_exists(self):
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         schema = self.calls("direct")[0].schema
         self.assertIn("The Ridge Path", schema["properties"]["where"]["enum"])
         self.assertEqual(schema["properties"]["who"]["enum"],
@@ -63,7 +63,7 @@ class TestDirector(Town):
 
     def test_most_days_nothing_happens(self):
         before = len(self.world.chronicle)
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertIsNone(report.occurrence)
         self.assertEqual(len(self.world.chronicle), before)
 
@@ -74,7 +74,7 @@ class TestDirector(Town):
         self.stub.answers["perceive|p_adam"] = {"account": "the crack before the dust",
                                                 "means": "", "feeling": "fear",
                                                 "stuck": True}
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(event.place, "yard", "Adam is in his own yard, not on the ridge")
         self.assertEqual(event.category, chronicle.OCCURRENCE)
@@ -84,7 +84,7 @@ class TestDirector(Town):
         self.stub.set("direct", {"why_now": "", "what": "A storm broke over the town.",
                                  "where": "The Shelter", "who": "",
                                  "reach": "the whole town",                                  "happens": True})
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(sorted(event.reached), sorted(self.world.beings))
         perceived = sorted(c.about for c in self.calls("perceive"))
@@ -100,11 +100,11 @@ class TestDirector(Town):
                                  "where": "The Shelter", "who": "",
                                  "reach": "the people there", "happens": True,
                                  "ask_again_in_hours": 336.0})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.assertEqual(len(self.calls("direct")), 1)
         self.assertEqual(self.world.town_wake_at, self.world.at + 336.0)
         for _ in range(8):                       # two days further on
-            tick_mod.tick(self.world, config())
+            tick_mod.tick(self.world, configuration())
         self.assertEqual(len(self.calls("direct")), 1,
                          "it said a fortnight, and a fortnight is what it gets")
         for name in ("DIRECTOR_MIN_GAP", "DIRECTOR_EVERY"):
@@ -126,7 +126,7 @@ class TestRecall(Town):
     def test_telling_it_changes_it(self):
         self.stub.set("recall", {"account": "water, and not being able to look away",
                                  "means": "", "feeling": "fear"})
-        report = tick_mod.tick(self.world, config())
+        report = tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.account, "water, and not being able to look away")
         self.assertEqual(self.flood.history,
                          ["the water in the doorway before I could move anything"])
@@ -138,7 +138,7 @@ class TestRecall(Town):
 
     def test_the_mind_is_told_how_old_and_how_often_and_not_how_clear(self):
         self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         user = self.calls("recall")[0].user
         self.assertIn("days old", user)
         self.assertIn("told", user)
@@ -153,19 +153,19 @@ class TestRecall(Town):
         # memory. With it in the prompt a small model hands it straight back.
         self.world.beings["p_eve"].who.thought = "I did not look up"
         self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         user = self.calls("recall")[0].user
         self.assertNotIn("I did not look up", user)
         self.assertIn("the water in the doorway", user, "the memory is still there")
 
     def test_an_empty_or_identical_answer_leaves_it_alone(self):
         self.stub.set("recall", {"account": "the water in the doorway before I could move anything"})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.history, [])
 
     def test_small_talk_recalls_nothing(self):
         self.stub.set("speak", {"about": "nothing in particular", "line": "Cold."})
-        tick_mod.tick(self.world, config())
+        tick_mod.tick(self.world, configuration())
         self.assertEqual(self.calls("recall"), [])
 
 
@@ -179,7 +179,7 @@ class TestReflect(Town):
     def reckoning(self):
         """Live the step in which this person stops for the day."""
         self.stub.answers["act|p_lilith"] = {**STAY, "settling": True}
-        return tick_mod.tick(self.world, config())
+        return tick_mod.tick(self.world, configuration())
 
     def test_only_whoever_is_stopping_goes_over_their_day(self):
         # Not everyone at nightfall, and not everyone a day on from their own

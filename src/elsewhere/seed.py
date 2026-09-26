@@ -12,7 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
 
-from . import agents, config as config_mod
+from . import agents
+from .configuration import load_configuration, write_default_configuration
 from . import HOURS_PER_DAY
 from .world.chronicle import Chronicle
 from .world.entities import (Being, Place, Where, Who,
@@ -201,7 +202,7 @@ def build(root, name: str = "Wend") -> World:
     return world
 
 
-def remember_backstory(world: World, config, transcript=None) -> List:
+def remember_backstory(world: World, configuration, transcript=None) -> List:
     """Put the town's history past each person, so the first memories are theirs."""
     made = []
     here_now = {p.id: p.where.place for p in world.beings.values()}
@@ -212,7 +213,7 @@ def remember_backstory(world: World, config, transcript=None) -> List:
             if being.id not in event.reached:
                 continue
             being.where.place = event.place or being.where.place
-            memory = agents.perceive(world, being, event, config, transcript)
+            memory = agents.perceive(world, being, event, configuration, transcript)
             if memory is not None:
                 made.append(memory)
         world.at = was
@@ -224,9 +225,9 @@ def remember_backstory(world: World, config, transcript=None) -> List:
 def create(root, name: str = "Wend", remember: bool = True,
            transcript=None) -> World:
     world = build(root, name=name)
-    config_mod.write_default(root)
+    write_default_configuration(root)
     if remember:
-        remember_backstory(world, config_mod.load(root), transcript)
+        remember_backstory(world, load_configuration(root), transcript)
     world.news_seen = len(world.chronicle)     # the backstory is not news
     save(world)
     return world
