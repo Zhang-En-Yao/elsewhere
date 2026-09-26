@@ -7,4 +7,4 @@ venv/
 world.json
 worlds/
 .elsewhere/
-world/
+/world/
