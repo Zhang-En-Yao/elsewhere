@@ -598,7 +598,8 @@ elsewhere doctor                # can each of the seven call sites be reached?
 `world/configuration.json` names a model per call site, so the cheap decisions
 can run at home while the ones that need judgement go somewhere larger. Anything
 with an OpenAI-compatible `/v1` works (vLLM, llama-server, LM Studio), as does
-Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`. The notes at the
+Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`, and OpenAI and Gemini
+with `OPENAI_API_KEY` and `GEMINI_API_KEY`. The notes at the
 top of that file say how; `elsewhere configure --backend … --model …` changes
 every mind at once; `elsewhere doctor` says whether it worked.
 
