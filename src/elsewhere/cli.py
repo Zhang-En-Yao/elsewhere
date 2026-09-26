@@ -21,7 +21,6 @@ from .world.store import World, clock_at, day_of
 DEFAULT_ROOT = Path("world")
 
 
-# --------------------------------------------------------------------------
 # helpers - shared by more than one command, none of them a command itself
 
 def open_world(arguments) -> World:
@@ -121,8 +120,7 @@ def print_report(world, report) -> None:
         print(f"  ({report.silent} mind(s) gave no usable answer and stayed put)")
 
 
-# --------------------------------------------------------------------------
-# commands - one per subcommand, wired up in build_parser() below
+# create - the only commands that make a world
 
 def command_init(arguments) -> None:
     """Create a new world with initial characters, places, and backstory."""
@@ -146,6 +144,8 @@ def command_init(arguments) -> None:
     output.append(f"  config at {root / 'config.json'}")
     print("\n".join(output))
 
+
+# read-only views - load the world, never change what happened in it
 
 def command_status(arguments) -> None:
     """Show world status: where everyone is, and what they remember."""
@@ -281,6 +281,110 @@ def command_event(arguments) -> None:
                 print(f"    {'':<8}   was: \"{was}\"")
 
 
+def command_news(arguments) -> None:
+    """Show new events since last time you checked (marks them as read by default)."""
+    world = open_world(arguments)
+    events = world.chronicle.all()[world.news_seen:]
+    print(f"{world.name} - {world.label()}")
+    if not events:
+        print("  Nothing has happened since you last looked.")
+    for event in events:
+        place = world.places.get(event.place or "")
+        print(f"\n  {when(event.at)}, {place.name if place else '-'}")
+        mark = {chronicle.OCCURRENCE: "* ", chronicle.ARRIVAL: "+ ",
+                chronicle.DEPARTURE: "- "}
+        print(f"    {mark.get(event.category, '')}{event.account}")
+        for person_id in event.reached:
+            for trace in world.traces(person_id).about_event(event.id):
+                print(f"      {_name(world, person_id)} kept [{trace.feeling}] {trace.trace}")
+    print("\n  Now:")
+    for being in sorted(world.beings.values(), key=lambda person: person.name):
+        if not being.present:
+            continue
+        place = world.places.get(being.where.place)
+        print(f"    {being.name:<7} at {place.name if place else '-':<20} "
+              f"{being.where.doing or ''}")
+    if not arguments.peek:
+        world.news_seen = len(world.chronicle)
+        store.save(world)
+
+
+# time passing - move the world's clock forward; internal
+
+def _command_catchup(arguments) -> None:
+    """[INTERNAL] Live the hours the wall clock says are owed. Run by scripts/schedule.sh."""
+    from .tick import owed_hours, settle_clock, tick
+    from .backends import probe
+
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    world = _open_live(arguments)
+    try:
+        with store.tick_lock(world.root):
+            now = time.time()
+            if world.last_tick_at is None:
+                world.last_tick_at = now
+                store.save(world)
+                print(f"[{stamp}] clock started for {world.name}")
+                return
+            owed = owed_hours(world.last_tick_at, now)
+            # How far ahead the world is already scheduled. Nothing is owed
+            # until the wall clock has caught up with the last thing somebody
+            # said they would be doing.
+            ahead = schedule.next_at(world)
+            if ahead is not None and world.at + owed < ahead:
+                print(f"[{stamp}] checked; nothing is due for "
+                      f"{ahead - world.at - owed:.1f}h of world time")
+                return
+            configuration = config.load(world.root)
+            ok, message = probe(configuration["act"])
+            if not ok:
+                # The world waits rather than going on without minds.
+                print(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
+                      f"{world.name} waits")
+                return
+            # Live as much of the backlog as the people in it asked to be
+            # woken for, in whatever steps they asked for - which is why there
+            # is no step size here either. `--max` is a bound on model calls,
+            # not on time.
+            began, steps = world.at, 0
+            while world.at - began < owed and steps < arguments.max:
+                report = tick(world, configuration, transcript_for(world))
+                steps += 1
+                store.save(world)
+                print(f"[{stamp}]", end="")
+                print_report(world, report)
+                if report.idle:
+                    break
+            lived = world.at - began
+            world.last_tick_at = settle_clock(world.last_tick_at, now, lived, owed)
+            store.save(world)
+            if lived < owed:
+                print(f"[{stamp}] {owed - lived:.1f}h more were owed; "
+                      f"{world.name} slept through them")
+    except store.Locked as exception:
+        print(f"[{stamp}] skipped: {exception}")
+
+
+def _command_tick(arguments) -> None:
+    """[DEV] Advance the world N steps by hand, ignoring the wall clock."""
+    from .tick import tick
+
+    world = _open_live(arguments)
+    configuration = config.load(world.root)
+    try:
+        with store.tick_lock(world.root):
+            for _ in range(arguments.n):
+                report = tick(world, configuration, transcript_for(world))
+                store.save(world)
+                print_report(world, report)
+            world.last_tick_at = time.time()
+            store.save(world)
+    except store.Locked as exception:
+        sys.exit(f"Not now: {exception}")
+
+
+# development - diagnostics and prompt tuning; internal
+
 def _command_doctor(arguments) -> None:
     """[DEV] Diagnostic: check if model backends are reachable and working."""
     root = Path(arguments.world)
@@ -348,107 +452,6 @@ def _command_remember(arguments) -> None:
         print(f"  {world.beings[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
 
 
-def _command_tick(arguments) -> None:
-    """[DEV] Manually advance the world N steps (use `catchup` for normal operation)."""
-    from .tick import tick
-
-    world = _open_live(arguments)
-    configuration = config.load(world.root)
-    try:
-        with store.tick_lock(world.root):
-            for _ in range(arguments.n):
-                report = tick(world, configuration, transcript_for(world))
-                store.save(world)
-                print_report(world, report)
-            world.last_tick_at = time.time()
-            store.save(world)
-    except store.Locked as exception:
-        sys.exit(f"Not now: {exception}")
-
-
-def command_catchup(arguments) -> None:
-    """Advance the world to catch up with wall-clock time (scheduled entry point for cron)."""
-    from .tick import owed_hours, settle_clock, tick
-    from .backends import probe
-
-    stamp = time.strftime("%Y-%m-%d %H:%M")
-    world = _open_live(arguments)
-    try:
-        with store.tick_lock(world.root):
-            now = time.time()
-            if world.last_tick_at is None:
-                world.last_tick_at = now
-                store.save(world)
-                print(f"[{stamp}] clock started for {world.name}")
-                return
-            owed = owed_hours(world.last_tick_at, now)
-            # How far ahead the world is already scheduled. Nothing is owed
-            # until the wall clock has caught up with the last thing somebody
-            # said they would be doing.
-            ahead = schedule.next_at(world)
-            if ahead is not None and world.at + owed < ahead:
-                print(f"[{stamp}] checked; nothing is due for "
-                      f"{ahead - world.at - owed:.1f}h of world time")
-                return
-            configuration = config.load(world.root)
-            ok, message = probe(configuration["act"])
-            if not ok:
-                # The world waits rather than going on without minds.
-                print(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
-                      f"{world.name} waits")
-                return
-            # Live as much of the backlog as the people in it asked to be
-            # woken for, in whatever steps they asked for - which is why there
-            # is no step size here either. `--max` is a bound on model calls,
-            # not on time.
-            began, steps = world.at, 0
-            while world.at - began < owed and steps < arguments.max:
-                report = tick(world, configuration, transcript_for(world))
-                steps += 1
-                store.save(world)
-                print(f"[{stamp}]", end="")
-                print_report(world, report)
-                if report.idle:
-                    break
-            lived = world.at - began
-            world.last_tick_at = settle_clock(world.last_tick_at, now, lived, owed)
-            store.save(world)
-            if lived < owed:
-                print(f"[{stamp}] {owed - lived:.1f}h more were owed; "
-                      f"{world.name} slept through them")
-    except store.Locked as exception:
-        print(f"[{stamp}] skipped: {exception}")
-
-
-def command_news(arguments) -> None:
-    """Show new events since last time you checked (marks them as read by default)."""
-    world = open_world(arguments)
-    events = world.chronicle.all()[world.news_seen:]
-    print(f"{world.name} - {world.label()}")
-    if not events:
-        print("  Nothing has happened since you last looked.")
-    for event in events:
-        place = world.places.get(event.place or "")
-        print(f"\n  {when(event.at)}, {place.name if place else '-'}")
-        mark = {chronicle.OCCURRENCE: "* ", chronicle.ARRIVAL: "+ ",
-                chronicle.DEPARTURE: "- "}
-        print(f"    {mark.get(event.category, '')}{event.account}")
-        for person_id in event.reached:
-            for trace in world.traces(person_id).about_event(event.id):
-                print(f"      {_name(world, person_id)} kept [{trace.feeling}] {trace.trace}")
-    print("\n  Now:")
-    for being in sorted(world.beings.values(), key=lambda person: person.name):
-        if not being.present:
-            continue
-        place = world.places.get(being.where.place)
-        print(f"    {being.name:<7} at {place.name if place else '-':<20} "
-              f"{being.where.doing or ''}")
-    if not arguments.peek:
-        world.news_seen = len(world.chronicle)
-        store.save(world)
-
-
-# --------------------------------------------------------------------------
 # cli wiring
 
 def build_parser() -> argparse.ArgumentParser:
@@ -457,7 +460,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world", default=str(DEFAULT_ROOT), help="path to the world")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # The only subcommand that creates a world.
+    # create
     subparser = subparsers.add_parser("init", help="make a small world")
     subparser.add_argument("--name", default="Wend")
     subparser.add_argument("--force", action="store_true")
@@ -465,7 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="do not run the backstory past anyone")
     subparser.set_defaults(func=command_init)
 
-    # Read-only views below - they load the world but never save it.
+    # read-only views
     subparser = subparsers.add_parser(
         "status", help="where everyone is, and how much they hold")
     subparser.set_defaults(func=command_status)
@@ -484,7 +487,25 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.add_argument("event_id")
     subparser.set_defaults(func=command_event)
 
-    # Development/diagnostic commands below - not part of normal gameplay.
+    # The one view that writes: it remembers where you stopped reading.
+    subparser = subparsers.add_parser(
+        "news", help="what happened since you last looked")
+    subparser.add_argument("--peek", action="store_true", help="look without marking it read")
+    subparser.set_defaults(func=command_news)
+
+    # time passing (internal)
+    subparser = subparsers.add_parser(
+        "catchup", help="[INTERNAL] live the hours the wall clock says are owed")
+    subparser.add_argument("--max", type=int, default=8,
+                            help="most steps to live in one go; a bound on model calls, "
+                                 "not on how far the clock may move")
+    subparser.set_defaults(func=_command_catchup)
+
+    subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
+    subparser.add_argument("-n", type=int, default=1)
+    subparser.set_defaults(func=_command_tick)
+
+    # development (internal)
     subparser = subparsers.add_parser("doctor", help="[DEV] diagnose model backend connectivity")
     subparser.set_defaults(func=_command_doctor)
 
@@ -492,23 +513,6 @@ def build_parser() -> argparse.ArgumentParser:
         "remember", help="[DEV] re-run one event for prompt tuning")
     subparser.add_argument("event_id")
     subparser.set_defaults(func=_command_remember)
-
-    subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
-    subparser.add_argument("-n", type=int, default=1)
-    subparser.set_defaults(func=_command_tick)
-
-    subparser = subparsers.add_parser(
-        "catchup", help="live the hours the wall clock says are owed")
-    subparser.add_argument("--max", type=int, default=8,
-                            help="most steps to live in one go; a bound on model calls, "
-                                 "not on how far the clock may move")
-    subparser.set_defaults(func=command_catchup)
-
-    # A view again, but one that quietly marks itself read unless told not to.
-    subparser = subparsers.add_parser(
-        "news", help="what happened since you last looked")
-    subparser.add_argument("--peek", action="store_true", help="look without marking it read")
-    subparser.set_defaults(func=command_news)
 
     return parser
 

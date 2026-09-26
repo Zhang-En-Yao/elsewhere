@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(PYTHONPATH=src python3 -m unittest discover -s tests)",
-      "Bash(PYTHONPATH=src python3 -c ' *)"
+      "Bash(PYTHONPATH=src python3 -c ' *)",
+      "Bash(python3 /private/tmp/claude-501/-Users-zhangen-yao-Documents-world-elsewhere/cb8649ae-4efd-4bda-b0bd-a7ed8c83f9a2/scratchpad/regroup.py)"
     ]
   }
 }
