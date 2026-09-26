@@ -15,6 +15,9 @@ typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 world:           ## make a world in ./world (needs a reachable model)
 	elsewhere --world world initialize
 
+watch:           ## sit with the world in a window while it goes on
+	elsewhere watch
+
 tick:            ## live one step now (TICKS=3 for three)
 	elsewhere tick -n $(or $(TICKS),1)
 
@@ -44,4 +47,5 @@ help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
-.PHONY: test typecheck world doctor live help tick news schedule unschedule schedule-status end
+.PHONY: test typecheck world doctor live help watch tick news schedule \
+        unschedule schedule-status end

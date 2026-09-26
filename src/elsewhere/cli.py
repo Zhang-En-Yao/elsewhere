@@ -60,31 +60,39 @@ def name(world, person_id: str) -> str:
     return being.name if being else person_id
 
 
-def print_report(world, report) -> None:
-    """Format and print a tick() report: what happened and who said/did what."""
+def report_lines(world, report) -> List[str]:
+    """A tick() report as lines: what happened, and who said or did what.
+
+    Lines rather than prints, because two things show a step now - a terminal
+    and a window (`tui/screen.py`) - and a report that formats itself in one
+    place cannot say two different things about the same step.
+    """
     if report.idle:
-        print(f"\n{report.label}\n  (nothing in the world is scheduled)")
-        return
+        return [report.label, "  (nothing in the world is scheduled)"]
+    out: List[str] = []
     # How far the clock moved, which is now different every step and is the
     # one number that says whose hour it was.
-    print(f"\n{report.label}  (+{report.hours:g}h)")
+    out.append(f"{report.label}  (+{report.hours:g}h)")
     if report.occurrence is not None:
         occurrence = report.occurrence
-        print(f"  * {occurrence.account}")
+        out.append(f"  * {occurrence.account}")
         for memory in occurrence.kept:
-            print(f"      {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
+            out.append(f"      {name(world, memory.owner)} kept "
+                       f"[{memory.feeling}] {memory.account}")
     if report.arrival is not None:
         arrival = report.arrival
-        print(f"  + {arrival.account}")
+        out.append(f"  + {arrival.account}")
         for memory in arrival.kept:
-            print(f"      {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
+            out.append(f"      {name(world, memory.owner)} kept "
+                       f"[{memory.feeling}] {memory.account}")
     for departure in report.departures:
         event = world.chronicle.get(departure.event_id)
-        print(f"  - {event.account if event else name(world, departure.being_id) + ' left.'}")
+        out.append(f"  - {event.account if event else name(world, departure.being_id) + ' left.'}")
         if departure.because:
-            print(f'      "{departure.because}"')
+            out.append(f'      "{departure.because}"')
         for memory in departure.kept:
-            print(f"      {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
+            out.append(f"      {name(world, memory.owner)} kept "
+                       f"[{memory.feeling}] {memory.account}")
     talked = {talk.speaker for talk in report.talks} | {talk.listener for talk in report.talks}
     talked |= {departure.being_id for departure in report.departures}
     for person_id, decision in sorted(report.decisions.items()):
@@ -94,30 +102,40 @@ def print_report(world, report) -> None:
         what = being.where.doing or decision.doing or decision.action
         why = (f'  - "{decision.because}"' if decision.because
                else ("  (no answer)" if not decision.answered else ""))
-        print(f"  {being.name:<7} {what:<34}{why}")
+        out.append(f"  {being.name:<7} {what:<34}{why}")
     for talk in report.talks:
         for said in talk.turns:
-            print(f"  {name(world, said.speaker):<7} to {name(world, said.listener)}: "
-                  f"\"{said.line}\"")
+            out.append(f"  {name(world, said.speaker):<7} to {name(world, said.listener)}: "
+                       f"\"{said.line}\"")
             if said.reshaped:
-                print(f"  {'':<7}   ({name(world, said.speaker)}'s memory was "
-                      f"\"{said.reshaped[0]}\"; now \"{said.reshaped[1]}\")")
+                out.append(f"  {'':<7}   ({name(world, said.speaker)}'s memory was "
+                           f"\"{said.reshaped[0]}\"; now \"{said.reshaped[1]}\")")
             heard = {memory.owner for memory in said.kept}
             for memory in said.kept:
-                print(f"  {'':<7}   {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
+                out.append(f"  {'':<7}   {name(world, memory.owner)} kept "
+                           f"[{memory.feeling}] {memory.account}")
             event = world.chronicle.get(said.event_id)
             for person_id in (event.reached if event else []):
                 if person_id not in heard and person_id != said.speaker:
-                    print(f"  {'':<7}   {name(world, person_id)} kept nothing of it")
+                    out.append(f"  {'':<7}   {name(world, person_id)} kept nothing of it")
     for person_id, reflection in report.reflections.items():
         line = reflection.get("thought") or ""
         extra = (f' -> now believes "{reflection["belief"]}"'
                  if reflection.get("belief") else "")
         # A reckoning happens when the person says they are stopping, which
         # is whatever hour that turns out to be.
-        print(f"  {name(world, person_id):<7} stops, and is left with: \"{line}\"{extra}")
+        out.append(f"  {name(world, person_id):<7} stops, and is left with: "
+                   f"\"{line}\"{extra}")
     if report.silent:
-        print(f"  ({report.silent} mind(s) gave no usable answer and stayed put)")
+        out.append(f"  ({report.silent} mind(s) gave no usable answer and stayed put)")
+    return out
+
+
+def print_report(world, report) -> None:
+    """The same report, on a terminal, with a blank line above it."""
+    print()
+    for line in report_lines(world, report):
+        print(line)
 
 
 # create - the only commands that make a world
@@ -184,7 +202,7 @@ def command_status(arguments) -> None:
 def command_being(arguments) -> None:
     """Show detailed view of one being: who they are, what they remember, who they know."""
     world = open_world(arguments)
-    being = world.being_byname(arguments.name)
+    being = world.being_by_name(arguments.name)
     if being is None:
         sys.exit(f"Nobody here is called {arguments.name!r}")
     print(heading(being.name))
@@ -309,22 +327,55 @@ def command_news(arguments) -> None:
         store.save(world)
 
 
+def command_watch(arguments) -> None:
+    """Sit with the world: one window, kept open while it goes on.
+
+    The printed views each answer one question and stop, which is right for a
+    command and wrong for sitting with a world - what is worth seeing is a
+    memory in reach beside the same memory out of reach, and the hour somebody
+    arrived beside what everyone turned out to have kept of it. The window is
+    the same views with room to put two of those side by side.
+
+    It picks up whatever moves the world while it is open, whether that is its
+    own `c` or a launchd agent running somewhere behind it.
+    """
+    root = Path(arguments.world)
+    if not store.exists(root):
+        sys.exit(f"No world at {root}. Run: elsewhere --world {root} initialize")
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        # A window has nowhere to be. The printed views do, and they pipe.
+        sys.exit("watch needs a terminal. For a pipe or a log: elsewhere news")
+    try:
+        from .tui import screen
+    except ImportError as exception:
+        sys.exit(f"no curses on this Python, so no window: {exception}")
+    try:
+        screen.run(root)
+    except ValueError as exception:
+        # A world an older Elsewhere wrote. Says so rather than a traceback.
+        sys.exit(str(exception))
+
+
 # time passing - move the world's clock forward
 
-def command_continue(arguments) -> None:
-    """Let the world go on: live the hours the wall clock says are owed."""
+def go_on(world: World, most: int = 8, say=print) -> None:
+    """Live the hours the wall clock says are owed, and say what happened.
+
+    `say` is where the account of it goes, a line at a time: a terminal for
+    `elsewhere continue`, a pane for `elsewhere watch`. Both are told the same
+    thing, because there is only one report and only one lock.
+    """
     from .tick import owed_hours, settle_clock, tick
     from .backends import probe
 
     stamp = time.strftime("%Y-%m-%d %H:%M")
-    world = open_live(arguments)
     try:
         with store.tick_lock(world.root):
             now = time.time()
             if world.last_tick_at is None:
                 world.last_tick_at = now
                 store.save(world)
-                print(f"[{stamp}] clock started for {world.name}")
+                say(f"[{stamp}] clock started for {world.name}")
                 return
             owed = owed_hours(world.last_tick_at, now)
             # How far ahead the world is already scheduled. Nothing is owed
@@ -332,37 +383,43 @@ def command_continue(arguments) -> None:
             # said they would be doing.
             ahead = schedule.next_at(world)
             if ahead is not None and world.at + owed < ahead:
-                print(f"[{stamp}] checked; nothing is due for "
-                      f"{ahead - world.at - owed:.1f}h of world time")
+                say(f"[{stamp}] checked; nothing is due for "
+                    f"{ahead - world.at - owed:.1f}h of world time")
                 return
             configuration = config.load(world.root)
             ok, message = probe(configuration["act"])
             if not ok:
                 # The world waits rather than going on without minds.
-                print(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
-                      f"{world.name} waits")
+                say(f"[{stamp}] {owed:.1f}h owed, but the minds are {message}; "
+                    f"{world.name} waits")
                 return
             # Live as much of the backlog as the people in it asked to be
             # woken for, in whatever steps they asked for - which is why there
-            # is no step size here either. `--max` is a bound on model calls,
+            # is no step size here either. `most` is a bound on model calls,
             # not on time.
             began, steps = world.at, 0
-            while world.at - began < owed and steps < arguments.max:
+            while world.at - began < owed and steps < most:
                 report = tick(world, configuration, transcript_for(world))
                 steps += 1
                 store.save(world)
-                print(f"[{stamp}]", end="")
-                print_report(world, report)
+                say(f"[{stamp}]")
+                for line in report_lines(world, report):
+                    say(line)
                 if report.idle:
                     break
             lived = world.at - began
             world.last_tick_at = settle_clock(world.last_tick_at, now, lived, owed)
             store.save(world)
             if lived < owed:
-                print(f"[{stamp}] {owed - lived:.1f}h more were owed; "
-                      f"{world.name} slept through them")
+                say(f"[{stamp}] {owed - lived:.1f}h more were owed; "
+                    f"{world.name} slept through them")
     except store.Locked as exception:
-        print(f"[{stamp}] skipped: {exception}")
+        say(f"[{stamp}] skipped: {exception}")
+
+
+def command_continue(arguments) -> None:
+    """Let the world go on: live the hours the wall clock says are owed."""
+    go_on(open_live(arguments), arguments.max)
 
 
 def _command_tick(arguments) -> None:
@@ -514,6 +571,12 @@ def build_parser() -> argparse.ArgumentParser:
         "news", help="what happened since you last looked")
     subparser.add_argument("--peek", action="store_true", help="look without marking it read")
     subparser.set_defaults(func=command_news)
+
+    # The same views, in a window, for when you mean to sit with it rather
+    # than ask it one question.
+    subparser = subparsers.add_parser(
+        "watch", help="sit with the world in a window while it goes on")
+    subparser.set_defaults(func=command_watch)
 
     # time passing
     subparser = subparsers.add_parser(
