@@ -14,7 +14,7 @@ Landed:
   world on disk as `chronicle.jsonl` + `people/*.json` + `memories/*.jsonl`
   under a directory lock.
 - **P1** — the town moves on its own: simultaneous decisions, movement,
-  one conversation per person per phase, `tick` / `catchup` / `news`, and a
+  one conversation per person per phase, `tick` / `continue` / `news`, and a
   launchd agent that keeps a day here to a day there.
 - **P3** — things happen to the town (`direct`, once each morning), and
   telling changes what is told (`recall`, when a trace is brought up).

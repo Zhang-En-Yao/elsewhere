@@ -629,11 +629,11 @@ pip install -e .
 ### Commands
 
 ```bash
-elsewhere init                  # 3 people, 1 town, a flood nobody agrees about
-elsewhere init --blank          # the same town, but nobody has been asked to remember it
+elsewhere initialize            # 3 people, 1 town, a flood nobody agrees about
+elsewhere initialize --blank    # the same town, but nobody has been asked to remember it
 
 elsewhere tick -n 4             # live four steps of the world now
-elsewhere catchup               # live whatever steps the wall clock says are owed
+elsewhere continue              # let the world go on: live whatever the wall clock says is owed
 elsewhere news                  # what happened since you last looked
 
 elsewhere status                # where everyone is, and how much they still hold
@@ -672,7 +672,7 @@ Lilith kept:  "What I took from it was the river came up over The Waterline
 
 ### A world that keeps going while you are away
 
-A day here is a day there. `elsewhere catchup` lives whatever the wall clock
+A day here is a day there. `elsewhere continue` lives whatever the wall clock
 says is owed — counted in hours, and paid off in whatever steps the people in
 the world asked for — at most eight steps in one go; a longer backlog is slept
 through rather than carried, so a laptop that was shut for a week does not wake

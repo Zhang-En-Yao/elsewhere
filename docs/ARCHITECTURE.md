@@ -63,7 +63,7 @@ speaker's.
 | [`retrieval.py`](../src/elsewhere/retrieval.py) | ACT-R declarative memory — the one judgement the engine keeps |
 | [`schedule.py`](../src/elsewhere/schedule.py) | one timer per entity, set by the entity, and the interrupt over it |
 | [`agents.py`](../src/elsewhere/agents.py) | the seven call sites, and the road |
-| [`tick.py`](../src/elsewhere/tick.py) | one step, in order; `owed_hours`/`settle_clock` for `catchup` |
+| [`tick.py`](../src/elsewhere/tick.py) | one step, in order; `owed_hours`/`settle_clock` for `continue` |
 | [`config.py`](../src/elsewhere/config.py) | which backend and model answers which call site |
 | [`backends/`](../src/elsewhere/backends/) | `Call`/`Settings`/`Transcript`/`ask()`, one module per way of reaching a mind |
 | [`seed.py`](../src/elsewhere/seed.py) | the small beginning: three people, one town, a flood |
@@ -255,7 +255,7 @@ that happens *to* somebody is non-maskable, here as there.
    this, and it includes what they were doing as well as what was done to them
    (`Where.lately`).
 
-`elsewhere tick -n` calls this directly. `elsewhere catchup` is the scheduled
+`elsewhere tick -n` calls this directly. `elsewhere continue` is the scheduled
 entry point, and the promise it keeps is that a day here is a day there:
 `tick.owed_hours` works out how much world time the wall clock says has gone
 unlived, and the loop pays it off in whatever steps the people in the world

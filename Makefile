@@ -13,7 +13,7 @@ typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 	fi
 
 world:           ## make a world in ./world (needs a reachable model)
-	elsewhere init --world world
+	elsewhere --world world initialize
 
 tick:            ## live one step now (TICKS=3 for three)
 	elsewhere tick -n $(or $(TICKS),1)

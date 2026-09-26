@@ -60,7 +60,7 @@ def next_at(world) -> Optional[float]:
 
     None is a real answer and not a failure to find one: it means every mind
     in the world declined to say when it wanted to be asked again, and the
-    engine is not going to decide that for them. `elsewhere catchup` says so
+    engine is not going to decide that for them. `elsewhere continue` says so
     and stops rather than inventing a day.
     """
     set_ = timers(world)

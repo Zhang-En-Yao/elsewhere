@@ -87,7 +87,7 @@ class TestWorldStore(unittest.TestCase):
 
     def test_starting_over_does_not_leave_the_old_town_on_disk(self):
         # `_clear` said "people" and `save` said "beings" for long enough that
-        # `init` over an existing world loaded the old world's people back in
+        # `initialize` over an existing world loaded the old world's people back in
         # beside the new ones.
         world = seed.build(self.root)
         world.beings["p_ghost"] = type(world.beings["p_eve"])(

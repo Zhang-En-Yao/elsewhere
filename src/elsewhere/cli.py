@@ -27,7 +27,7 @@ def open_world(arguments) -> World:
     """Load an existing world, or exit if it doesn't exist."""
     root = Path(arguments.world)
     if not store.exists(root):
-        sys.exit(f"No world at {root}. Run: elsewhere init --world {root}")
+        sys.exit(f"No world at {root}. Run: elsewhere --world {root} initialize")
     return store.load(root)
 
 
@@ -137,7 +137,7 @@ def command_initialize(arguments) -> None:
     output = [
         f"{world.name} exists. {world.label()}",
         f"  {len(world.beings)} people, {len(world.places)} places, {len(world.chronicle)} events already behind them",
-        f"  {remembered} of those events left a mark on somebody ({time.time() - started:.1f}s)",
+        f"  {remembered} memories formed from them ({time.time() - started:.1f}s)",
     ]
     if remembered == 0 and not arguments.blank:
         output.append("  (nothing stuck - is a model reachable? try: elsewhere doctor)")
@@ -309,10 +309,10 @@ def command_news(arguments) -> None:
         store.save(world)
 
 
-# time passing - move the world's clock forward; internal
+# time passing - move the world's clock forward
 
-def _command_catchup(arguments) -> None:
-    """[INTERNAL] Live the hours the wall clock says are owed. Run by scripts/schedule.sh."""
+def command_continue(arguments) -> None:
+    """Let the world go on: live the hours the wall clock says are owed."""
     from .tick import owed_hours, settle_clock, tick
     from .backends import probe
 
@@ -461,7 +461,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # create
-    subparser = subparsers.add_parser("init", help="make a small world")
+    subparser = subparsers.add_parser("initialize", help="make a small world")
     subparser.add_argument("--name", default="Wend")
     subparser.add_argument("--force", action="store_true")
     subparser.add_argument("--blank", action="store_true",
@@ -493,13 +493,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.add_argument("--peek", action="store_true", help="look without marking it read")
     subparser.set_defaults(func=command_news)
 
-    # time passing (internal)
+    # time passing
     subparser = subparsers.add_parser(
-        "catchup", help="[INTERNAL] live the hours the wall clock says are owed")
+        "continue",
+        help="let the world go on for however long you have been away")
     subparser.add_argument("--max", type=int, default=8,
                             help="most steps to live in one go; a bound on model calls, "
                                  "not on how far the clock may move")
-    subparser.set_defaults(func=_command_catchup)
+    subparser.set_defaults(func=command_continue)
 
     subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
     subparser.add_argument("-n", type=int, default=1)
