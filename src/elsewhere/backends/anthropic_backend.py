@@ -7,9 +7,7 @@ Imported lazily: a world that never uses it never needs the package.
 from __future__ import annotations
 
 import os
-from typing import Optional
-
-from . import Call
+from . import Call, Settings
 
 
 class AnthropicBackend:
@@ -27,19 +25,19 @@ class AnthropicBackend:
             self._client = anthropic.Anthropic()
         return self._client
 
-    def complete(self, call: Call, model: str, temperature: float,
-                 extra: Optional[dict] = None) -> str:
+    def complete(self, call: Call, settings: Settings) -> str:
         import json
 
         client = self._client_or_raise()
         tool = {"name": call.name, "description": f"Answer for {call.name}",
                 "input_schema": {**call.schema, "type": "object"}}
         response = client.messages.create(
-            model=model, max_tokens=self.max_tokens, temperature=temperature,
+            model=settings.model, max_tokens=self.max_tokens,
+            temperature=settings.temperature, timeout=settings.timeout,
             system=call.system, tools=[tool],
             tool_choice={"type": "tool", "name": call.name},
             messages=[{"role": "user", "content": call.user}],
-            **(extra or {}),
+            **settings.extra,
         )
         for block in response.content:
             if getattr(block, "type", "") == "tool_use":

@@ -16,17 +16,16 @@ import urllib.error
 import urllib.request
 from typing import List, Optional
 
-from . import Call
-
-TIMEOUT = float(os.environ.get("ELSEWHERE_HTTP_TIMEOUT", "180"))
+from . import Call, Settings
 
 
-def _post(url: str, payload: dict, headers: Optional[dict] = None) -> dict:
+def _post(url: str, payload: dict, timeout: float,
+          headers: Optional[dict] = None) -> dict:
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         url, data=body, method="POST",
         headers={"content-type": "application/json", **(headers or {})})
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -39,27 +38,27 @@ class OllamaBackend:
     """
 
     name = "ollama"
+    base = "http://localhost:11434"
 
-    def __init__(self, base: Optional[str] = None):
-        self.base = (base or os.environ.get("OLLAMA_HOST")
-                     or "http://localhost:11434").rstrip("/")
+    def _base(self, settings: Settings) -> str:
+        return (settings.base or self.base).rstrip("/")
 
-    def complete(self, call: Call, model: str, temperature: float,
-                 extra: Optional[dict] = None) -> str:
+    def complete(self, call: Call, settings: Settings) -> str:
         payload = {
-            "model": model,
+            "model": settings.model,
             "messages": [{"role": "system", "content": call.system},
                          {"role": "user", "content": call.user}],
             "format": call.schema,          # token-level constraint, not a hint
             "stream": False,
-            "options": {"temperature": temperature},
+            "options": {"temperature": settings.temperature},
         }
-        payload.update(extra or {})
-        data = _post(f"{self.base}/api/chat", payload)
+        payload.update(settings.extra)
+        data = _post(f"{self._base(settings)}/api/chat", payload, settings.timeout)
         return (data.get("message") or {}).get("content", "")
 
-    def embed(self, texts: List[str], model: str) -> List[List[float]]:
-        data = _post(f"{self.base}/api/embed", {"model": model, "input": list(texts)})
+    def embed(self, texts: List[str], settings: Settings) -> List[List[float]]:
+        data = _post(f"{self._base(settings)}/api/embed",
+                     {"model": settings.model, "input": list(texts)}, settings.timeout)
         return [[float(x) for x in v] for v in data.get("embeddings", [])]
 
 
@@ -71,11 +70,15 @@ class OpenAICompatBackend:
     """
 
     name = "openai"
+    base = "http://localhost:8000/v1"
 
-    def __init__(self, base: Optional[str] = None, api_key: Optional[str] = None):
-        self.base = (base or os.environ.get("ELSEWHERE_OPENAI_BASE")
-                     or "http://localhost:8000/v1").rstrip("/")
-        self.api_key = api_key or os.environ.get("ELSEWHERE_OPENAI_KEY", "none")
+    def _base(self, settings: Settings) -> str:
+        return (settings.base or self.base).rstrip("/")
+
+    def _key(self) -> str:
+        # A secret, so the one thing that stays in the environment: it says
+        # whether a server will answer, never which mind it is.
+        return os.environ.get("ELSEWHERE_OPENAI_KEY", "none")
 
     def _body(self, call: Call, model: str, temperature: float,
               strict: bool) -> dict:
@@ -95,14 +98,14 @@ class OpenAICompatBackend:
             body["response_format"] = {"type": "json_object"}
         return body
 
-    def complete(self, call: Call, model: str, temperature: float,
-                 extra: Optional[dict] = None) -> str:
-        headers = {"authorization": f"Bearer {self.api_key}"}
+    def complete(self, call: Call, settings: Settings) -> str:
+        headers = {"authorization": f"Bearer {self._key()}"}
         for strict in (True, False):
-            payload = self._body(call, model, temperature, strict)
-            payload.update(extra or {})
+            payload = self._body(call, settings.model, settings.temperature, strict)
+            payload.update(settings.extra)
             try:
-                data = _post(f"{self.base}/chat/completions", payload, headers)
+                data = _post(f"{self._base(settings)}/chat/completions", payload,
+                             settings.timeout, headers)
             except urllib.error.HTTPError as exc:
                 if strict and exc.code in (400, 422):
                     continue                      # server has no schema support
@@ -122,9 +125,9 @@ class VLLMBackend(OpenAICompatBackend):
 
     It is the right backend when the model lives somewhere with a GPU - a
     workstation, a cluster, a rented box - and only the tick runs on the
-    laptop. Point ``base`` at it:
+    laptop. Point ``base`` at it in the configuration:
 
-        ELSEWHERE_OPENAI_BASE=http://gpu-box:8000/v1
+        "base": "http://gpu-box:8000/v1"
     """
 
     name = "vllm"

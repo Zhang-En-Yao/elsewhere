@@ -3,7 +3,7 @@
 PY ?= python3
 
 test: typecheck  ## run everything that needs no model
-	ELSEWHERE_BACKEND=stub $(PY) -m unittest discover -s tests
+	$(PY) -m unittest discover -s tests
 
 typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 	@if $(PY) -c "import mypy" 2>/dev/null; then \

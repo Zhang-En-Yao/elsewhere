@@ -8,17 +8,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
 from typing import List, Optional
 
-from . import agents, config, retrieval, schedule, schemas, seed
-from .backends import Call, Settings, Transcript, ask, get as get_backend
+from . import agents, retrieval, schedule, schemas, seed
+from .backends import Transcript, ask, probe
+from .configuration import MINDS, configure, load_configuration, path_of
 from .world import chronicle, store
 from .world.store import World, clock_at, day_of
 
 DEFAULT_ROOT = Path("world")
+
+# What used to override the configuration from the environment. They do
+# nothing now, and saying so is better than letting somebody believe they do.
+ABANDONED = {
+    "ELSEWHERE_BACKEND": "backend",
+    "ELSEWHERE_MODEL": "model",
+    "ELSEWHERE_OPENAI_BASE": "base",
+    "ELSEWHERE_HTTP_TIMEOUT": "timeout",
+}
 
 
 # helpers - shared by more than one command, none of them a command itself
@@ -159,7 +170,7 @@ def command_initialize(arguments) -> None:
     ]
     if remembered == 0 and not arguments.blank:
         output.append("  (nothing stuck - is a model reachable? try: elsewhere doctor)")
-    output.append(f"  config at {root / 'config.json'}")
+    output.append(f"  configuration at {path_of(root)}")
     print("\n".join(output))
 
 
@@ -366,7 +377,6 @@ def go_on(world: World, most: int = 8, say=print) -> None:
     thing, because there is only one report and only one lock.
     """
     from .tick import owed_hours, settle_clock, tick
-    from .backends import probe
 
     stamp = time.strftime("%Y-%m-%d %H:%M")
     try:
@@ -386,7 +396,7 @@ def go_on(world: World, most: int = 8, say=print) -> None:
                 say(f"[{stamp}] checked; nothing is due for "
                     f"{ahead - world.at - owed:.1f}h of world time")
                 return
-            configuration = config.load(world.root)
+            configuration = load_configuration(world.root)
             ok, message = probe(configuration["act"])
             if not ok:
                 # The world waits rather than going on without minds.
@@ -427,7 +437,7 @@ def _command_tick(arguments) -> None:
     from .tick import tick
 
     world = open_live(arguments)
-    configuration = config.load(world.root)
+    configuration = load_configuration(world.root)
     try:
         with store.tick_lock(world.root):
             for _ in range(arguments.n):
@@ -467,36 +477,21 @@ def command_end(arguments) -> None:
 def _command_doctor(arguments) -> None:
     """[DEV] Diagnostic: check if model backends are reachable and working."""
     root = Path(arguments.world)
-    configuration = config.load(root) if store.exists(root) else {
-        name: Settings.from_dict(settings_dict)
-        for name, settings_dict in config.default_config()["agents"].items()}
+    path = path_of(root)
+    configuration = load_configuration(root)
+    print(f"Reading {path}" if path.exists()
+          else f"No {path} yet; these are the defaults it would be written with")
     print(heading("Minds"))
-    probe = {
-        "type": "object",
-        "properties": {"ok": {"type": "boolean"}},
-        "required": ["ok"],
-    }
-    seen = {}
+    seen = set()
     for name, settings in configuration.items():
         if name == "embed":
             continue                      # not a mind; probed on its own below
-        key = (settings.backend, settings.model)
+        key = (settings.backend, settings.model, settings.base)
         if key in seen:
             print(f"  {name:<9} {settings.backend}/{settings.model:<18} (same model as above)")
             continue
-        call = Call(name="probe", system="Answer only with JSON.",
-                    user='Reply exactly {"ok": true}.', schema=probe, about="doctor")
-        started = time.time()
-        try:
-            raw = get_backend(settings.backend).complete(
-                call, settings.model, 0.0, settings.extra)
-            from .backends import extract_json
-            parsed = extract_json(raw)
-            verdict = (f"ok ({time.time() - started:.1f}s)" if parsed is not None
-                       else f"answered, but not with JSON: {raw[:60]!r}")
-        except Exception as exception:
-            verdict = f"unreachable: {type(exception).__name__}: {exception}"
-        seen[key] = verdict
+        seen.add(key)
+        ok, verdict = probe(settings)
         print(f"  {name:<9} {settings.backend}/{settings.model:<18} {verdict}")
     embed = configuration.get("embed")
     if embed is not None:
@@ -511,7 +506,21 @@ def _command_doctor(arguments) -> None:
             print(f"  embed     {embed.backend}/{embed.model:<18} "
                   f"unreachable - retrieval falls back on how reachable a "
                   f"memory is, which still works")
-    print("\n  Set ELSEWHERE_BACKEND=stub to run without any of this.")
+    print(f'\n  Set "backend": "stub" in {path} to run without any of this.')
+
+
+def command_configure(arguments) -> None:
+    """Point the minds at one backend and model, in the world's configuration."""
+    root = Path(arguments.world)
+    try:
+        path = configure(root, arguments.backend, arguments.model, arguments.base,
+                         arguments.call or MINDS)
+    except KeyError as exception:
+        sys.exit(str(exception.args[0]))
+    where = f" at {arguments.base}" if arguments.base else ""
+    print(f"{', '.join(arguments.call or MINDS)} -> "
+          f"{arguments.backend}/{arguments.model}{where}")
+    print(f"  written to {path}; check it with: elsewhere --world {root} doctor")
 
 
 def _command_remember(arguments) -> None:
@@ -520,7 +529,7 @@ def _command_remember(arguments) -> None:
     event = world.chronicle.get(arguments.event_id)
     if event is None:
         sys.exit(f"No event {arguments.event_id}")
-    configuration = config.load(world.root)
+    configuration = load_configuration(world.root)
     transcript = transcript_for(world)
     made = agents.perceive_all(world, event, configuration, transcript)
     for being in world.beings.values():
@@ -601,6 +610,16 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.set_defaults(func=_command_doctor)
 
     subparser = subparsers.add_parser(
+        "configure", help="point the minds at one backend and model")
+    subparser.add_argument("--backend", required=True)
+    subparser.add_argument("--model", required=True)
+    subparser.add_argument("--base", help="where the server is, if not the default")
+    subparser.add_argument("--call", action="append",
+                           help="only this call site (repeatable); "
+                                "default: every mind, not the embedder")
+    subparser.set_defaults(func=command_configure)
+
+    subparser = subparsers.add_parser(
         "remember", help="[DEV] re-run one event for prompt tuning")
     subparser.add_argument("event_id")
     subparser.set_defaults(func=_command_remember)
@@ -610,6 +629,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argument_list: Optional[List[str]] = None) -> int:
     arguments = build_parser().parse_args(argument_list)
+    abandoned = [name for name in ABANDONED if name in os.environ]
+    if abandoned:
+        fields = ", ".join(f"{name} -> \"{ABANDONED[name]}\"" for name in abandoned)
+        sys.exit(f"{', '.join(abandoned)} no longer does anything: the world runs on "
+                 f"{path_of(arguments.world)} and nothing else. Unset it, and put "
+                 f"what it said in that file instead ({fields}), or use "
+                 f"elsewhere configure.")
     arguments.func(arguments)
     return 0
 

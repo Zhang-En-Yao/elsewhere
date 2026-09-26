@@ -64,7 +64,7 @@ speaker's.
 | [`schedule.py`](../src/elsewhere/schedule.py) | one timer per entity, set by the entity, and the interrupt over it |
 | [`agents.py`](../src/elsewhere/agents.py) | the seven call sites, and the road |
 | [`tick.py`](../src/elsewhere/tick.py) | one step, in order; `owed_hours`/`settle_clock` for `continue` |
-| [`config.py`](../src/elsewhere/config.py) | which backend and model answers which call site |
+| [`configuration.py`](../src/elsewhere/configuration.py) | which backend and model answers which call site |
 | [`backends/`](../src/elsewhere/backends/) | `Call`/`Settings`/`Transcript`/`ask()`, one module per way of reaching a mind |
 | [`seed.py`](../src/elsewhere/seed.py) | the small beginning: three people, one town, a flood |
 | [`cli.py`](../src/elsewhere/cli.py) | everything a resident can do from a terminal |
@@ -359,18 +359,24 @@ only thing a model is asked for that is not an answer, and nothing requires it:
 an embedder that is missing or down gives back an empty vector, and a memory is
 then ranked on its history alone.
 
-[`config.py`](../src/elsewhere/config.py) decides which backend and model
-answer which of the seven call sites, written into each world as `config.json`
+[`configuration.py`](../src/elsewhere/configuration.py) decides which backend
+and model answer which of the seven call sites, written into each world as
+`configuration.json`
 so it is editable rather than buried in code. The intent: the cheap, frequent
 decisions (`act`) can run on something small and local, while the ones that
 need judgement (`perceive`, `speak`, `reflect`) can be pointed at something
-larger. `ELSEWHERE_BACKEND=stub` overrides every call site at once.
+larger. The file is the only source: nothing in the environment overrides
+it, and the CLI refuses to start while one of the old override variables is
+still set. Keys (`ANTHROPIC_API_KEY`, `ELSEWHERE_OPENAI_KEY`) are the exception,
+since they decide whether a mind can be reached rather than which one it is.
+Tests write a stub configuration into their own temporary world.
 
 ## Storage
 
 ```
 <world>/
   world.json             clock, places, the map, counters, the town's and the road's timers
+  configuration.json     which mind answers which call site; the only place that says
   beings/<id>.json       one being, as who / where / when
   chronicle.jsonl        append-only history
   memories/<id>.jsonl    one file per person, rewritten whole on save
