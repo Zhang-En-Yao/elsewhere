@@ -252,7 +252,7 @@ class TestAnswers(unittest.TestCase):
         # them, prints them, and hands them back as text. A vocabulary here
         # would be a constraint on a person for nobody's benefit.
         for name in (CallName.PERCEIVE, CallName.RECALL):
-            self.assertNotIn("enum", schemas.BY_NAME[name]["properties"]["feeling"],
+            self.assertNotIn("enum", schemas.SCHEMA_BY_CALL_NAME[name]["properties"]["feeling"],
                              f"{name} is telling people what they may feel")
         clean, complaint = schemas.validate(
             CallName.PERCEIVE, {"account": "the sound of it", "stuck": True,
@@ -262,7 +262,7 @@ class TestAnswers(unittest.TestCase):
 
     def test_every_call_has_a_schema_and_a_grammar(self):
         for name in CallName:
-            self.assertIn(name, schemas.BY_NAME, f"{name} has no schema")
+            self.assertIn(name, schemas.SCHEMA_BY_CALL_NAME, f"{name} has no schema")
             grammar = schemas.grammar(name)
             self.assertEqual(grammar["required"], list(grammar["properties"]))
 

@@ -208,11 +208,12 @@ PROBE = {
     "required": ["ok"],
 }
 
-BY_NAME: Dict[CallName, dict] = {
+SCHEMA_BY_CALL_NAME: Dict[CallName, dict] = {
     CallName.PERCEIVE: PERCEIVE, CallName.ACT: ACT, CallName.SPEAK: SPEAK,
     CallName.RECALL: RECALL, CallName.REFLECT: REFLECT, CallName.DIRECT: DIRECT,
     CallName.ARRIVE: ARRIVE, CallName.PROBE: PROBE,
 }
+
 
 class Invalid(ValueError):
     """The answer came back in a shape the world cannot use."""
@@ -225,7 +226,7 @@ def validate(name: CallName, data: Any) -> Tuple[Optional[dict], Optional[str]]:
     written to be handed straight back to the model as a repair instruction,
     so it says what was wrong rather than what a validator thinks.
     """
-    schema = BY_NAME.get(name)
+    schema = SCHEMA_BY_CALL_NAME.get(name)
     if schema is None:
         return None, f"there is no call named {name!r}"
     if not isinstance(data, dict):
@@ -277,7 +278,7 @@ def grammar(name: CallName) -> dict:
     """
     import copy
 
-    schema = copy.deepcopy(BY_NAME[name])
+    schema = copy.deepcopy(SCHEMA_BY_CALL_NAME[name])
     schema["required"] = list(schema.get("properties", {}).keys())
     return schema
 
