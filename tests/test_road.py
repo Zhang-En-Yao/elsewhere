@@ -17,7 +17,7 @@ from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle
 from elsewhere.world.entities import Where
-from elsewhere.world.memories import Trace
+from elsewhere.world.memories import Memory
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
@@ -146,11 +146,11 @@ class TestGoing(Road):
         self.assertIn("looking back", hers.user)
 
     def test_what_she_had_stays_where_it_is(self):
-        self.world.traces("p_lilith").add(Trace(
+        self.world.memories("p_lilith").add(Memory(
             id="mem9001", owner="p_lilith", at=self.world.at,
-            trace="the valley disappearing under the water", told=[self.world.at]))
+            account="the valley disappearing under the water", told=[self.world.at]))
         self.send_lilith_away()
-        kept = list(self.world.traces("p_lilith"))
+        kept = list(self.world.memories("p_lilith"))
         self.assertIn("mem9001", [t.id for t in kept])
 
     def test_and_so_does_what_everyone_wrote_about_her(self):
@@ -348,21 +348,21 @@ class TestReading(Road):
         cli.print_report(self.world, tick_mod.tick(self.world, config()))
 
     def test_somebody_who_left_is_read_as_they_were(self):
-        self.world.traces("p_lilith").add(Trace(
+        self.world.memories("p_lilith").add(Memory(
             id="mem9001", owner="p_lilith", at=self.world.at,
-            trace="the valley disappearing under the water", told=[self.world.at]))
+            account="the valley disappearing under the water", told=[self.world.at]))
         self.send_lilith_away()
         left_at = self.lilith.when.left_at
         self.world.at += 4000 * 24                 # long enough to lose anything
         from elsewhere import retrieval
-        trace = list(self.world.traces("p_lilith"))[0]
+        memory = list(self.world.memories("p_lilith"))[0]
         # The world has no idea what has happened to her since and does not
         # pretend to by going on fading things nobody here can see. What
         # `elsewhere person Lilith` reads is her clock, stopped on the day she
         # went - so it says the same thing however long ago that was.
-        self.assertGreater(retrieval.chance(retrieval.activation(trace, left_at)),
+        self.assertGreater(retrieval.chance(retrieval.activation(memory, left_at)),
                            0.5, "as of the day she went, she still had it")
-        self.assertLess(retrieval.chance(retrieval.activation(trace, self.world.at)),
+        self.assertLess(retrieval.chance(retrieval.activation(memory, self.world.at)),
                         0.05, "and on today's clock it would be long gone")
 
 

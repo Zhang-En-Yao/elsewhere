@@ -212,9 +212,9 @@ def remember_backstory(world: World, config, transcript=None) -> List:
             if being.id not in event.reached:
                 continue
             being.where.place = event.place or being.where.place
-            trace = agents.perceive(world, being, event, config, transcript)
-            if trace is not None:
-                made.append(trace)
+            memory = agents.perceive(world, being, event, config, transcript)
+            if memory is not None:
+                made.append(memory)
         world.at = was
     for being in world.beings.values():
         being.where.place = here_now[being.id]

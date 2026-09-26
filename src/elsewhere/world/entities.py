@@ -58,7 +58,7 @@ class Belief:
 
     There is no confidence number. What a belief is worth is the same thing a
     memory is worth: how often somebody has had cause to hold it, and how
-    lately. So a belief keeps its occasions exactly as a trace does, and
+    lately. So a belief keeps its occasions exactly as a memory does, and
     ``retrieval.base_level`` reads them with the same equation.
 
     ``origin`` is the memories it grew out of. When none of them can still be
@@ -70,10 +70,10 @@ class Belief:
     holds; what makes it a belief is the holding, which is ``held``.
     """
     claim: str
-    origin: List[str] = field(default_factory=list)   # trace ids, at most 3
+    origin: List[str] = field(default_factory=list)   # memory ids, at most 3
 
     #: Every hour this has been arrived at, first one first. The same shape as
-    #: ``Trace.told`` and read by the same function.
+    #: ``Memory.told`` and read by the same function.
     held: List[float] = field(default_factory=list)
 
     #: Where this reads from. Only ``retrieval.on_faith`` looks at it, to ask

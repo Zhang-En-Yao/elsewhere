@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 from .. import HOURS_PER_DAY, SCHEMA_VERSION
 from .chronicle import Chronicle, Event
 from .entities import Being, Map, Place
-from .memories import TraceStore
+from .memories import MemoryStore
 
 DAYS_PER_SEASON = 30
 SEASONS = ("spring", "summer", "autumn", "winter")
@@ -78,7 +78,7 @@ class World:
     town_wake_at: Optional[float] = None
     road_wake_at: Optional[float] = None
     chronicle: Chronicle = None          # type: ignore[assignment]
-    _traces: Dict[str, TraceStore] = field(default_factory=dict)
+    _memories: Dict[str, MemoryStore] = field(default_factory=dict)
 
     # -- time -------------------------------------------------------------
     # Everything below is worked out from `at`. None of it is stored, and none
@@ -123,11 +123,11 @@ class World:
         return f"{prefix}{n:04d}"
 
     # -- lookups -----------------------------------------------------------
-    def traces(self, being_id: str) -> TraceStore:
-        store = self._traces.get(being_id)
+    def memories(self, being_id: str) -> MemoryStore:
+        store = self._memories.get(being_id)
         if store is None:
-            store = TraceStore(self.root / "memories" / f"{being_id}.jsonl")
-            self._traces[being_id] = store
+            store = MemoryStore(self.root / "memories" / f"{being_id}.jsonl")
+            self._memories[being_id] = store
         return store
 
     def beings_at(self, place_id: str) -> List[Being]:
@@ -187,7 +187,7 @@ def save(world: World) -> None:
     })
     for being in world.beings.values():
         _atomic_write(world.root / "beings" / f"{being.id}.json", being.to_dict())
-    for store in world._traces.values():
+    for store in world._memories.values():
         store.save()
 
 

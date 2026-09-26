@@ -11,7 +11,7 @@ from elsewhere import agents, retrieval, seed, tick as tick_mod
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle
-from elsewhere.world.memories import Trace
+from elsewhere.world.memories import Memory
 
 CALLS = ("perceive", "act", "speak", "recall", "reflect", "direct", "arrive")
 STAY = {"because": "", "doing": "", "action": "stay", "target": "",
@@ -71,7 +71,7 @@ class TestDirector(Town):
         self.stub.set("direct", {"why_now": "the roof", "what": "A beam cracked overhead.",
                                  "where": "The Ridge Path", "who": "Adam",
                                  "reach": "the people there",                                  "happens": True})
-        self.stub.answers["perceive|p_adam"] = {"trace": "the crack before the dust",
+        self.stub.answers["perceive|p_adam"] = {"account": "the crack before the dust",
                                                 "means": "", "feeling": "fear",
                                                 "stuck": True}
         report = tick_mod.tick(self.world, config())
@@ -116,18 +116,18 @@ class TestRecall(Town):
         super().setUp()
         for pid in ("p_adam", "p_eve"):
             self.world.beings[pid].where.place = "yard"
-        self.flood = Trace(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
-                           trace="the water in the doorway before I could move anything",
+        self.flood = Memory(id="mem9001", owner="p_eve", at=68 * 24, told=[68 * 24],
+                           account="the water in the doorway before I could move anything",
                            feeling="fear")
-        self.world.traces("p_eve").add(self.flood)
+        self.world.memories("p_eve").add(self.flood)
         self.stub.answers["act|p_eve"] = {"because": "", "action": "talk", "target": "Adam"}
         self.stub.set("speak", {"about": "1", "line": "That night."})
 
     def test_telling_it_changes_it(self):
-        self.stub.set("recall", {"trace": "water, and not being able to look away",
+        self.stub.set("recall", {"account": "water, and not being able to look away",
                                  "means": "", "feeling": "fear"})
         report = tick_mod.tick(self.world, config())
-        self.assertEqual(self.flood.trace, "water, and not being able to look away")
+        self.assertEqual(self.flood.account, "water, and not being able to look away")
         self.assertEqual(self.flood.history,
                          ["the water in the doorway before I could move anything"])
         # She has the floor twice in one exchange, so she brings it up twice,
@@ -137,7 +137,7 @@ class TestRecall(Town):
         self.assertIsNotNone(report.talks[0].turns[0].reshaped)
 
     def test_the_mind_is_told_how_old_and_how_often_and_not_how_clear(self):
-        self.stub.set("recall", {"trace": "", "means": "", "feeling": "none"})
+        self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
         tick_mod.tick(self.world, config())
         user = self.calls("recall")[0].user
         self.assertIn("days old", user)
@@ -152,14 +152,14 @@ class TestRecall(Town):
         # `thought` is a short first-person fragment and so is a rewritten
         # memory. With it in the prompt a small model hands it straight back.
         self.world.beings["p_eve"].who.thought = "I did not look up"
-        self.stub.set("recall", {"trace": "", "means": "", "feeling": "none"})
+        self.stub.set("recall", {"account": "", "means": "", "feeling": "none"})
         tick_mod.tick(self.world, config())
         user = self.calls("recall")[0].user
         self.assertNotIn("I did not look up", user)
         self.assertIn("the water in the doorway", user, "the memory is still there")
 
     def test_an_empty_or_identical_answer_leaves_it_alone(self):
-        self.stub.set("recall", {"trace": "the water in the doorway before I could move anything"})
+        self.stub.set("recall", {"account": "the water in the doorway before I could move anything"})
         tick_mod.tick(self.world, config())
         self.assertEqual(self.flood.history, [])
 
@@ -172,9 +172,9 @@ class TestRecall(Town):
 class TestReflect(Town):
     def setUp(self):
         super().setUp()
-        self.today = Trace(id="mem9100", owner="p_lilith", at=self.world.at,
+        self.today = Memory(id="mem9100", owner="p_lilith", at=self.world.at,
                            told=[self.world.at],
-                           trace="the valley disappearing under the water", feeling="unease")
+                           account="the valley disappearing under the water", feeling="unease")
 
     def reckoning(self):
         """Live the step in which this person stops for the day."""
@@ -185,9 +185,9 @@ class TestReflect(Town):
         # Not everyone at nightfall, and not everyone a day on from their own
         # last one. Lilith said she was settling; the other two did not, and
         # the clock has no opinion about either of them.
-        self.world.traces("p_lilith").add(self.today)
-        self.world.traces("p_eve").add(Trace(
-            id="mem9110", owner="p_eve", at=self.world.at, trace="a long day", told=[self.world.at]))
+        self.world.memories("p_lilith").add(self.today)
+        self.world.memories("p_eve").add(Memory(
+            id="mem9110", owner="p_eve", at=self.world.at, account="a long day", told=[self.world.at]))
         self.reckoning()
         self.assertEqual([c.about for c in self.calls("reflect")], ["p_lilith"])
 
@@ -196,7 +196,7 @@ class TestReflect(Town):
         self.assertEqual(self.calls("reflect"), [])
 
     def test_a_belief_remembers_where_it_came_from(self):
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         self.stub.set("reflect", {"thought": "nobody went down", "belief": "Nobody here will ever leave",
                                   "belief_from": "1", "belief_again": "",
                                   "want": "go before winter"})
@@ -208,7 +208,7 @@ class TestReflect(Town):
         self.assertEqual(lilith.who.thought, "nobody went down")
 
     def test_the_same_belief_twice_is_held_harder_not_written_twice(self):
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         self.stub.set("reflect", {"belief": "Nobody here will ever leave",
                                   "belief_from": "1", "belief_again": ""})
         self.reckoning()
@@ -219,9 +219,9 @@ class TestReflect(Town):
         # holds. No word-overlap ratio would have got this - these two wordings
         # share no word longer than three letters.
         self.world.at += 1 * 24
-        self.world.traces("p_lilith").add(Trace(
+        self.world.memories("p_lilith").add(Memory(
             id="mem9101", owner="p_lilith", at=self.world.at,
-            trace="the road again",
+            account="the road again",
             told=[self.world.at]))
         self.stub.set("reflect", {"belief": "you die in the town you were born in",
                                   "belief_from": "1", "belief_again": "1"})
@@ -240,12 +240,12 @@ class TestReflect(Town):
         # A thought used to live only on the being, as one sentence
         # overwritten at every reckoning, so it could never come back later,
         # never be worn down by not coming back, and never be said out loud.
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         self.stub.set("reflect", {"thought": "Nobody went down to look",
                                   "belief": "", "belief_again": ""})
         self.reckoning()
-        thoughts = [t for t in self.world.traces("p_lilith")
-                    if t.trace == "Nobody went down to look"]
+        thoughts = [t for t in self.world.memories("p_lilith")
+                    if t.account == "Nobody went down to look"]
         self.assertEqual(len(thoughts), 1)
         self.assertEqual(thoughts[0].origin, ["mem9100"],
                          "and it remembers what it was a thought about")
@@ -254,7 +254,7 @@ class TestReflect(Town):
     def test_what_they_did_is_something_to_go_over(self):
         # Until `lately` existed only what the world had done to somebody was
         # written down, so a week on a roof left nothing to reflect on.
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         self.world.beings["p_lilith"].where.now("walking the ridge path again")
         self.reckoning()
         user = self.calls("reflect")[0].user
@@ -265,7 +265,7 @@ class TestReflect(Town):
         # `Regard.account` used to be written once by the seed and never
         # again, so two people could live a year side by side and neither
         # would change a word about the other.
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         before = self.world.beings["p_lilith"].who.regard("p_eve").account
         self.stub.set("reflect", {"thought": "", "belief": "", "belief_again": "",
                                   "about_someone": "Eve",
@@ -278,7 +278,7 @@ class TestReflect(Town):
         self.assertNotEqual(self.world.beings["p_eve"].who.regard("p_lilith").account, now)
 
     def test_only_somebody_who_exists_can_be_thought_about(self):
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         self.reckoning()
         schema = self.calls("reflect")[0].schema
         self.assertIn("Eve", schema["properties"]["about_someone"]["enum"])
@@ -286,7 +286,7 @@ class TestReflect(Town):
         self.assertNotIn("Nobody", schema["properties"]["about_someone"]["enum"])
 
     def test_a_belief_can_outlive_its_reasons(self):
-        self.world.traces("p_lilith").add(self.today)
+        self.world.memories("p_lilith").add(self.today)
         self.stub.set("reflect", {"belief": "Nobody here will ever leave",
                                   "belief_from": "1", "belief_again": ""})
         self.reckoning()
@@ -295,13 +295,13 @@ class TestReflect(Town):
         # ordinary days come after it that when she asks herself why she
         # believes this, other things come back instead.
         self.world.at += 400 * 24
-        for i in range(retrieval.CONTEXT_TRACES):
-            self.world.traces("p_lilith").add(Trace(
+        for i in range(retrieval.CONTEXT_MEMORIES):
+            self.world.memories("p_lilith").add(Memory(
                 id=f"mem92{i:02d}", owner="p_lilith", at=self.world.at,
-                trace="an ordinary day",
+                account="an ordinary day",
                 told=[self.world.at]))
         belief = next(b for b in lilith.who.beliefs if "leave" in b.claim)
-        self.assertTrue(retrieval.on_faith(belief, self.world.traces("p_lilith"),
+        self.assertTrue(retrieval.on_faith(belief, self.world.memories("p_lilith"),
                                            self.world.at))
         self.assertIn(belief, lilith.who.beliefs, "and she still holds it")
 

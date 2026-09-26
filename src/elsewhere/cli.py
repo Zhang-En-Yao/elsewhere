@@ -71,20 +71,20 @@ def print_report(world, report) -> None:
     if report.occurrence is not None:
         occurrence = report.occurrence
         print(f"  * {occurrence.account}")
-        for trace in occurrence.kept:
-            print(f"      {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+        for memory in occurrence.kept:
+            print(f"      {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
     if report.arrival is not None:
         arrival = report.arrival
         print(f"  + {arrival.account}")
-        for trace in arrival.kept:
-            print(f"      {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+        for memory in arrival.kept:
+            print(f"      {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
     for departure in report.departures:
         event = world.chronicle.get(departure.event_id)
         print(f"  - {event.account if event else name(world, departure.being_id) + ' left.'}")
         if departure.because:
             print(f'      "{departure.because}"')
-        for trace in departure.kept:
-            print(f"      {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+        for memory in departure.kept:
+            print(f"      {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
     talked = {talk.speaker for talk in report.talks} | {talk.listener for talk in report.talks}
     talked |= {departure.being_id for departure in report.departures}
     for person_id, decision in sorted(report.decisions.items()):
@@ -102,9 +102,9 @@ def print_report(world, report) -> None:
             if said.reshaped:
                 print(f"  {'':<7}   ({name(world, said.speaker)}'s memory was "
                       f"\"{said.reshaped[0]}\"; now \"{said.reshaped[1]}\")")
-            heard = {trace.owner for trace in said.kept}
-            for trace in said.kept:
-                print(f"  {'':<7}   {name(world, trace.owner)} kept [{trace.feeling}] {trace.trace}")
+            heard = {memory.owner for memory in said.kept}
+            for memory in said.kept:
+                print(f"  {'':<7}   {name(world, memory.owner)} kept [{memory.feeling}] {memory.account}")
             event = world.chronicle.get(said.event_id)
             for person_id in (event.reached if event else []):
                 if person_id not in heard and person_id != said.speaker:
@@ -133,7 +133,7 @@ def command_initialize(arguments) -> None:
                         transcript=transcript)
     world.last_tick_at = time.time()
     store.save(world)
-    remembered = sum(len(world.traces(being.id)) for being in world.beings.values())
+    remembered = sum(len(world.memories(being.id)) for being in world.beings.values())
     output = [
         f"{world.name} exists. {world.label()}",
         f"  {len(world.beings)} people, {len(world.places)} places, {len(world.chronicle)} events already behind them",
@@ -167,18 +167,18 @@ def command_status(arguments) -> None:
             for being in sorted(gone, key=lambda being: being.when.left_at or 0)))
     total = 0
     for being in world.beings.values():
-        trace_store = world.traces(being.id)
+        memory_store = world.memories(being.id)
         # Somebody who left is counted as they were the moment they went. The
         # world has no idea what has happened to them since and will not
         # pretend to by going on fading things nobody here can see.
         at = world.at if being.present else (being.when.left_at or world.at)
-        traces = list(trace_store)
-        live = retrieval.recallable(traces, at)
-        total += len(traces)
+        memories = list(memory_store)
+        live = retrieval.recallable(memories, at)
+        total += len(memories)
         mark = "" if being.present else "  (left)"
         print(f"  {being.name:<8} {len(live)} within reach, "
-              f"{len(traces) - len(live)} not coming to mind{mark}")
-    print(f"  {total} traces in total")
+              f"{len(memories) - len(live)} not coming to mind{mark}")
+    print(f"  {total} memories in total")
 
 
 def command_being(arguments) -> None:
@@ -204,11 +204,11 @@ def command_being(arguments) -> None:
         print("  wants: " + "; ".join(being.who.wants))
     if being.who.beliefs:
         print("\n  holds to be true")
-        store = list(world.traces(being.id))
+        store = list(world.memories(being.id))
         for belief in retrieval.recallable(being.who.beliefs, at,
                                             limit=len(being.who.beliefs)):
             lost = ("  (cannot say why any more)"
-                    if retrieval.on_faith(belief, world.traces(being.id), at) else "")
+                    if retrieval.on_faith(belief, world.memories(being.id), at) else "")
             held = len(belief.held) or 1
             print(f"    [held {held}x] {belief.claim}{lost}")
     known = [(world.beings[person_id], regard) for person_id, regard in
@@ -218,28 +218,28 @@ def command_being(arguments) -> None:
     for other, regard in known:
         gone = "  (gone)" if not other.present else ""
         print(f"    {other.name:<8} {regard.account or '-'}{gone}")
-    traces = list(world.traces(being.id))
-    within = retrieval.recallable(traces, at, limit=arguments.limit)
-    print(f"\n  memory: {len(traces)} traces, "
-          f"{max(0, len(traces) - len(within))} that would not come back")
-    for trace in within:
-        print(f"    {when(trace.at):<18} [{trace.feeling}] {trace.trace}")
-        if trace.means:
-            print(f"          ~ {trace.means}")
-        told = len(trace.told) or 1
+    memories = list(world.memories(being.id))
+    within = retrieval.recallable(memories, at, limit=arguments.limit)
+    print(f"\n  memory: {len(memories)} memories, "
+          f"{max(0, len(memories) - len(within))} that would not come back")
+    for memory in within:
+        print(f"    {when(memory.at):<18} [{memory.feeling}] {memory.account}")
+        if memory.means:
+            print(f"          ~ {memory.means}")
+        told = len(memory.told) or 1
         print(f"          come up {told}x  "
-              f"{retrieval.chance(retrieval.activation(trace, at)):.0%} it comes to mind")
+              f"{retrieval.chance(retrieval.activation(memory, at)):.0%} it comes to mind")
         # Earlier wordings. The only place the world shows that a memory
         # moved, which is the whole claim this project makes about memory.
-        for was in reversed(trace.history):
+        for was in reversed(memory.history):
             print(f"          was: \"{was}\"")
         # Something they arrived at themselves rather than a version of
         # something that happened. What it was a thought about is the only
         # thing that makes it readable a year later.
-        for source in trace.origin:
-            came = world.traces(being.id).get(source)
+        for source in memory.origin:
+            came = world.memories(being.id).get(source)
             if came is not None:
-                print(f"          out of: \"{came.trace}\"")
+                print(f"          out of: \"{came.account}\"")
 
 
 def command_timeline(arguments) -> None:
@@ -262,22 +262,22 @@ def command_event(arguments) -> None:
     print(f"  History says:  {event.account}")
     print("\n  What it left in people:")
     for being in world.beings.values():
-        traces = world.traces(being.id).about_event(event.id)
-        if not traces:
+        memories = world.memories(being.id).about_event(event.id)
+        if not memories:
             if being.id in event.reached:
                 print(f"    {being.name:<8} - nothing. They were there.")
             continue
-        mine = list(world.traces(being.id))
-        for trace in traces:
-            within = trace in retrieval.recallable(mine, world.at)
-            odds = retrieval.chance(retrieval.activation(trace, world.at))
+        mine = list(world.memories(being.id))
+        for memory in memories:
+            within = memory in retrieval.recallable(mine, world.at)
+            odds = retrieval.chance(retrieval.activation(memory, world.at))
             state = (f"{odds:.0%} it comes to mind" if within
                      else "something else comes back instead")
-            print(f"    {being.name:<8} \"{trace.trace}\"")
-            if trace.means:
-                print(f"    {'':<8}   {trace.feeling}: {trace.means}")
-            print(f"    {'':<8}   ({state}, come up {len(trace.told) or 1}x)")
-            for was in reversed(trace.history):
+            print(f"    {being.name:<8} \"{memory.account}\"")
+            if memory.means:
+                print(f"    {'':<8}   {memory.feeling}: {memory.means}")
+            print(f"    {'':<8}   ({state}, come up {len(memory.told) or 1}x)")
+            for was in reversed(memory.history):
                 print(f"    {'':<8}   was: \"{was}\"")
 
 
@@ -295,8 +295,8 @@ def command_news(arguments) -> None:
                 chronicle.DEPARTURE: "- "}
         print(f"    {mark.get(event.category, '')}{event.account}")
         for person_id in event.reached:
-            for trace in world.traces(person_id).about_event(event.id):
-                print(f"      {name(world, person_id)} kept [{trace.feeling}] {trace.trace}")
+            for memory in world.memories(person_id).about_event(event.id):
+                print(f"      {name(world, person_id)} kept [{memory.feeling}] {memory.account}")
     print("\n  Now:")
     for being in sorted(world.beings.values(), key=lambda person: person.name):
         if not being.present:
@@ -445,11 +445,11 @@ def _command_remember(arguments) -> None:
     transcript = transcript_for(world)
     made = agents.perceive_all(world, event, configuration, transcript)
     for being in world.beings.values():
-        world.traces(being.id).save()
+        world.memories(being.id).save()
     store.save(world)
     print(f"{len(made)} of {len(event.reached)} people kept something.")
-    for trace in made:
-        print(f"  {world.beings[trace.owner].name:<8} [{trace.feeling}] {trace.trace}")
+    for memory in made:
+        print(f"  {world.beings[memory.owner].name:<8} [{memory.feeling}] {memory.account}")
 
 
 # cli wiring

@@ -5,8 +5,8 @@ Nothing in here has an opinion. Opinions are in ``agents.py``.
 
 from .chronicle import Chronicle, Event
 from .entities import Belief, Being, Place, Regard
-from .memories import Trace, TraceStore
+from .memories import Memory, MemoryStore
 from .store import World, load, save
 
 __all__ = ["Chronicle", "Event", "Belief", "Being", "Place", "Regard",
-           "Trace", "TraceStore", "World", "load", "save"]
+           "Memory", "MemoryStore", "World", "load", "save"]

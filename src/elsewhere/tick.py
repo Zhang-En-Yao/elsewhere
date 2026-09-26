@@ -27,7 +27,7 @@ from . import agents, schedule, schemas
 from .backends import Transcript
 from .world.chronicle import CONVERSATION
 from .world.entities import Being
-from .world.memories import Trace
+from .world.memories import Memory
 
 
 
@@ -38,7 +38,7 @@ class Said:
     listener: str
     line: str
     event_id: str
-    kept: List[Trace] = field(default_factory=list)
+    kept: List[Memory] = field(default_factory=list)
     reshaped: Optional[Tuple[str, str]] = None      # (was, now) if the telling changed it
 
 
@@ -57,7 +57,7 @@ class Talk:
         return self.between[1]
 
     @property
-    def kept(self) -> List[Trace]:
+    def kept(self) -> List[Memory]:
         return [t for turn in self.turns for t in turn.kept]
 
 
@@ -65,7 +65,7 @@ class Talk:
 class Occurrence:
     event_id: str
     account: str
-    kept: List[Trace] = field(default_factory=list)
+    kept: List[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -73,7 +73,7 @@ class Arrival:
     being_id: str
     event_id: str
     account: str
-    kept: List[Trace] = field(default_factory=list)
+    kept: List[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -81,7 +81,7 @@ class Departure:
     being_id: str
     event_id: str
     because: str = ""
-    kept: List[Trace] = field(default_factory=list)
+    kept: List[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -112,7 +112,7 @@ def _meet(world, a: Being, b: Being) -> None:
 
 
 #: How many things may be said in one exchange before the engine stops it.
-#: A budget on model calls, the same kind of number as `CONTEXT_TRACES`, and
+#: A budget on model calls, the same kind of number as `CONTEXT_MEMORIES`, and
 #: not a claim that a conversation is four sentences long. An exchange ends
 #: before this whenever somebody has nothing to say, which is what usually
 #: ends one.
@@ -143,9 +143,9 @@ def _say(world, speaker: Being, listener: Being, config,
     # Telling it changes it. The speaker's own memory comes back reshaped.
     reshaped = None
     if drawn is not None:
-        before = drawn.trace
+        before = drawn.account
         if agents.recall(world, speaker, drawn, config, transcript):
-            reshaped = (before, drawn.trace)
+            reshaped = (before, drawn.account)
 
     # The speaker already has what they said; the people who heard it do not -
     # and the person they said it to is one of those people, which is what
@@ -154,9 +154,9 @@ def _say(world, speaker: Being, listener: Being, config,
     for pid in here:
         if pid == speaker.id:
             continue
-        trace = agents.perceive(world, world.beings[pid], event, config, transcript)
-        if trace is not None:
-            kept.append(trace)
+        memory = agents.perceive(world, world.beings[pid], event, config, transcript)
+        if memory is not None:
+            kept.append(memory)
     return Said(speaker.id, listener.id, line, event.id, kept, reshaped)
 
 
@@ -166,7 +166,7 @@ def converse(world, a: Being, b: Being, config,
 
     A turn ends the exchange by having nothing to say, which is how most
     conversations end; `TURNS` is only the ceiling. Each turn is an event in
-    its own right, so what a listener replies to is the trace `perceive` just
+    its own right, so what a listener replies to is the memory `perceive` just
     wrote them of the line before - which is why somebody can answer what they
     thought they heard rather than what was said.
     """

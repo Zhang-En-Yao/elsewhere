@@ -17,7 +17,7 @@ Landed:
   one conversation per person per phase, `tick` / `continue` / `news`, and a
   launchd agent that keeps a day here to a day there.
 - **P3** — things happen to the town (`direct`, once each morning), and
-  telling changes what is told (`recall`, when a trace is brought up).
+  telling changes what is told (`recall`, when a memory is brought up).
 - **P4** — nights change what is held (`reflect`): a thought, at most one
   belief pointing at the memory it came from, and a want.
 - **One clock** — `day` and `phase` are gone. The world keeps hours elapsed as
@@ -71,7 +71,7 @@ has become an administrator.
   per person per phase, and when someone speaks to you, you answer in your own
   words.
 - `perceive` for the player is the interesting question. Either you write your
-  own trace, or — more in keeping with the rest — a model writes it *for* you,
+  own memory, or — more in keeping with the rest — a model writes it *for* you,
   from what you did, and you find out later what you turned out to have kept.
   Worth trying both; the second is the one that makes forgetting apply to you.
 - A player who is not present must be handled: `elsewhere tick` while you are
@@ -88,15 +88,15 @@ be wrong in some specific way.
 
 **The gap.** `ACTIONS` is three verbs
 ([`schemas.py`](../src/elsewhere/schemas.py)) and the comment there already
-names the plan: `make` and `tend` arrive with art. `Trace.source = "made"`
+names the plan: `make` and `tend` arrive with art. `Memory.source = "made"`
 is reserved and unwritten.
 
 **What it means to build.** An artifact is not a new kind of object so much as
 an event with a maker and a durable presence in a place.
 
 - Two new verbs in `ACTIONS`, and a seventh call site — `make` — asked only of
-  someone who chose that action: what they are making, out of which trace, and
-  what it is for. The trace it came from is the whole point; a painting of
+  someone who chose that action: what they are making, out of which memory, and
+  what it is for. The memory it came from is the whole point; a painting of
   nothing is decoration.
 - Artifacts live in the chronicle as events and in a place. Seeing one is a
   `perceive` call with a different `source`, which means somebody else's
@@ -107,7 +107,7 @@ an event with a maker and a durable presence in a place.
 - `elsewhere art` to see what has been made, and out of what.
 
 **Watch out for.** A small model asked to write a poem will write a bad poem
-every step. Making should be rare and expensive — gated on a trace that is
+every step. Making should be rare and expensive — gated on a memory that is
 still in reach, and on nothing else. A cooldown was the obvious second gate
 and it is the wrong kind of rule: it would have the engine decide whether
 somebody makes something today, on the same clock for everyone. The engine
@@ -149,7 +149,7 @@ is about, and it is missing.
 
 - `elsewhere remember "the night bus back from Hualien, and the rain"` should
   record an event nobody witnessed and let it reach people as something carried
-  in — `Trace.source = "carried_in"` is already reserved for it.
+  in — `Memory.source = "carried_in"` is already reserved for it.
 - `elsewhere invite "Momo" --premise "..."` — `Being.kind` is already typed
   `person | companion | presence`. A presence is a person with a thinner card
   and no occupation; everything else already works on it.

@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 #
 # How much a memory weighs is not asked at all. What a memory is worth is how
 # often anybody has had cause to think of it, which `retrieval` counts from
-# `Trace.told` rather than taking anyone's word for on the day. The one thing
+# `Memory.told` rather than taking anyone's word for on the day. The one thing
 # a mind can actually answer about a moment it has just lived is whether any
 # of it stayed - see PERCEIVE.
 
@@ -48,7 +48,7 @@ LEAVE = "leave"      # a fourth, offered only where the road goes out
 PERCEIVE = {
     "type": "object",
     "properties": {
-        "trace": {"type": "string"},      # the fragment they are left holding
+        "account": {"type": "string"},      # the fragment they are left holding
         "means": {"type": "string"},      # what they make of it, if anything
         "feeling": {"type": "string"},    # in their words, from no vocabulary
         "stuck": {"type": "boolean"},     # did any of it stay at all
@@ -108,11 +108,11 @@ SPEAK = {
 RECALL = {
     "type": "object",
     "properties": {
-        "trace": {"type": "string"},
+        "account": {"type": "string"},
         "means": {"type": "string"},
         "feeling": {"type": "string"},
     },
-    "required": ["trace"],
+    "required": ["account"],
 }
 
 # Flat on purpose. A nested list of belief objects is more than a 3.8B model

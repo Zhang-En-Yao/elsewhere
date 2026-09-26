@@ -49,7 +49,7 @@ from typing import Iterable, List, Optional, Protocol, Sequence, TypeVar
 
 from . import HOURS_PER_DAY
 from .world.entities import Belief
-from .world.memories import Trace
+from .world.memories import Memory
 
 
 class Held(Protocol):
@@ -98,7 +98,7 @@ NOISE = 0.4
 #: ACT-R's own retrieval returns exactly one chunk, and asking for six is this
 #: engine admitting that a mind here thinks in paragraphs rather than in single
 #: chunks. The number is what fits.
-CONTEXT_TRACES = 6
+CONTEXT_MEMORIES = 6
 
 
 def nearness(a: Sequence[float], b: Sequence[float]) -> float:
@@ -113,19 +113,19 @@ def nearness(a: Sequence[float], b: Sequence[float]) -> float:
     return dot / (na * nb)
 
 
-def base_level(trace: Held, at: float) -> float:
+def base_level(memory: Held, at: float) -> float:
     """B_i: how often this has come up, and how lately.
 
         B = ln( SUM over every occasion of (now - then) ** -d )
 
-    One term per occasion, which is why `Trace.told` keeps the occasions and
+    One term per occasion, which is why `Memory.told` keeps the occasions and
     not a tally: three tellings in one week and three a year apart are not the
     same memory afterwards, and a count cannot tell them apart.
 
     `at` and the occasions are both hours into the world, so this moves
     continuously - a memory is slightly further away at dusk than at noon.
     """
-    told = trace.told or [trace.at]
+    told = memory.told or [memory.at]
     total = 0.0
     for then in told:
         if then > at:
@@ -141,7 +141,7 @@ def base_level(trace: Held, at: float) -> float:
     return math.log(total)
 
 
-def spread(trace: Held, cue: Optional[Sequence[float]]) -> float:
+def spread(memory: Held, cue: Optional[Sequence[float]]) -> float:
     """SUM_k W_k * S_ki: how far what is in front of them raises this.
 
     The moment is one source, so its attentional weight is the whole of it,
@@ -149,15 +149,15 @@ def spread(trace: Held, cue: Optional[Sequence[float]]) -> float:
     what the moment is about. A memory the moment does not point at is not
     pushed down for it - ACT-R spreads activation, it does not subtract it.
     """
-    if not cue or not trace.embedding:
+    if not cue or not memory.embedding:
         return 0.0
-    return MAX_STRENGTH * max(nearness(trace.embedding, cue), 0.0)
+    return MAX_STRENGTH * max(nearness(memory.embedding, cue), 0.0)
 
 
-def activation(trace: Held, at: float,
+def activation(memory: Held, at: float,
                cue: Optional[Sequence[float]] = None) -> float:
     """A_i: how near this is to coming to mind, here, now."""
-    return base_level(trace, at) + spread(trace, cue)
+    return base_level(memory, at) + spread(memory, cue)
 
 
 def chance(value: float) -> float:
@@ -170,9 +170,9 @@ def chance(value: float) -> float:
     return 1.0 / (1.0 + math.exp(-value / NOISE))
 
 
-def recallable(traces: Iterable[H], at: float,
+def recallable(memories: Iterable[H], at: float,
                cue: Optional[Sequence[float]] = None,
-               limit: int = CONTEXT_TRACES) -> List[H]:
+               limit: int = CONTEXT_MEMORIES) -> List[H]:
     """What this person has within reach, most active first.
 
     Anything not in this list is, for the purposes of the next thought,
@@ -189,21 +189,21 @@ def recallable(traces: Iterable[H], at: float,
     and no similarity threshold anywhere in this file.
     """
     ranked = sorted(
-        ((t, activation(t, at, cue)) for t in traces),
+        ((t, activation(t, at, cue)) for t in memories),
         key=lambda pair: pair[1], reverse=True)
     return [t for t, a in ranked[:limit] if a > -math.inf]
 
 
-def out_of_reach(trace: Trace, traces: Iterable[Trace], at: float,
+def out_of_reach(memory: Memory, memories: Iterable[Memory], at: float,
                  cue: Optional[Sequence[float]] = None,
-                 limit: int = CONTEXT_TRACES) -> bool:
+                 limit: int = CONTEXT_MEMORIES) -> bool:
     """Whether this would not come back, asked here, now.
 
     Always asked against the rest of what this person has, because that is
     what the question means. A memory is not out of reach on its own account;
     it is out of reach because five others came back before it.
     """
-    return trace not in recallable(traces, at, cue, limit)
+    return memory not in recallable(memories, at, cue, limit)
 
 
 def on_faith(belief: Belief, store, at: float,

@@ -16,7 +16,7 @@ from .backends import (Call, Settings, Transcript, ask, get as get_backend,
 from .world.chronicle import (ARRIVAL, CONVERSATION, DEPARTURE, Event,
                               OCCURRENCE)
 from .world.entities import Being, When, Where, Who
-from .world.memories import Trace
+from .world.memories import Memory
 from . import HOURS_PER_DAY
 from .world.store import clock_at, season_at
 
@@ -79,10 +79,10 @@ def vantage(world, being: Being, event: Event) -> str:
 
 
 def perceive(world, being: Being, event: Event, config,
-             transcript: Optional[Transcript] = None) -> Optional[Trace]:
+             transcript: Optional[Transcript] = None) -> Optional[Memory]:
     """Ask what this event leaves in this person. Usually the answer is nothing."""
     settings = _settings(config, "perceive")
-    store = world.traces(being.id)
+    store = world.memories(being.id)
     near = _placed(config, event.account)
     context = retrieval.recallable(store, world.at, near)
 
@@ -99,7 +99,7 @@ def perceive(world, being: Being, event: Event, config,
             vantage=vantage(world, being, event),
             others=[world.beings[pid] for pid in event.reached
                     if pid != being.id and pid in world.beings],
-            traces=context,
+            memories=context,
             part_of_it=being.id in event.involved,
         ),
         schema=schemas.grammar("perceive"),
@@ -112,38 +112,38 @@ def perceive(world, being: Being, event: Event, config,
     if not answer.get("stuck"):
         return None
 
-    text = (answer.get("trace") or "").strip()
+    text = (answer.get("account") or "").strip()
     if not text:
         return None
 
     # Nothing is written down about how much this mattered. What decides
     # whether it is still here in a year is whether anybody ever brings it up,
     # which `retrieval` reads off `told`.
-    trace = Trace(
+    memory = Memory(
         id=world.next_id("mem"),
         owner=being.id,
         at=world.at,
-        trace=text,
+        account=text,
         means=(answer.get("means") or "").strip(),
         feeling=answer.get("feeling", "none"),
         embedding=_placed(config, text),
         event_id=event.id,
         told=[world.at],
     )
-    store.add(trace)
-    return trace
+    store.add(memory)
+    return memory
 
 
 def perceive_all(world, event: Event, config,
-                 transcript: Optional[Transcript] = None) -> List[Trace]:
+                 transcript: Optional[Transcript] = None) -> List[Memory]:
     """Hand the event to everyone who was there, one mind at a time."""
     out = []
     for being in world.beings.values():
         if not being.present or being.id not in event.reached:
             continue
-        trace = perceive(world, being, event, config, transcript)
-        if trace is not None:
-            out.append(trace)
+        memory = perceive(world, being, event, config, transcript)
+        if memory is not None:
+            out.append(memory)
     return out
 
 
@@ -189,7 +189,7 @@ def act(world, being: Being, config,
     others = _others_here(world, being)
     reachable = [world.places[n] for n in world.map.beside(being.where.place)
                  if n in world.places]
-    store = world.traces(being.id)
+    store = world.memories(being.id)
     # What this moment reads from: the room, and what this person is already
     # carrying around in it. The room alone is prose an author wrote once and
     # the same for everybody standing in it; their thought and their wants are
@@ -250,13 +250,13 @@ def act(world, being: Being, config,
 
 def speak(world, speaker: Being, listener: Being, config,
           transcript: Optional[Transcript] = None):
-    """One thing said out loud. Returns (line, trace drawn on) or (None, None).
+    """One thing said out loud. Returns (line, memory drawn on) or (None, None).
 
-    Bringing something up is rehearsal: the trace it came from is touched and
+    Bringing something up is rehearsal: the memory it came from is touched and
     stays within reach longer. Rewriting it in the telling is recall's job (P3).
     """
     settings = _settings(config, "speak")
-    store = world.traces(speaker.id)
+    store = world.memories(speaker.id)
     # Who is in front of them, in words: the listener's name and the speaker's
     # own account of them, which is text a mind wrote. Every retrieval cue in
     # this file is that, and never a string the engine glued together.
@@ -548,13 +548,13 @@ def may_reflect(world, being: Being, settling: bool) -> bool:
     if not settling:
         return False
     since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
-    return any(t.at > since for t in world.traces(being.id))
+    return any(t.at > since for t in world.memories(being.id))
 
 
 def reflect(world, being: Being, config,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
     """What this person is left with, after a day of their own."""
-    store = world.traces(being.id)
+    store = world.memories(being.id)
     since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
     being.when.reflected_at = world.at
     # Their day is whatever has happened to them since they last stopped and
@@ -568,7 +568,7 @@ def reflect(world, being: Being, config,
     # What the day was about, in the mind's own words, is the cue for what
     # older things come back beside it - so a reckoning connects today to the
     # past it actually points at.
-    cue = _placed(config, " ".join(t.trace for t in today))
+    cue = _placed(config, " ".join(t.account for t in today))
     older = [t for t in retrieval.recallable(store, world.at, cue, limit=7)
              if t not in today][:3]
     holds = held_beliefs(being, world.at, limit=MAX_BELIEFS)
@@ -605,9 +605,9 @@ def reflect(world, being: Being, config,
             # there is now one more occasion of having held it, which is the
             # only thing anywhere that makes a belief harder to lose.
             existing.came_up(world.at)
-            for trace_id in origin:
-                if trace_id not in existing.origin and len(existing.origin) < 3:
-                    existing.origin.append(trace_id)
+            for memory_id in origin:
+                if memory_id not in existing.origin and len(existing.origin) < 3:
+                    existing.origin.append(memory_id)
         else:
             being.who.beliefs.append(Belief(claim=text, origin=origin,
                                         held=[world.at],
@@ -644,11 +644,11 @@ def reflect(world, being: Being, config,
         # whose insights go back into associative memory carrying the ids of
         # what they came from (`cognitive_modules/reflect.py`), rather than
         # onto the persona.
-        store.add(Trace(
+        store.add(Memory(
             id=world.next_id("mem"),
             owner=being.id,
             at=world.at,
-            trace=thought,
+            account=thought,
             means="", feeling="",
             embedding=_placed(config, thought),
             origin=[t.id for t in today],
@@ -660,32 +660,32 @@ def reflect(world, being: Being, config,
 # --------------------------------------------------------------------------
 # recall
 
-def recall(world, being: Being, trace: Trace, config,
+def recall(world, being: Being, memory: Memory, config,
            transcript: Optional[Transcript] = None) -> bool:
-    """The trace has just been brought up; ask how it comes back now.
+    """The memory has just been brought up; ask how it comes back now.
 
     The words are the mind's. The engine only files the older wording in the
-    trace's history, so the earlier version is not lost to anyone reading.
+    memory's history, so the earlier version is not lost to anyone reading.
     """
     settings = _settings(config, "recall")
-    age = max(0, int((world.at - trace.at) // HOURS_PER_DAY))
+    age = max(0, int((world.at - memory.at) // HOURS_PER_DAY))
     call = Call(
         name="recall",
         system=prompts.RECALL_SYSTEM,
-        user=prompts.recall_user(being, trace, age, world.at),
+        user=prompts.recall_user(being, memory, age, world.at),
         schema=schemas.grammar("recall"),
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     if answer is None:
         return False
-    new = (answer.get("trace") or "").strip()
-    if not new or new == trace.trace:
+    new = (answer.get("account") or "").strip()
+    if not new or new == memory.account:
         return False
-    trace.rewrite(new, world.at, means=(answer.get("means") or "").strip(),
+    memory.rewrite(new, world.at, means=(answer.get("means") or "").strip(),
                   feeling=answer.get("feeling") or "",
                   embedding=_placed(config, new))
     # rewrite() logs the occasion; speak() already logged this one.
-    del trace.told[-1:]
-    world.traces(being.id).touch()
+    del memory.told[-1:]
+    world.memories(being.id).touch()
     return True

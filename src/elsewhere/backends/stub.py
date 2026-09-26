@@ -24,7 +24,7 @@ DEFAULTS: Dict[str, dict] = {
     "act": {"because": "", "doing": "", "action": "stay", "target": "",
             "for_hours": 6.0, "settling": False, "absorbed": False},
     "speak": {"line": "..."},
-    "recall": {"trace": "", "changed": False},
+    "recall": {"account": "", "changed": False},
     "reflect": {},
     "direct": {"happens": False, "ask_again_in_hours": 24.0},
     "arrive": {"comes": False, "ask_again_in_hours": 24.0},
