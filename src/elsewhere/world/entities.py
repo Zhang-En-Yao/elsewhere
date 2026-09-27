@@ -106,7 +106,7 @@ class Where:
     place: str = ""                # place id
     home: str = ""                 # "" for a newcomer
 
-    #: What they have been doing, oldest first; read by `reflect` and `direct`.
+    #: What they have been doing, oldest first; read by `reflect` and `stir`.
     lately: List[str] = field(default_factory=list)
 
     @property

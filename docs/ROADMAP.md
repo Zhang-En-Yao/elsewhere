@@ -16,7 +16,7 @@ Landed:
 - **P1** — the town moves on its own: simultaneous decisions, movement,
   one conversation per person per phase, `tick` / `continue` / `news`, and a
   launchd agent that keeps a day here to a day there.
-- **P3** — things happen to the town (`direct`, once each morning), and
+- **P3** — things happen to the town (`stir`, once each morning), and
   telling changes what is told (`recall`, when a memory is brought up).
 - **P4** — nights change what is held (`reflect`): a thought, at most one
   belief pointing at the memory it came from, and a want.

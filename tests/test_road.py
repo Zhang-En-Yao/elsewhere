@@ -40,7 +40,7 @@ class Road(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.world = seed.build(Path(self.tmp.name) / "world")
         self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
-                                 CallName.DIRECT: QUIET, CallName.REFLECT: {}, CallName.ARRIVE: NOBODY})
+                                 CallName.STIR: QUIET, CallName.REFLECT: {}, CallName.ARRIVE: NOBODY})
         register(self.stub)
         self.lilith = self.world.beings["p_lilith"]
 
@@ -166,12 +166,12 @@ class TestGoing(Road):
         asked = [c.about for c in self.calls(CallName.ACT)[before:]]
         self.assertNotIn("p_lilith", asked)
 
-    def test_and_stops_offering_her_to_the_director(self):
+    def test_and_stops_offering_her_to_the_town(self):
         self.send_lilith_away()
-        # The director was already asked in the step she left; wait for the next.
+        # The town was already asked in the step she left; wait for the next.
         self.world.at += 24
         tick_mod.tick(self.world, configuration())
-        call = self.calls(CallName.DIRECT)[-1]
+        call = self.calls(CallName.STIR)[-1]
         self.assertNotIn("Lilith", call.schema["properties"]["who"]["enum"])
         listed = call.user.split("People:")[1].split("Lately")[0]
         self.assertNotIn("Lilith", listed,

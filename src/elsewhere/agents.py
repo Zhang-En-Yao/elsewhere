@@ -18,30 +18,11 @@ from .world.store import clock_at, date_at, season_at
 from .schemas import Action, CallName
 
 
+# Shared by more than one call below; a helper used by only one lives next
+# to that call instead.
+
 def _settings(configuration, name: CallName) -> Settings:
     return configuration[name]
-
-
-def _companions(world, being: Being) -> List[Being]:
-    return [b for b in world.beings_at(being.where.place) if b.id != being.id]
-
-
-def _free_being_id(world, name: str) -> str:
-    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
-    candidate, n = f"p_{slug}", 2
-    while candidate in world.beings:
-        candidate, n = f"p_{slug}{n}", n + 1
-    return candidate
-
-
-def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
-    """None when the answer gave nothing usable, leaving no timer."""
-    hours = schedule.in_hours(answer, "ask_again_in_hours")
-    return world.at + hours if hours is not None else None
-
-
-def leaving_place(world):
-    return world.places.get(world.map.road_out)
 
 
 def vectorize(configuration, account: str) -> List[float]:
@@ -56,6 +37,21 @@ def vectorize(configuration, account: str) -> List[float]:
 
 def held_beliefs(being: Being, at: float, limit: int = 3) -> List:
     return retrieval.recallable(being.who.beliefs, at, limit=limit)
+
+
+def _companions(world, being: Being) -> List[Being]:
+    return [b for b in world.beings_at(being.where.place) if b.id != being.id]
+
+
+def when_label(world) -> str:
+    light = "light" if world.daylight else "dark"
+    return f"{world.clock} and {light}, {world.season}, {world.date}"
+
+
+def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
+    """None when the answer gave nothing usable, leaving no timer."""
+    hours = schedule.in_hours(answer, "ask_again_in_hours")
+    return world.at + hours if hours is not None else None
 
 
 def vantage(world, being: Being, event: Event) -> str:
@@ -73,17 +69,12 @@ def vantage(world, being: Being, event: Event) -> str:
     return "nearby"
 
 
-def when_label(world) -> str:
-    light = "light" if world.daylight else "dark"
-    return f"{world.clock} and {light}, {world.season}, {world.date}"
-
-
 def perceive(world, being: Being, event: Event, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Memory]:
     settings = _settings(configuration, CallName.PERCEIVE)
-    being_memories = world.memories(being.id)
+    memories = world.memories(being.id)
     cue = vectorize(configuration, event.account)
-    context = retrieval.recallable(being_memories, world.at, cue)
+    context = retrieval.recallable(memories, world.at, cue)
 
     place = world.places.get(event.place or "")
     call = Call(
@@ -126,7 +117,7 @@ def perceive(world, being: Being, event: Event, configuration,
         event_id=event.id,
         told=[world.at],
     )
-    being_memories.add(memory)
+    memories.add(memory)
     return memory
 
 
@@ -159,12 +150,12 @@ def act(world, being: Being, configuration,
     place = world.places.get(being.where.place)
     reachable_places = [world.places[p] for p in world.map.beside(being.where.place)
                         if p in world.places]
-    being_memories = world.memories(being.id)
+    memories = world.memories(being.id)
     cue = vectorize(configuration, ". ".join(part for part in (
         f"{place.name}. {place.description}" if place else "",
         being.who.thought, "; ".join(being.who.wants)) if part))
     companions = _companions(world, being)
-    context = retrieval.recallable(being_memories, world.at, cue, limit=4)
+    context = retrieval.recallable(memories, world.at, cue, limit=4)
 
     can_leave = may_leave(world, being)
     call = Call(
@@ -214,60 +205,61 @@ def act(world, being: Being, configuration,
 
 def speak(world, speaker: Being, listener: Being, configuration,
           transcript: Optional[Transcript] = None):
-    """Returns (line, memory drawn on) or (None, None)."""
+    """Returns (utterance, the memory it drew on) or (None, None)."""
     settings = _settings(configuration, CallName.SPEAK)
-    speaker_memories = world.memories(speaker.id)
+    memories = world.memories(speaker.id)
     regard = speaker.who.regards.get(listener.id)
     cue = vectorize(configuration, " ".join(part for part in (
         listener.name, regard.account if regard else "",
         world.places[speaker.where.place].name if speaker.where.place in world.places else "",
     ) if part))
-    topics = retrieval.recallable(speaker_memories, world.at, cue, limit=3)
+    associated_memories = retrieval.recallable(memories, world.at, cue, limit=3)
     place = world.places.get(speaker.where.place)
 
     call = Call(
         name=CallName.SPEAK,
         system=prompts.SPEAK_SYSTEM,
         user=prompts.speak_user(speaker, listener, when_label(world),
-                                place.name if place else "somewhere", topics,
+                                place.name if place else "somewhere", associated_memories,
                                 beliefs=held_beliefs(speaker, world.at)),
-        schema=schemas.speak_grammar(len(topics)),
+        schema=schemas.speak_grammar(len(associated_memories)),
         about=speaker.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     if answer is None:
         return None, None
-    line = (answer.get("line") or "").strip().strip('"').strip()
-    if not line:
+    utterance = (answer.get("utterance") or "").strip().strip('"').strip()
+    if not utterance:
         return None, None
 
-    drawn = None
+    associated_memory = None
     about = answer.get("about", "")
-    if about.isdigit() and 1 <= int(about) <= len(topics):
-        drawn = topics[int(about) - 1]
-        drawn.came_up(world.at)
-        speaker_memories.touch()
-    return line, drawn
+    if about.isdigit() and 1 <= int(about) <= len(associated_memories):
+        associated_memory = associated_memories[int(about) - 1]
+        memories.rehearse(associated_memory, world.at)
+    return utterance, associated_memory
 
 
-DIRECTOR_RECENT_EVENTS = 8
+# Shared by `stir` and `arrive`: both give the model the same recent slice
+# of the chronicle.
+TOWN_RECENT_EVENTS = 8
 
 
-def may_direct(world) -> bool:
+def may_stir(world) -> bool:
     return schedule.town_due(world)
 
 
-def direct(world, configuration,
-           transcript: Optional[Transcript] = None) -> Optional[Event]:
-    settings = _settings(configuration, CallName.DIRECT)
-    recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
+def stir(world, configuration,
+         transcript: Optional[Transcript] = None) -> Optional[Event]:
+    settings = _settings(configuration, CallName.STIR)
+    recent = world.chronicle.all()[-TOWN_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
     beings = {p.name: p for p in world.beings.values() if p.present}
     call = Call(
-        name=CallName.DIRECT,
-        system=prompts.DIRECT_SYSTEM,
-        user=prompts.direct_user(world, recent),
-        schema=schemas.direct_grammar(list(places), list(beings)),
+        name=CallName.STIR,
+        system=prompts.STIR_SYSTEM,
+        user=prompts.stir_user(world, recent),
+        schema=schemas.stir_grammar(list(places), list(beings)),
         about="town",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -347,10 +339,22 @@ def may_arrive(world) -> bool:
     return schedule.road_due(world)
 
 
+def _free_being_id(world, name: str) -> str:
+    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
+    candidate, n = f"p_{slug}", 2
+    while candidate in world.beings:
+        candidate, n = f"p_{slug}{n}", n + 1
+    return candidate
+
+
+def leaving_place(world):
+    return world.places.get(world.map.road_out)
+
+
 def arrive(world, configuration,
            transcript: Optional[Transcript] = None) -> Optional[Event]:
     settings = _settings(configuration, CallName.ARRIVE)
-    recent = world.chronicle.all()[-DIRECTOR_RECENT_EVENTS:]
+    recent = world.chronicle.all()[-TOWN_RECENT_EVENTS:]
     call = Call(
         name=CallName.ARRIVE,
         system=prompts.ARRIVE_SYSTEM,
@@ -418,15 +422,15 @@ def may_reflect(world, being: Being, settling: bool) -> bool:
 
 def reflect(world, being: Being, configuration,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
-    being_memories = world.memories(being.id)
+    memories = world.memories(being.id)
     since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
     being.when.reflected_at = world.at
-    today = [t for t in being_memories if t.at > since]
+    today = [t for t in memories if t.at > since]
     if not today:
         return None
     today = retrieval.recallable(today, world.at, limit=3)
     cue = vectorize(configuration, " ".join(t.account for t in today))
-    older = [t for t in retrieval.recallable(being_memories, world.at, cue, limit=7)
+    older = [t for t in retrieval.recallable(memories, world.at, cue, limit=7)
              if t not in today][:3]
     holds = held_beliefs(being, world.at, limit=MAX_BELIEFS)
     known = [world.beings[i].name for i in being.who.regards
@@ -486,7 +490,7 @@ def reflect(world, being: Being, configuration,
     if thought:
         being.who.thought = thought
             # Stored as a memory too, so it can be recalled, decay and be spoken.
-        being_memories.add(Memory(
+        memories.add(Memory(
             id=world.next_id("mem"),
             owner=being.id,
             at=world.at,

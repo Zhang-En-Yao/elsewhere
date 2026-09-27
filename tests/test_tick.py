@@ -85,7 +85,7 @@ class TestTime(TownTest):
 
     def test_a_world_nobody_scheduled_stops_rather_than_inventing_an_hour(self):
         self.say(CallName.ACT, {"because": "", "action": "", "target": ""})
-        self.say(CallName.DIRECT, {"happens": False})
+        self.say(CallName.STIR, {"happens": False})
         self.say(CallName.ARRIVE, {"comes": False})
         tick_mod.tick(self.world, configuration())              # everyone answers, nobody says when
         was = self.world.at
@@ -137,7 +137,7 @@ class TestConversation(TownTest):
     def test_something_said_is_something_someone_else_can_keep(self):
         self.acts(p_havvah={"because": "he was on the roof that night",
                          "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"about": "1", "line": "You were up there. Could you feel it?"})
+        self.say(CallName.SPEAK, {"about": "1", "utterance": "You were up there. Could you feel it?"})
         self.stub.answers["perceive|p_bezalel"] = {
             "account": "she asked if I could feel it", "means": "", "feeling": "unease",
             "stuck": True}
@@ -159,7 +159,7 @@ class TestConversation(TownTest):
 
     def test_the_other_one_answers(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "utterance": "Cold."})
         talk = tick_mod.tick(self.world, configuration()).talks[0]
         self.assertGreater(len(talk.turns), 1)
         self.assertEqual([t.speaker for t in talk.turns[:2]], ["p_havvah", "p_bezalel"])
@@ -170,21 +170,21 @@ class TestConversation(TownTest):
     def test_an_exchange_ends_when_somebody_has_nothing_to_say(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
         self.stub.answers["speak|p_havvah"] = {"about": "nothing in particular",
-                                            "line": "Cold."}
-        self.stub.answers["speak|p_bezalel"] = {"line": ""}
+                                            "utterance": "Cold."}
+        self.stub.answers["speak|p_bezalel"] = {"utterance": ""}
         talk = tick_mod.tick(self.world, configuration()).talks[0]
         self.assertEqual(len(talk.turns), 1, "he had nothing; that is the end of it")
 
     def test_saying_it_keeps_it_in_reach(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"about": "1", "line": "That night."})
+        self.say(CallName.SPEAK, {"about": "1", "utterance": "That night."})
         tick_mod.tick(self.world, configuration())
         self.assertEqual(self.flood.recalls, 2, "she had the floor twice")
         self.assertEqual(self.flood.told[-1], self.world.at)
 
     def test_the_speaker_is_offered_what_they_can_reach(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "utterance": "Cold."})
         tick_mod.tick(self.world, configuration())
         call = self.calls_for(CallName.SPEAK)[0]
         self.assertIn("the water in the doorway", call.user)
@@ -203,13 +203,13 @@ class TestConversation(TownTest):
     def test_two_beings_reaching_for_each_other_have_one_conversation(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
                   p_bezalel={"because": "", "action": "talk", "target": "Havvah"})
-        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Evening."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "utterance": "Evening."})
         report = tick_mod.tick(self.world, configuration())
         self.assertEqual(len(report.talks), 1)
 
     def test_meeting_is_written_into_both_ties(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"about": "nothing in particular", "line": "Evening."})
+        self.say(CallName.SPEAK, {"about": "nothing in particular", "utterance": "Evening."})
         tick_mod.tick(self.world, configuration())
         for a, b in (("p_bezalel", "p_havvah"), ("p_havvah", "p_bezalel")):
             self.assertEqual(self.world.beings[a].who.regards[b].last_seen_at,
@@ -251,9 +251,9 @@ class TestCategories(unittest.TestCase):
         for pid in ("p_bezalel", "p_havvah"):
             world.beings[pid].where.place = "bethel"
         stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
-                            CallName.DIRECT: {"happens": False}, CallName.REFLECT: {},
+                            CallName.STIR: {"happens": False}, CallName.REFLECT: {},
                             CallName.ARRIVE: {"comes": False},
-                            CallName.SPEAK: {"about": "nothing in particular", "line": "Cold."}})
+                            CallName.SPEAK: {"about": "nothing in particular", "utterance": "Cold."}})
         stub.answers["act|p_bezalel"] = {"because": "", "action": "talk", "target": "Havvah"}
         register(stub)
         tick_mod.tick(world, configuration())

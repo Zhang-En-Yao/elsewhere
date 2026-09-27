@@ -147,7 +147,7 @@ def report_lines(world, report) -> List[str]:
     for talk in report.talks:
         for said in talk.turns:
             out.append(f"  {name(world, said.speaker):<7} to {name(world, said.listener)}: "
-                       f"\"{said.line}\"")
+                       f"\"{said.utterance}\"")
             if said.reshaped:
                 out.append(f"  {'':<7}   ({name(world, said.speaker)}'s memory was "
                            f"\"{said.reshaped[0]}\"; now \"{said.reshaped[1]}\")")

@@ -31,7 +31,7 @@ class Town(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.world = seed.build(Path(self.tmp.name) / "world")
         self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
-                                 CallName.DIRECT: QUIET, CallName.REFLECT: {}})
+                                 CallName.STIR: QUIET, CallName.REFLECT: {}})
         register(self.stub)
 
     def tearDown(self):
@@ -44,19 +44,19 @@ class Town(unittest.TestCase):
         self.world.at += 24
 
 
-class TestDirector(Town):
+class TestStir(Town):
     def test_asked_about_once_a_day_whatever_the_hour(self):
         for _ in range(4):                       # four steps: a whole day
             tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls(CallName.DIRECT)), 1,
+        self.assertEqual(len(self.calls(CallName.STIR)), 1,
                          "asked on the first step, then not again inside the day")
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls(CallName.DIRECT)), 2,
+        self.assertEqual(len(self.calls(CallName.STIR)), 2,
                          "a day on, it is worth asking again")
 
     def test_it_can_only_name_what_exists(self):
         tick_mod.tick(self.world, configuration())
-        schema = self.calls(CallName.DIRECT)[0].schema
+        schema = self.calls(CallName.STIR)[0].schema
         self.assertIn("Mizpah", schema["properties"]["where"]["enum"])
         self.assertEqual(schema["properties"]["who"]["enum"],
                          ["", "Bezalel", "Havvah", "Lilith"])
@@ -68,7 +68,7 @@ class TestDirector(Town):
         self.assertEqual(len(self.world.chronicle), before)
 
     def test_something_happening_to_someone_happens_where_they_are(self):
-        self.stub.set(CallName.DIRECT, {"why_now": "the roof", "what": "A beam cracked overhead.",
+        self.stub.set(CallName.STIR, {"why_now": "the roof", "what": "A beam cracked overhead.",
                                  "where": "Mizpah", "who": "Bezalel",
                                  "reach": "the people there",                                  "happens": True})
         self.stub.answers["perceive|p_bezalel"] = {"account": "the crack before the dust",
@@ -81,7 +81,7 @@ class TestDirector(Town):
         self.assertEqual([t.owner for t in report.occurrence.kept], ["p_bezalel"])
 
     def test_something_the_whole_town_notices_reaches_everyone(self):
-        self.stub.set(CallName.DIRECT, {"why_now": "", "what": "A storm broke over the town.",
+        self.stub.set(CallName.STIR, {"why_now": "", "what": "A storm broke over the town.",
                                  "where": "Beth El", "who": "",
                                  "reach": "the whole town",                                  "happens": True})
         report = tick_mod.tick(self.world, configuration())
@@ -93,16 +93,16 @@ class TestDirector(Town):
         self.assertIn("word of it reached you", lilith.user)
 
     def test_the_town_says_itself_how_long_a_quiet_stretch_it_gets(self):
-        self.stub.set(CallName.DIRECT, {"why_now": "", "what": "A goat got loose.",
+        self.stub.set(CallName.STIR, {"why_now": "", "what": "A goat got loose.",
                                  "where": "Beth El", "who": "",
                                  "reach": "the people there", "happens": True,
                                  "ask_again_in_hours": 336.0})
         tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls(CallName.DIRECT)), 1)
+        self.assertEqual(len(self.calls(CallName.STIR)), 1)
         self.assertEqual(self.world.town_wake_at, self.world.at + 336.0)
         for _ in range(8):                       # two days further on
             tick_mod.tick(self.world, configuration())
-        self.assertEqual(len(self.calls(CallName.DIRECT)), 1,
+        self.assertEqual(len(self.calls(CallName.STIR)), 1,
                          "it said a fortnight, and a fortnight is what it gets")
         for name in ("DIRECTOR_MIN_GAP", "DIRECTOR_EVERY"):
             self.assertFalse(hasattr(agents, name))
@@ -118,7 +118,7 @@ class TestRecall(Town):
                            feeling="fear")
         self.world.memories("p_havvah").add(self.flood)
         self.stub.answers["act|p_havvah"] = {"because": "", "action": "talk", "target": "Bezalel"}
-        self.stub.set(CallName.SPEAK, {"about": "1", "line": "That night."})
+        self.stub.set(CallName.SPEAK, {"about": "1", "utterance": "That night."})
 
     def test_telling_it_changes_it(self):
         self.stub.set(CallName.RECALL, {"account": "water, and not being able to look away",
@@ -155,7 +155,7 @@ class TestRecall(Town):
         self.assertEqual(self.flood.history, [])
 
     def test_small_talk_recalls_nothing(self):
-        self.stub.set(CallName.SPEAK, {"about": "nothing in particular", "line": "Cold."})
+        self.stub.set(CallName.SPEAK, {"about": "nothing in particular", "utterance": "Cold."})
         tick_mod.tick(self.world, configuration())
         self.assertEqual(self.calls(CallName.RECALL), [])
 
