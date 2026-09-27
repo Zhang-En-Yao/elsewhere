@@ -18,10 +18,20 @@ from .world.store import clock_at, date_at, season_at
 from .schemas import Action, CallName
 
 
-# Shared by more than one call below; a helper used by only one lives next
-# to that call instead.
+@dataclass
+class Decision:
+    being_id: str
+    action: Optional[Action] = None   # None: nothing for the engine to resolve
+    target: Optional[str] = None      # place id or person id, resolved
+    because: str = ""
+    doing: str = ""
+    settling: bool = False
+    answered: bool = True             # False when the mind gave nothing usable
 
-def _settings(configuration, name: CallName) -> Settings:
+
+# Helpers.
+
+def call_settings(configuration, name: CallName) -> Settings:
     return configuration[name]
 
 
@@ -39,7 +49,7 @@ def held_beliefs(being: Being, at: float, limit: int = 3) -> List:
     return retrieval.recallable(being.who.beliefs, at, limit=limit)
 
 
-def _companions(world, being: Being) -> List[Being]:
+def companions_present(world, being: Being) -> List[Being]:
     return [b for b in world.beings_at(being.where.place) if b.id != being.id]
 
 
@@ -48,7 +58,7 @@ def when_label(world) -> str:
     return f"{world.clock} and {light}, {world.season}, {world.date}"
 
 
-def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
+def next_wake_at(world, answer: Optional[dict]) -> Optional[float]:
     """None when the answer gave nothing usable, leaving no timer."""
     hours = schedule.in_hours(answer, "ask_again_in_hours")
     return world.at + hours if hours is not None else None
@@ -69,9 +79,97 @@ def vantage(world, being: Being, event: Event) -> str:
     return "nearby"
 
 
+# Shared by `stir` and `arrive`: both give the model the same recent slice
+# of the chronicle.
+TOWN_RECENT_EVENTS = 8
+
+MAX_BELIEFS = 6
+
+
+def may_stir(world) -> bool:
+    return schedule.town_due(world)
+
+
+def may_leave(world, being: Being) -> bool:
+    return bool(world.map.road_out) and being.where.place == world.map.road_out
+
+
+def may_arrive(world) -> bool:
+    return schedule.road_due(world)
+
+
+def may_reflect(world, being: Being, settling: bool) -> bool:
+    """Only when they say they are stopping for the day, and only if anything
+    has happened to them since they last reflected."""
+    if not settling:
+        return False
+    since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
+    return any(t.at > since for t in world.memories(being.id))
+
+
+def short_of_somebody(world) -> bool:
+    lost = sum(1 for p in world.beings.values() if not p.present)
+    taken = sum(1 for e in world.chronicle.all() if e.category == ARRIVAL)
+    return lost > taken
+
+
+def leaving_place(world):
+    return world.places.get(world.map.road_out)
+
+
+def free_being_id(world, name: str) -> str:
+    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
+    candidate, n = f"p_{slug}", 2
+    while candidate in world.beings:
+        candidate, n = f"p_{slug}{n}", n + 1
+    return candidate
+
+
+def perceive_all(world, event: Event, configuration,
+                 transcript: Optional[Transcript] = None) -> List[Memory]:
+    out = []
+    for being in world.beings.values():
+        if not being.present or being.id not in event.reached:
+            continue
+        memory = perceive(world, being, event, configuration, transcript)
+        if memory is not None:
+            out.append(memory)
+    return out
+
+
+def leave(world, being: Being, because: str, configuration,
+           transcript: Optional[Transcript] = None):
+    """Returns (event, memories it left in people)."""
+    place = world.places.get(being.where.place)
+    where = place.name if place else "the road"
+    reached = [p.id for p in world.beings.values() if p.present]
+    vantage = {}
+    for pid in reached:
+        if pid == being.id:
+            vantage[pid] = f"on the road out of {world.name}, looking back"
+        elif world.beings[pid].where.place == being.where.place:
+            vantage[pid] = f"right there, at {where}"
+        else:
+            other = world.places.get(world.beings[pid].where.place)
+            vantage[pid] = (f"at {other.name}, and word of it reached you there"
+                            if other else "and word of it reached you")
+    event = world.record(
+        DEPARTURE,
+        f"{being.name} took the road out of {world.name} and did not come back.",
+        place=being.where.place, involved=[being.id], reached=reached,
+        data={"because": because, "person": being.id, "vantage": vantage},
+    )
+    kept = perceive_all(world, event, configuration, transcript)
+    being.when.left_at = world.at
+    being.where.now("took the road out of town")
+    return event, kept
+
+
+# Call sites.
+
 def perceive(world, being: Being, event: Event, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Memory]:
-    settings = _settings(configuration, CallName.PERCEIVE)
+    settings = call_settings(configuration, CallName.PERCEIVE)
     memories = world.memories(being.id)
     cue = vectorize(configuration, event.account)
     context = retrieval.recallable(memories, world.at, cue)
@@ -121,32 +219,9 @@ def perceive(world, being: Being, event: Event, configuration,
     return memory
 
 
-def perceive_all(world, event: Event, configuration,
-                 transcript: Optional[Transcript] = None) -> List[Memory]:
-    out = []
-    for being in world.beings.values():
-        if not being.present or being.id not in event.reached:
-            continue
-        memory = perceive(world, being, event, configuration, transcript)
-        if memory is not None:
-            out.append(memory)
-    return out
-
-
-@dataclass
-class Decision:
-    being_id: str
-    action: Optional[Action] = None   # None: nothing for the engine to resolve
-    target: Optional[str] = None      # place id or person id, resolved
-    because: str = ""
-    doing: str = ""
-    settling: bool = False
-    answered: bool = True             # False when the mind gave nothing usable
-
-
 def act(world, being: Being, configuration,
         transcript: Optional[Transcript] = None) -> Decision:
-    settings = _settings(configuration, CallName.ACT)
+    settings = call_settings(configuration, CallName.ACT)
     place = world.places.get(being.where.place)
     reachable_places = [world.places[p] for p in world.map.beside(being.where.place)
                         if p in world.places]
@@ -154,7 +229,7 @@ def act(world, being: Being, configuration,
     cue = vectorize(configuration, ". ".join(part for part in (
         f"{place.name}. {place.description}" if place else "",
         being.who.thought, "; ".join(being.who.wants)) if part))
-    companions = _companions(world, being)
+    companions = companions_present(world, being)
     context = retrieval.recallable(memories, world.at, cue, limit=4)
 
     can_leave = may_leave(world, being)
@@ -206,7 +281,7 @@ def act(world, being: Being, configuration,
 def speak(world, speaker: Being, listener: Being, configuration,
           transcript: Optional[Transcript] = None):
     """Returns (utterance, the memory it drew on) or (None, None)."""
-    settings = _settings(configuration, CallName.SPEAK)
+    settings = call_settings(configuration, CallName.SPEAK)
     memories = world.memories(speaker.id)
     regard = speaker.who.regards.get(listener.id)
     cue = vectorize(configuration, " ".join(part for part in (
@@ -240,18 +315,9 @@ def speak(world, speaker: Being, listener: Being, configuration,
     return utterance, associated_memory
 
 
-# Shared by `stir` and `arrive`: both give the model the same recent slice
-# of the chronicle.
-TOWN_RECENT_EVENTS = 8
-
-
-def may_stir(world) -> bool:
-    return schedule.town_due(world)
-
-
 def stir(world, configuration,
          transcript: Optional[Transcript] = None) -> Optional[Event]:
-    settings = _settings(configuration, CallName.STIR)
+    settings = call_settings(configuration, CallName.STIR)
     recent = world.chronicle.all()[-TOWN_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
     beings = {p.name: p for p in world.beings.values() if p.present}
@@ -264,7 +330,7 @@ def stir(world, configuration,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
     # Set before anything else so the timer holds even if the rest is unusable.
-    world.town_wake_at = _asked_again(world, answer)
+    world.town_wake_at = next_wake_at(world, answer)
     if not answer or not answer.get("happens"):
         return None
     what = (answer.get("what") or "").strip()
@@ -278,16 +344,14 @@ def stir(world, configuration,
     if place is None:
         return None
 
-    here = [p.id for p in world.beings_at(place.id)]
-    if answer.get("reach") == "the whole town":
-        reached = [p.id for p in world.beings.values() if p.present]
-        vantage = {pid: (f"right there, at {place.name}" if pid in here
-                         else f"at {world.places[world.beings[pid].where.place].name}, "
-                              f"and word of it reached you there")
-                   for pid in reached}
-    else:
-        reached = here
-        vantage = {pid: f"right there, at {place.name}" for pid in reached}
+    reached = ([p.id for p in world.beings.values() if p.present]
+               if answer.get("reach") == "the whole town"
+               else [p.id for p in world.beings_at(place.id)])
+    vantage = {pid: (f"right there, at {place.name}"
+                     if world.beings[pid].where.place == place.id
+                     else f"at {world.places[world.beings[pid].where.place].name}, "
+                          f"and word of it reached you there")
+               for pid in reached}
     return world.record(
         OCCURRENCE, what, place=place.id,
         involved=[who.id] if who is not None else [],
@@ -297,63 +361,9 @@ def stir(world, configuration,
     )
 
 
-def may_leave(world, being: Being) -> bool:
-    return bool(world.map.road_out) and being.where.place == world.map.road_out
-
-
-def leave(world, being: Being, because: str, configuration,
-           transcript: Optional[Transcript] = None):
-    """Returns (event, memories it left in people)."""
-    place = world.places.get(being.where.place)
-    where = place.name if place else "the road"
-    reached = [p.id for p in world.beings.values() if p.present]
-    vantage = {}
-    for pid in reached:
-        if pid == being.id:
-            vantage[pid] = f"on the road out of {world.name}, looking back"
-        elif world.beings[pid].where.place == being.where.place:
-            vantage[pid] = f"right there, at {where}"
-        else:
-            other = world.places.get(world.beings[pid].where.place)
-            vantage[pid] = (f"at {other.name}, and word of it reached you there"
-                            if other else "and word of it reached you")
-    event = world.record(
-        DEPARTURE,
-        f"{being.name} took the road out of {world.name} and did not come back.",
-        place=being.where.place, involved=[being.id], reached=reached,
-        data={"because": because, "person": being.id, "vantage": vantage},
-    )
-    kept = perceive_all(world, event, configuration, transcript)
-    being.when.left_at = world.at
-    being.where.now("took the road out of town")
-    return event, kept
-
-
-def short_of_somebody(world) -> bool:
-    lost = sum(1 for p in world.beings.values() if not p.present)
-    taken = sum(1 for e in world.chronicle.all() if e.category == ARRIVAL)
-    return lost > taken
-
-
-def may_arrive(world) -> bool:
-    return schedule.road_due(world)
-
-
-def _free_being_id(world, name: str) -> str:
-    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
-    candidate, n = f"p_{slug}", 2
-    while candidate in world.beings:
-        candidate, n = f"p_{slug}{n}", n + 1
-    return candidate
-
-
-def leaving_place(world):
-    return world.places.get(world.map.road_out)
-
-
 def arrive(world, configuration,
            transcript: Optional[Transcript] = None) -> Optional[Event]:
-    settings = _settings(configuration, CallName.ARRIVE)
+    settings = call_settings(configuration, CallName.ARRIVE)
     recent = world.chronicle.all()[-TOWN_RECENT_EVENTS:]
     call = Call(
         name=CallName.ARRIVE,
@@ -363,7 +373,7 @@ def arrive(world, configuration,
         about="road",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
-    world.road_wake_at = _asked_again(world, answer)
+    world.road_wake_at = next_wake_at(world, answer)
     if not answer or not answer.get("comes"):
         return None
 
@@ -376,7 +386,7 @@ def arrive(world, configuration,
 
     came_from = (answer.get("from_where") or "").strip()
     being = Being(
-        id=_free_being_id(world, name),
+        id=free_being_id(world, name),
         name=name,
         who=Who(card=(answer.get("card") or "").strip(),
                 manner=(answer.get("manner") or "").strip()),
@@ -408,18 +418,6 @@ def arrive(world, configuration,
     )
 
 
-MAX_BELIEFS = 6
-
-
-def may_reflect(world, being: Being, settling: bool) -> bool:
-    """Only when they say they are stopping for the day, and only if anything
-    has happened to them since they last reflected."""
-    if not settling:
-        return False
-    since = being.when.reflected_at if being.when.reflected_at is not None else -1.0
-    return any(t.at > since for t in world.memories(being.id))
-
-
 def reflect(world, being: Being, configuration,
             transcript: Optional[Transcript] = None) -> Optional[dict]:
     memories = world.memories(being.id)
@@ -435,9 +433,9 @@ def reflect(world, being: Being, configuration,
     holds = held_beliefs(being, world.at, limit=MAX_BELIEFS)
     known = [world.beings[i].name for i in being.who.regards
              if i in world.beings]
-    known += [p.name for p in _companions(world, being)
+    known += [p.name for p in companions_present(world, being)
               if p.name not in known]
-    settings = _settings(configuration, CallName.REFLECT)
+    settings = call_settings(configuration, CallName.REFLECT)
     call = Call(
         name=CallName.REFLECT,
         system=prompts.REFLECT_SYSTEM,
@@ -507,7 +505,7 @@ def recall(world, being: Being, memory: Memory, configuration,
            transcript: Optional[Transcript] = None) -> bool:
     """Ask how a just-mentioned memory comes back now; the old wording is kept
     in the memory's history."""
-    settings = _settings(configuration, CallName.RECALL)
+    settings = call_settings(configuration, CallName.RECALL)
     age = max(0, int((world.at - memory.at) // HOURS_PER_DAY))
     call = Call(
         name=CallName.RECALL,
