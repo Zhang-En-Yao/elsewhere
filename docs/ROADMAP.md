@@ -37,8 +37,8 @@ Landed:
 - **The road** — people leave and are not got back, and a town is asked who
   comes up the road: about monthly while it is down somebody, about yearly
   when it is not. A seventh call site, `arrive`, and a sixth verb for `act`
-  that only exists where the road does. The population moves both ways
-  between a floor of two and a ceiling of eight.
+  that only exists where the road does. The population moves both ways,
+  with no floor or ceiling.
 - **A window** — `elsewhere watch`, which is the printed views with room to
   put two of them side by side: what is in reach above the line where reach
   ended, and what is not below it, dimmed. It reads and only reads - no key on
@@ -95,7 +95,7 @@ be wrong in some specific way.
 
 ## P5 — Making things
 
-**The gap.** `ACTIONS` is three verbs
+**The gap.** `ACTIONS` is two verbs
 ([`schemas.py`](../src/elsewhere/schemas.py)) and the comment there already
 names the plan: `make` and `tend` arrive with art. `Memory.source = "made"`
 is reserved and unwritten.

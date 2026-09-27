@@ -7,7 +7,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from . import agents, schedule, schemas
+from . import agents, schedule
+from .schemas import Action
 from .backends import Transcript
 from .world.chronicle import CONVERSATION
 from .world.entities import Being
@@ -184,17 +185,17 @@ def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickR
     #    for the leaver finds them gone.
     for being in minds:
         d = report.decisions[being.id]
-        if d.action == schemas.LEAVE:
-            event, kept = agents.depart(world, being, d.because, configuration, transcript)
+        if d.action == Action.LEAVE:
+            event, kept = agents.leave(world, being, d.because, configuration, transcript)
             schedule.rouse(world, [p for p in event.reached if p != being.id],
                            about=event.reached)
             report.departures.append(Departure(being.id, event.id, d.because, kept))
-        elif d.action == "go" and d.target is not None and d.target in world.places:
+        elif d.action == Action.MOVE and d.target is not None and d.target in world.places:
             before = being.where.place
             being.where.place = d.target
-            being.where.now(f"walked to {world.places[d.target].name}")
+            being.where.now(f"went to {world.places[d.target].name}")
             report.moves.append((being.id, before, d.target))
-        elif d.action != "talk":
+        elif d.action != Action.TALK:
             being.where.now(d.doing or "stayed where they were")
 
     # 3. Conversations, among people still in the same place.
@@ -202,7 +203,7 @@ def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickR
     engaged = set()
     for being in minds:
         d = report.decisions[being.id]
-        if d.action != "talk" or being.id in engaged:
+        if d.action != Action.TALK or being.id in engaged:
             continue
         other = world.beings.get(d.target or "")
         if other is None:

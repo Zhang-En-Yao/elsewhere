@@ -140,7 +140,7 @@ def report_lines(world, report) -> List[str]:
         being = world.beings[person_id]
         if person_id in talked:
             continue
-        what = being.where.doing or decision.doing or decision.action
+        what = being.where.doing or decision.doing or (decision.action or '')
         why = (f'  - "{decision.because}"' if decision.because
                else ("  (no answer)" if not decision.answered else ""))
         out.append(f"  {being.name:<7} {what:<34}{why}")

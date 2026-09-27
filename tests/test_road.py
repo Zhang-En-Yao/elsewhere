@@ -16,7 +16,7 @@ from elsewhere.world.entities import Where
 from elsewhere.world.memories import Memory
 
 CALLS = tuple(CallName)[:-1]    # every call but the probe
-STAY = {"because": "", "doing": "", "action": "stay", "target": "",
+STAY = {"because": "", "doing": "", "action": "", "target": "",
         "for_hours": 6.0, "settling": False}
 QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
          "reach": "the people there", "happens": False,
@@ -76,11 +76,13 @@ class TestWhetherAnyoneCanGoAtAll(Road):
         self.assertTrue(agents.may_leave(self.world, self.lilith),
                         "whether to go at this hour is hers to answer, in 'because'")
 
-    def test_not_if_it_would_stop_being_a_town(self):
-        self.world.beings["p_bezalel"].when.left_at = self.world.at
-        self.assertEqual(len(self.present()), 2)
-        self.assertFalse(agents.may_leave(self.world, self.lilith),
-                         "two people are not a town anybody can leave")
+    def test_even_the_last_of_them_may_go(self):
+        for pid in ("p_bezalel", "p_havvah"):
+            self.world.beings[pid].when.left_at = self.world.at
+        self.assertEqual(self.present(), ["p_lilith"])
+        self.lilith.where.place = "mizpah"
+        self.assertTrue(agents.may_leave(self.world, self.lilith),
+                        "there is no number of people below which nobody may go")
 
     def test_how_often_anybody_goes_is_nobody_business_but_theirs(self):
         self.world.beings["p_x0"] = type(self.lilith)(id="p_x0", name="X0", where=Where(place="bethel"))
@@ -107,7 +109,7 @@ class TestWhetherAnyoneCanGoAtAll(Road):
         self.lilith.where.place = "yard"           # no road out of the yard
         self.stub.answers["act|p_lilith"] = GOING
         report = tick_mod.tick(self.world, configuration())
-        self.assertEqual(report.decisions["p_lilith"].action, "stay")
+        self.assertIsNone(report.decisions["p_lilith"].action)
         self.assertIn("p_lilith", self.present())
 
 
@@ -279,28 +281,26 @@ class TestComing(Road):
         self.assertEqual(len(self.present()), 4,
                          "nobody left, and the town is bigger than it started")
 
-    def test_but_not_more_than_a_town_anybody_knows(self):
-        for n in range(agents.TOWN_CEILING - len(self.present())):
+    def test_an_empty_town_is_still_a_town_the_road_is_asked_about(self):
+        for being in self.world.beings.values():
+            being.when.left_at = self.world.at
+        self.assertEqual(self.present(), [])
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
+        report = self.after_a_gap()
+        self.assertIsNotNone(report.arrival)
+        self.assertEqual(len(self.present()), 1)
+
+    def test_and_nobody_is_turned_away_for_the_town_being_big(self):
+        for n in range(10):
             self.world.beings[f"p_x{n}"] = type(self.lilith)(
                 id=f"p_x{n}", name=f"X{n}", where=Where(place="bethel"))
-        self.assertEqual(len(self.present()), agents.TOWN_CEILING)
+        self.assertGreater(len(self.present()), 8)
         self.world.road_wake_at = self.world.at
-        self.assertFalse(agents.may_arrive(self.world),
-                         "there is nowhere to put anybody, so it is never asked")
-
-    def test_and_can_shrink_until_it_stops_being_one(self):
-        # A filler lets one test see both the allowed and the blocked departure.
-        filler = type(self.lilith)(id="p_x0", name="X0", where=Where(place="bethel"))
-        self.world.beings["p_x0"] = filler
-        self.send_lilith_away()                    # 3 present: bezalel, havvah, x0
-        filler.where.place = "mizpah"
-        self.assertTrue(agents.may_leave(self.world, filler))
-        filler.when.left_at = self.world.at
-        bezalel = self.world.beings["p_bezalel"]
-        bezalel.where.place = "mizpah"
-        self.assertEqual(len(self.present()), 2)
-        self.assertFalse(agents.may_leave(self.world, bezalel),
-                         "the last two cannot both walk out")
+        self.assertTrue(agents.may_arrive(self.world))
+        self.stub.set(CallName.ARRIVE, SOMEBODY)
+        before = len(self.present())
+        self.after_a_gap()
+        self.assertEqual(len(self.present()), before + 1)
 
     def test_a_name_the_town_already_uses_is_refused(self):
         self.send_lilith_away()

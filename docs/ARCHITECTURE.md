@@ -202,10 +202,8 @@ being asked sets its own interval, in the same answer**:
   asking again. Both are asked for whether or not anything happened, so a town
   that has just had a fire can take its fortnight.
 
-Two numbers are the engine's, and neither is a rate: `TOWN_FLOOR` (2) and
-`TOWN_CEILING` (8) — below two there is nobody to talk to, above eight it stops
-being a town where everybody knows everybody. That is the author's design of
-what kind of world this is.
+The engine puts no limit on the town's size: anybody may leave, even the last
+of them, and the road is asked however many are already here.
 
 Three more are budgets: `retrieval.CONTEXT_MEMORIES` (6) is how many memories a
 prompt can hold, `agents.MAX_BELIEFS` (6) how many beliefs a file keeps, and
@@ -281,12 +279,9 @@ Leaving and arriving go through the same engine-decides/mind-decides split as
 everything else, but the facts checked are about the map, not about wants:
 
 - `agents.may_leave(world, person)` — does the road go out from where they are
-  standing (`world.map.road_out`), and would there still be a town behind them
-  (`TOWN_FLOOR`). Only if both hold does `leave` enter the grammar `act` is
-  asked under. Whether to take it, and at what hour, is theirs.
-- `agents.may_arrive(world)` — is the town at or above `TOWN_CEILING`, in which
-  case there is nowhere to put anybody and the road is never asked; otherwise,
-  has the road's own timer come round. `short_of_somebody` is a fact shown *to*
+  standing (`world.map.road_out`). Only if it does does `leave` enter the
+  grammar `act` is asked under. Whether to take it, and at what hour, is theirs.
+- `agents.may_arrive(world)` — has the road's own timer come round. `short_of_somebody` is a fact shown *to*
   the road rather than the engine's reason for asking it.
 
 Whoever leaves is recorded as a `departure` event and perceived by everyone

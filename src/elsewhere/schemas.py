@@ -21,9 +21,19 @@ class CallName(str, Enum):
         return self.value
 
 
-ACTIONS = ["stay", "go", "talk"]
-# Offered only where agents.may_leave allows it; see act_grammar.
-LEAVE = "leave"
+class Action(str, Enum):
+    MOVE = "move"
+    TALK = "talk"
+    # Offered only where agents.may_leave allows it; see act_grammar.
+    LEAVE = "leave"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+# Nothing to resolve is the empty string, as it is for `target`.
+NO_ACTION = ""
+ACTIONS = [Action.MOVE, Action.TALK]
 
 # Under a grammar keys are generated in declaration order, so every schema puts
 # reasoning first and the decision last.
@@ -43,7 +53,7 @@ ACT = {
     "properties": {
         "because": {"type": "string"},
         "doing": {"type": "string"},
-        "action": {"type": "string", "enum": ACTIONS + [LEAVE]},
+        "action": {"type": "string", "enum": [NO_ACTION] + ACTIONS + [Action.LEAVE]},
         "target": {"type": "string"},
         # The only thing that schedules a person's next turn; see `schedule`.
         "for_hours": {"type": "number"},
@@ -203,7 +213,7 @@ def act_grammar(places: List[str], beings: List[str],
     options = [""] + sorted(set(places) | set(beings))
     schema["properties"]["target"] = {"type": "string", "enum": options}
     schema["properties"]["action"] = {
-        "type": "string", "enum": ACTIONS + ([LEAVE] if may_leave else [])}
+        "type": "string", "enum": [NO_ACTION] + ACTIONS + ([Action.LEAVE] if may_leave else [])}
     return schema
 
 

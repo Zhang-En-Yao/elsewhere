@@ -19,7 +19,7 @@ from elsewhere.world import chronicle, store
 from elsewhere.world.memories import Memory
 
 CALLS = tuple(CallName)[:-1]    # every call but the probe
-STAY = {"because": "", "doing": "", "action": "stay", "target": "",
+STAY = {"because": "", "doing": "", "action": "", "target": "",
         "for_hours": 6.0, "settling": False}
 
 
@@ -84,7 +84,7 @@ class TestTime(TownTest):
                          "and a thing that happens to her is not maskable")
 
     def test_a_world_nobody_scheduled_stops_rather_than_inventing_an_hour(self):
-        self.say(CallName.ACT, {"because": "", "action": "stay", "target": ""})
+        self.say(CallName.ACT, {"because": "", "action": "", "target": ""})
         self.say(CallName.DIRECT, {"happens": False})
         self.say(CallName.ARRIVE, {"comes": False})
         tick_mod.tick(self.world, configuration())              # everyone answers, nobody says when
@@ -116,7 +116,7 @@ class TestChoices(TownTest):
                          ["", "Beth El", "Marah", "The Boatyard"])
 
     def test_going_somewhere(self):
-        self.acts(p_havvah={"because": "the seedbed can wait", "action": "go",
+        self.acts(p_havvah={"because": "the seedbed can wait", "action": "move",
                          "target": "Beth El"})
         report = tick_mod.tick(self.world, configuration())
         self.assertEqual(self.world.beings["p_havvah"].where.place, "bethel")
@@ -193,7 +193,7 @@ class TestConversation(TownTest):
 
     def test_you_cannot_talk_to_someone_who_just_left(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
-                  p_bezalel={"because": "the roof", "action": "go",
+                  p_bezalel={"because": "the roof", "action": "move",
                           "target": "Beth El"})
         report = tick_mod.tick(self.world, configuration())
         self.assertEqual(report.talks, [])
@@ -219,14 +219,17 @@ class TestConversation(TownTest):
 class TestStayingPut(TownTest):
 
     def test_the_verbs_are_only_what_the_engine_can_resolve(self):
-        self.assertEqual(set(schemas.ACTIONS), {"stay", "go", "talk"})
+        self.assertEqual(set(schemas.ACTIONS), {"move", "talk"})
+        offered = schemas.act_grammar([], [])["properties"]["action"]["enum"]
+        self.assertEqual(offered, ["", "move", "talk"],
+                         "there is no verb for doing nothing; that is an empty action")
         self.assertNotIn("enum", schemas.ACT["properties"]["doing"])
 
     def test_staying_put_is_described_rather_than_categorised(self):
         self.stub.answers["act|p_havvah"] = {
             "because": "nothing I could name",
             "doing": "sitting in the doorway with the seed trays, not sorting them",
-            "action": "stay", "target": ""}
+            "action": "", "target": ""}
         tick_mod.tick(self.world, configuration())
         self.assertEqual(
             self.world.beings["p_havvah"].where.doing,
