@@ -3,6 +3,7 @@ is written into the world."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
 from . import prompts, retrieval, schedule, schemas
@@ -14,11 +15,33 @@ from .world.entities import Being, When, Where, Who
 from .world.memories import Memory
 from . import HOURS_PER_DAY
 from .world.store import clock_at, date_at, season_at
-from .schemas import CallName
+from .schemas import Action, CallName
 
 
 def _settings(configuration, name: CallName) -> Settings:
     return configuration[name]
+
+
+def _companions(world, being: Being) -> List[Being]:
+    return [b for b in world.beings_at(being.where.place) if b.id != being.id]
+
+
+def _free_being_id(world, name: str) -> str:
+    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
+    candidate, n = f"p_{slug}", 2
+    while candidate in world.beings:
+        candidate, n = f"p_{slug}{n}", n + 1
+    return candidate
+
+
+def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
+    """None when the answer gave nothing usable, leaving no timer."""
+    hours = schedule.in_hours(answer, "ask_again_in_hours")
+    return world.at + hours if hours is not None else None
+
+
+def leaving_place(world):
+    return world.places.get(world.map.road_out)
 
 
 def vectorize(configuration, account: str) -> List[float]:
@@ -29,10 +52,6 @@ def vectorize(configuration, account: str) -> List[float]:
         return []
     got = embed([account], settings)
     return got[0] if got else []
-
-
-def _others_here(world, being: Being) -> List[Being]:
-    return [p for p in world.beings_at(being.where.place) if p.id != being.id]
 
 
 def held_beliefs(being: Being, at: float, limit: int = 3) -> List:
@@ -52,6 +71,11 @@ def vantage(world, being: Being, event: Event) -> str:
     if here:
         return f"at {here.name}, and it reached you from there"
     return "nearby"
+
+
+def when_label(world) -> str:
+    light = "light" if world.daylight else "dark"
+    return f"{world.clock} and {light}, {world.season}, {world.date}"
 
 
 def perceive(world, being: Being, event: Event, configuration,
@@ -118,13 +142,10 @@ def perceive_all(world, event: Event, configuration,
     return out
 
 
-from dataclasses import dataclass as _dataclass
-
-
-@_dataclass
+@dataclass
 class Decision:
     being_id: str
-    action: str = "stay"
+    action: Optional[Action] = None   # None: nothing for the engine to resolve
     target: Optional[str] = None      # place id or person id, resolved
     because: str = ""
     doing: str = ""
@@ -132,36 +153,31 @@ class Decision:
     answered: bool = True             # False when the mind gave nothing usable
 
 
-def when_label(world) -> str:
-    light = "light" if world.daylight else "dark"
-    return f"{world.clock} and {light}, {world.season}, {world.date}"
-
-
 def act(world, being: Being, configuration,
         transcript: Optional[Transcript] = None) -> Decision:
     settings = _settings(configuration, CallName.ACT)
     place = world.places.get(being.where.place)
-    others = _others_here(world, being)
-    reachable = [world.places[n] for n in world.map.beside(being.where.place)
-                 if n in world.places]
+    reachable_places = [world.places[p] for p in world.map.beside(being.where.place)
+                        if p in world.places]
     being_memories = world.memories(being.id)
-    cue = vectorize(configuration, ". ".join(x for x in (
+    cue = vectorize(configuration, ". ".join(part for part in (
         f"{place.name}. {place.description}" if place else "",
-        being.who.thought, "; ".join(being.who.wants)) if x))
+        being.who.thought, "; ".join(being.who.wants)) if part))
+    companions = _companions(world, being)
     context = retrieval.recallable(being_memories, world.at, cue, limit=4)
 
-    going = may_leave(world, being)
+    can_leave = may_leave(world, being)
     call = Call(
         name=CallName.ACT,
         system=prompts.ACT_SYSTEM,
-        user=prompts.act_user(being, when_label(world), world.at, place, others,
-                              [p.name for p in reachable], context,
+        user=prompts.act_user(being, when_label(world), world.at, place, companions,
+                              [p.name for p in reachable_places], context,
                               home_name=(world.places[being.where.home].name
                                          if being.where.home in world.places else ""),
-                              may_leave=going,
+                              may_leave=can_leave,
                               beliefs=held_beliefs(being, world.at)),
-        schema=schemas.act_grammar([p.name for p in reachable],
-                                   [o.name for o in others], may_leave=going),
+        schema=schemas.act_grammar([p.name for p in reachable_places],
+                                   [c.name for c in companions], may_leave=can_leave),
         about=being.id,
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -169,26 +185,31 @@ def act(world, being: Being, configuration,
     # `schedule.advance_to_next_due`.
     schedule.set_timer(being, world, answer)
     if answer is None:
-        return Decision(being.id, "stay", None, "", answered=False)
+        return Decision(being.id, None, None, "", answered=False)
 
-    action = answer.get("action", "stay")
+    try:
+        action = Action(answer.get("action") or "")
+    except ValueError:
+        # An empty or unknown action is nothing to resolve; unknown ones are
+        # only reachable with a lenient backend, the grammar forbids them.
+        action = None
     name = (answer.get("target") or "").strip()
     because = (answer.get("because") or "").strip()
     doing = (answer.get("doing") or "").strip()
-    target = None
-    if action == "go":
-        match = next((p for p in reachable if p.name == name), None)
-        target = match.id if match else None
-    elif action == "talk":
-        match = next((o for o in others if o.name == name), None)
-        target = match.id if match else None
-    if action in ("go", "talk") and target is None:
-        # Only reachable with a lenient backend; the grammar forbids it.
-        action = "stay"
-    if action == schemas.LEAVE and not going:
-        action = "stay"
-    return Decision(being.id, action, target, because, doing,
-                    settling=bool(answer.get("settling")))
+    settling = bool(answer.get("settling"))
+
+    # A move or a talk that names nobody real, or a leave from where there is
+    # no road, is only reachable with a lenient backend; the grammar forbids it.
+    target: Optional[str] = None
+    if action == Action.LEAVE and not can_leave:
+        action = None
+    elif action == Action.MOVE:
+        place = next((p for p in reachable_places if p.name == name), None)
+        action, target = (action, place.id) if place else (None, None)
+    elif action == Action.TALK:
+        companion = next((c for c in companions if c.name == name), None)
+        action, target = (action, companion.id) if companion else (None, None)
+    return Decision(being.id, action, target, because, doing, settling=settling)
 
 
 def speak(world, speaker: Being, listener: Being, configuration,
@@ -197,10 +218,10 @@ def speak(world, speaker: Being, listener: Being, configuration,
     settings = _settings(configuration, CallName.SPEAK)
     speaker_memories = world.memories(speaker.id)
     regard = speaker.who.regards.get(listener.id)
-    cue = vectorize(configuration, " ".join(x for x in (
+    cue = vectorize(configuration, " ".join(part for part in (
         listener.name, regard.account if regard else "",
         world.places[speaker.where.place].name if speaker.where.place in world.places else "",
-    ) if x))
+    ) if part))
     topics = retrieval.recallable(speaker_memories, world.at, cue, limit=3)
     place = world.places.get(speaker.where.place)
 
@@ -284,27 +305,11 @@ def direct(world, configuration,
     )
 
 
-TOWN_FLOOR = 2
-TOWN_CEILING = 8
-
-
-def _asked_again(world, answer: Optional[dict]) -> Optional[float]:
-    """None when the answer gave nothing usable, leaving no timer."""
-    hours = schedule.in_hours(answer, "ask_again_in_hours")
-    return world.at + hours if hours is not None else None
-
-
-def leaving_place(world):
-    return world.places.get(world.map.road_out)
-
-
 def may_leave(world, being: Being) -> bool:
-    if not world.map.road_out or being.where.place != world.map.road_out:
-        return False
-    return sum(1 for p in world.beings.values() if p.present) > TOWN_FLOOR
+    return bool(world.map.road_out) and being.where.place == world.map.road_out
 
 
-def depart(world, being: Being, because: str, configuration,
+def leave(world, being: Being, because: str, configuration,
            transcript: Optional[Transcript] = None):
     """Returns (event, memories it left in people)."""
     place = world.places.get(being.where.place)
@@ -339,18 +344,7 @@ def short_of_somebody(world) -> bool:
 
 
 def may_arrive(world) -> bool:
-    here = sum(1 for p in world.beings.values() if p.present)
-    if here >= TOWN_CEILING:
-        return False
     return schedule.road_due(world)
-
-
-def _free_being_id(world, name: str) -> str:
-    slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
-    candidate, n = f"p_{slug}", 2
-    while candidate in world.beings:
-        candidate, n = f"p_{slug}{n}", n + 1
-    return candidate
 
 
 def arrive(world, configuration,
@@ -437,7 +431,7 @@ def reflect(world, being: Being, configuration,
     holds = held_beliefs(being, world.at, limit=MAX_BELIEFS)
     known = [world.beings[i].name for i in being.who.regards
              if i in world.beings]
-    known += [p.name for p in _others_here(world, being)
+    known += [p.name for p in _companions(world, being)
               if p.name not in known]
     settings = _settings(configuration, CallName.REFLECT)
     call = Call(

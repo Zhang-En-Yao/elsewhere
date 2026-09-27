@@ -202,24 +202,24 @@ class Map:
     road_out: str = ""
 
     def beside(self, place_id: str) -> List[str]:
-        out = set()
-        for a, b in self.ways:
-            if a == place_id:
-                out.add(b)
-            elif b == place_id:
-                out.add(a)
-        return sorted(out)
+        neighbours = set()
+        for one_endpoint, other_endpoint in self.ways:
+            if one_endpoint == place_id:
+                neighbours.add(other_endpoint)
+            elif other_endpoint == place_id:
+                neighbours.add(one_endpoint)
+        return sorted(neighbours)
 
-    def joins(self, a: str, b: str) -> bool:
-        return b in self.beside(a)
+    def joins(self, place_id: str, other_id: str) -> bool:
+        return other_id in self.beside(place_id)
 
     def to_dict(self) -> dict:
-        return {"ways": [list(w) for w in self.ways], "road_out": self.road_out}
+        return {"ways": [list(way) for way in self.ways], "road_out": self.road_out}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Map":
-        return cls(ways=[list(w) for w in d.get("ways", [])],
-                   road_out=d.get("road_out", ""))
+    def from_dict(cls, data: dict) -> "Map":
+        return cls(ways=[list(way) for way in data.get("ways", [])],
+                   road_out=data.get("road_out", ""))
 
 
 def ways_from_neighbours(neighbours: Dict[str, List[str]]) -> List[List[str]]:

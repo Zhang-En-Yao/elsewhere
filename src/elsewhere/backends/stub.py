@@ -13,7 +13,7 @@ from ..schemas import CallName
 
 DEFAULTS: Dict[str, dict] = {
     CallName.PERCEIVE: {"stuck": False},
-    CallName.ACT: {"because": "", "doing": "", "action": "stay", "target": "",
+    CallName.ACT: {"because": "", "doing": "", "action": "", "target": "",
             "for_hours": 6.0, "settling": False, "absorbed": False},
     CallName.SPEAK: {"line": "..."},
     CallName.RECALL: {"account": "", "changed": False},

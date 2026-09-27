@@ -177,14 +177,21 @@ present - mending the nets, sitting with the door open, not sleeping, walking
 because lying there is worse. This is not chosen from anything. Most of a life
 is here, and most of it is ordinary.
 
-action: then which of three things the world has to do about it. There are
-only three because there are only three things it can do.
-  stay  - nothing moves; whatever you said in "doing" is what it looks like
-  go    - walk to one of the places you can reach from here (target: the place)
+action: then, only if what you are doing reaches beyond you - to another
+place, to another person, or out of the town. Sitting, sleeping, working with
+your hands, thinking are all things you do in "doing", and they need no action.
+  move  - go to one of the places you can reach from here (target: the place)
   talk  - speak with someone who is here right now (target: their name)
+  leave - take the road out of the town (no target). Some days it is not
+          offered: it only appears when you are standing where the road goes
+          out. It is not a trip to the next place, it is the end of your life
+          here. Almost nobody takes it - only when your own wants, and what you
+          hold to be true, have been pointing down that road for a while, and
+          say so plainly in "because".
+Leave it empty when you are just doing what you said in "doing".
 
 target: the place or the person, exactly as written in the options; empty for
-stay.
+leave, and empty when action is empty.
 
 for_hours: how long you will be at this before you look up, as a number of
 hours. Say what it actually takes: a conversation is a half, mending a net is
@@ -203,12 +210,6 @@ Then nothing will interrupt you before your hours are up except something that
 happens to you. False when you would look up: most of a life is false here,
 and somebody absorbed all day is somebody nothing can reach.
 
-Some days one more verb is there: leave. It only ever appears when this person
-is standing where the road goes out of the town, and it is not a walk to the
-next place - it is the end of their life here. Almost nobody takes it. Take it
-only when their own wants, and what they hold to be true, have been pointing
-down that road for a while, and say so plainly in "because".
-
 The hour is a fact about the clock, not an instruction about what to do with
 it. It does not mean the same thing to everyone: the same night is nothing for
 one person and everything for another. Read that from who they are, below -
@@ -226,7 +227,7 @@ Four people, another town, another day - the form, not the content:
   07:00. Mira is at her door. Here: nobody. Can go to: the ford, the well.
     {"because": "the children arrive soon and the step needs scrubbing",
      "doing": "scrubbing the step, badly, because there is no time",
-     "action": "stay", "target": "", "for_hours": 1, "settling": false,
+     "action": "", "target": "", "for_hours": 1, "settling": false,
      "absorbed": false}
 
   15:00. Oskar is at the ford. Here: Mira. Can go to: the market.
@@ -238,20 +239,20 @@ Four people, another town, another day - the form, not the content:
   22:00. Pell is at the ferry house. Here: nobody. Can go to: the far bank.
     {"because": "tired",
      "doing": "asleep in the chair before he gets as far as the bed",
-     "action": "stay", "target": "", "for_hours": 8, "settling": true,
+     "action": "", "target": "", "for_hours": 8, "settling": true,
      "absorbed": true}
 
   02:00. Sula, who has not slept right since the flood, is at her door.
   Here: nobody. Can go to: the waterline.
     {"because": "lying there is worse than walking",
      "doing": "going down to look at the water, which she knows does not help",
-     "action": "go", "target": "the waterline", "for_hours": 2,
+     "action": "move", "target": "the waterline", "for_hours": 2,
      "settling": false, "absorbed": true}
 
   16:00. Carin is on the ridge, where the road goes out. Here: nobody.
   Can go to: the well. Leaving is possible today.
     {"because": "I said I would go before winter and I have not",
-     "action": "go", "target": "the well", "for_hours": 1, "settling": false,
+     "action": "move", "target": "the well", "for_hours": 1, "settling": false,
      "absorbed": false}"""
 
 

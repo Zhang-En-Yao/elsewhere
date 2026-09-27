@@ -15,7 +15,7 @@ from elsewhere.world import chronicle
 from elsewhere.world.memories import Memory
 
 CALLS = tuple(CallName)[:-1]    # every call but the probe
-STAY = {"because": "", "doing": "", "action": "stay", "target": "",
+STAY = {"because": "", "doing": "", "action": "", "target": "",
         "for_hours": 6.0, "settling": False}
 QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
          "reach": "the people there", "happens": False,
