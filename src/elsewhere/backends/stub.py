@@ -15,10 +15,10 @@ DEFAULTS: Dict[str, dict] = {
     CallName.PERCEIVE: {"stuck": False},
     CallName.ACT: {"because": "", "doing": "", "action": "", "target": "",
             "for_hours": 6.0, "settling": False, "absorbed": False},
-    CallName.SPEAK: {"line": "..."},
+    CallName.SPEAK: {"utterance": "..."},
     CallName.RECALL: {"account": "", "changed": False},
     CallName.REFLECT: {},
-    CallName.DIRECT: {"happens": False, "ask_again_in_hours": 24.0},
+    CallName.STIR: {"happens": False, "ask_again_in_hours": 24.0},
     CallName.ARRIVE: {"comes": False, "ask_again_in_hours": 24.0},
 }
 

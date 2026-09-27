@@ -86,7 +86,7 @@ person simply had nothing, which is allowed.
 | `speak` | you are talking to this person — what do you say, and what do you draw on? | `SPEAK` |
 | `recall` | you are bringing this up years later — how does it come back now? | `RECALL` |
 | `reflect` | you have stopped — what did the day leave you holding, and who is on your mind? | `REFLECT` |
-| `direct` | does anything happen to the town — and when should you be asked again? | `DIRECT` |
+| `stir` | does anything happen to the town — and when should you be asked again? | `STIR` |
 | `arrive` | does anybody come up the road, who would they be, and when should you be asked again? | `ARRIVE` |
 
 The schema is the contract. `schemas.grammar(name)` marks every field required
@@ -105,7 +105,7 @@ Some fields are narrowed further, per call, to what actually exists.
 `act_grammar` restricts `target` to the places and people in reach and adds
 `leave` only where `agents.may_leave` says the road goes out from here;
 `speak_grammar` restricts `about` to the numbered things this person can bring
-to mind; `direct_grammar` restricts `where`/`who` to real places and present
+to mind; `stir_grammar` restricts `where`/`who` to real places and present
 people; `reflect_grammar` restricts `belief_from`, `belief_again` and
 `about_someone` to today's memories, the beliefs already held, and people who
 exist. A model cannot answer with a place that is not adjacent, a person who
@@ -197,7 +197,7 @@ being asked sets its own interval, in the same answer**:
   they will be at what they are doing, whether this is them stopping for the
   day, and whether anything short of the roof coming off gets their attention
   while they do it.
-- `DIRECT` and `ARRIVE` carry `ask_again_in_hours`. The town says how long a
+- `STIR` and `ARRIVE` carry `ask_again_in_hours`. The town says how long a
   quiet stretch it is giving itself; the road says how long before it is worth
   asking again. Both are asked for whether or not anything happened, so a town
   that has just had a fire can take its fortnight.
@@ -234,7 +234,7 @@ that happens *to* somebody is non-maskable, here as there.
    duration said nothing, so the engine supplies nothing on its behalf beyond
    letting it round again. If *nothing* anywhere has a timer, the step returns
    `idle` and the clock does not move.
-2. **Whatever happens to the town rather than in it** — `direct` if the town's
+2. **Whatever happens to the town rather than in it** — `stir` if the town's
    timer has come round, `arrive` if the road's has. Both run before anyone
    decides what to do, so a happening can be reacted to in the same step and a
    newcomer lives the day they arrive.
@@ -266,7 +266,7 @@ week wakes up and spends an hour catching up.
 ## Consequence
 
 The engine does not resolve an action into an outcome. What somebody is doing
-goes into `Where.lately` in their own words, and `direct` is shown it — so the
+goes into `Where.lately` in their own words, and `stir` is shown it — so the
 town can see that somebody has been on a roof for a fortnight and say what came
 of it. That is the whole of how anything anybody does changes the world.
 

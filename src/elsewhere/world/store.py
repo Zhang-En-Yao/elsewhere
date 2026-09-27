@@ -86,7 +86,7 @@ class World:
     closed: bool = False           # set by `elsewhere end`; `cli.open_live` reads it
     last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     news_seen: int = 0                    # chronicle length the last time you looked
-    #: Set by the director's and road's own answers, like `When.wake_at`.
+    #: Set by the town's and road's own answers, like `When.wake_at`.
     town_wake_at: Optional[float] = None
     road_wake_at: Optional[float] = None
     chronicle: Chronicle = None          # type: ignore[assignment]

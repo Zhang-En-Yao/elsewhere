@@ -723,7 +723,7 @@ Seven questions, and nothing else:
 | `speak` | you are talking to this person — what do you say, and what do you draw on? |
 | `recall` | you are bringing this up years later — how does it come back now? |
 | `reflect` | you have stopped — what did the day leave you holding, and who is on your mind? |
-| `direct` | does anything happen to the town — and when should you be asked again? |
+| `stir` | does anything happen to the town — and when should you be asked again? |
 | `arrive` | does anybody come up the road, who would they be, and when should you be asked again? |
 
 Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed

@@ -108,6 +108,12 @@ class MemoryStore:
     def touch(self) -> None:
         self._dirty = True
 
+    def rehearse(self, memory: Memory, at: float) -> None:
+        """Mark `memory` as brought up now, and the store as needing a save;
+        the two always go together, so nobody has to remember both."""
+        memory.came_up(at)
+        self.touch()
+
     def about_event(self, event_id: str) -> List[Memory]:
         return [t for t in self.memories if t.event_id == event_id]
 

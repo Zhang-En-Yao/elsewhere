@@ -13,7 +13,7 @@ class CallName(str, Enum):
     SPEAK = "speak"
     RECALL = "recall"
     REFLECT = "reflect"
-    DIRECT = "direct"
+    STIR = "stir"
     ARRIVE = "arrive"
     PROBE = "probe"    # health check, not a person's call
 
@@ -70,9 +70,9 @@ SPEAK = {
     "type": "object",
     "properties": {
         "about": {"type": "string"},
-        "line": {"type": "string"},
+        "utterance": {"type": "string"},
     },
-    "required": ["line"],
+    "required": ["utterance"],
 }
 
 RECALL = {
@@ -105,7 +105,7 @@ REFLECT = {
 
 REACH = ["the people there", "the whole town"]
 
-DIRECT = {
+STIR = {
     "type": "object",
     "properties": {
         "why_now": {"type": "string"},
@@ -114,7 +114,7 @@ DIRECT = {
         "who": {"type": "string"},
         "reach": {"type": "string", "enum": REACH},
         "happens": {"type": "boolean"},
-        # The only thing that paces the director.
+        # The only thing that paces how often the town is asked.
         "ask_again_in_hours": {"type": "number"},
     },
     "required": ["happens"],
@@ -143,7 +143,7 @@ PROBE = {
 
 SCHEMA_BY_CALL_NAME: Dict[CallName, dict] = {
     CallName.PERCEIVE: PERCEIVE, CallName.ACT: ACT, CallName.SPEAK: SPEAK,
-    CallName.RECALL: RECALL, CallName.REFLECT: REFLECT, CallName.DIRECT: DIRECT,
+    CallName.RECALL: RECALL, CallName.REFLECT: REFLECT, CallName.STIR: STIR,
     CallName.ARRIVE: ARRIVE, CallName.PROBE: PROBE,
 }
 
@@ -224,8 +224,8 @@ def speak_grammar(topics: int) -> dict:
     return schema
 
 
-def direct_grammar(places: List[str], beings: List[str]) -> dict:
-    schema = grammar(CallName.DIRECT)
+def stir_grammar(places: List[str], beings: List[str]) -> dict:
+    schema = grammar(CallName.STIR)
     schema["properties"]["where"] = {"type": "string", "enum": sorted(places)}
     schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(beings)}
     return schema

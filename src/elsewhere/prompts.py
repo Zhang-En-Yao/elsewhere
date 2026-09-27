@@ -288,8 +288,8 @@ someone to say something. Say one thing, the way this person actually talks.
 about: first, which of the numbered things on your mind you are bringing up -
 or "nothing in particular" for small talk.
 
-line: then what you say. One or two short sentences, spoken out loud to the
-person in front of you. No narration, no quotation marks, no name in front.
+utterance: then what you say. One or two short sentences, spoken out loud to
+the person in front of you. No narration, no quotation marks, no name in front.
 If what you remember is vague, say it vaguely - people say "that night, you
 remember" far more often than they describe anything.
 
@@ -297,17 +297,17 @@ Three people, another town - the form, not the content:
 
   Mira, to Oskar, whom she barely knows. On her mind: 1. its eye was open the
   whole time they were deciding.
-    {"about": "1", "line": "Did you see its eye? I keep seeing it."}
+    {"about": "1", "utterance": "Did you see its eye? I keep seeing it."}
 
   Oskar, to the reeve. On his mind: 1. two sacks of flour split in the mud.
-    {"about": "1", "line": "That flour was not mine. You will want to know whose it was."}
+    {"about": "1", "utterance": "That flour was not mine. You will want to know whose it was."}
 
   Pell, to a stranger at the ferry. On his mind: nothing in particular.
-    {"about": "nothing in particular", "line": "River's high. Mind your feet."}"""
+    {"about": "nothing in particular", "utterance": "River's high. Mind your feet."}"""
 
 
 def speak_user(being: Being, listener: Being, when: str, place_name: str,
-               topics: Sequence[Memory],
+               associated_memories: Sequence[Memory],
                beliefs: Optional[Sequence] = None) -> str:
     regard = being.who.regards.get(listener.id)
     knows = f" {regard.account}" if regard and regard.account else ""
@@ -315,9 +315,9 @@ def speak_user(being: Being, listener: Being, when: str, place_name: str,
         f"It is {when}, at {place_name}.",
         f"You are talking to {listener.name}.{knows}",
     ]
-    if topics:
+    if associated_memories:
         lines.append("On your mind:")
-        for i, t in enumerate(topics, 1):
+        for i, t in enumerate(associated_memories, 1):
             extra = f" ({t.means})" if t.means else ""
             lines.append(f"  {i}. {t.account}{extra}")
     else:
@@ -327,7 +327,7 @@ def speak_user(being: Being, listener: Being, when: str, place_name: str,
     return "\n\n".join(lines)
 
 
-DIRECT_SYSTEM = """You are not a person. You are the town itself - its weather,
+STIR_SYSTEM = """You are not a person. You are the town itself - its weather,
 its roads, its strangers, its accidents - deciding whether anything happens to
 it today that nobody in it chose.
 
@@ -384,7 +384,7 @@ Three mornings, another town - the form, not the content:
      "happens": false, "ask_again_in_hours": 120}"""
 
 
-def direct_user(world, recent) -> str:
+def stir_user(world, recent) -> str:
     places = "Places: " + "; ".join(
         f"{p.name} ({p.description})" if p.description else p.name
         for p in world.places.values())

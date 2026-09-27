@@ -25,7 +25,7 @@ DEFAULTS: Dict[str, dict] = {
     CallName.SPEAK:    {**LOCAL, "temperature": 1.0},
     CallName.RECALL:   {**LOCAL, "temperature": 1.0},
     CallName.REFLECT:  {**LOCAL, "temperature": 0.8},
-    CallName.DIRECT:   {**LOCAL, "temperature": 1.0},
+    CallName.STIR:     {**LOCAL, "temperature": 1.0},
     CallName.ARRIVE:   {**LOCAL, "temperature": 1.0},
     "embed":    dict(EMBED),
 }

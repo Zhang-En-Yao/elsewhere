@@ -18,7 +18,7 @@ from .world.memories import Memory
 class Said:
     speaker: str
     listener: str
-    line: str
+    utterance: str
     event_id: str
     kept: List[Memory] = field(default_factory=list)
     reshaped: Optional[Tuple[str, str]] = None      # (was, now)
@@ -94,8 +94,9 @@ TURNS = 4
 
 def _say(world, speaker: Being, listener: Being, configuration,
          transcript: Optional[Transcript] = None) -> Optional[Said]:
-    line, drawn = agents.speak(world, speaker, listener, configuration, transcript)
-    if line is None:
+    utterance, associated_memory = agents.speak(world, speaker, listener,
+                                                configuration, transcript)
+    if utterance is None:
         return None
 
     here = [p.id for p in world.beings_at(speaker.where.place)]
@@ -104,21 +105,22 @@ def _say(world, speaker: Being, listener: Being, configuration,
                for pid in here if pid != speaker.id}
     event = world.record(
         CONVERSATION,
-        f'{speaker.name} said to {listener.name}: "{line}"',
+        f'{speaker.name} said to {listener.name}: "{utterance}"',
         place=speaker.where.place,
         involved=[speaker.id, listener.id],
         reached=here,
-        data={"speaker": speaker.id, "listener": listener.id, "line": line,
-              "drawn_on": drawn.id if drawn else None, "vantage": vantage},
+        data={"speaker": speaker.id, "listener": listener.id, "utterance": utterance,
+              "drawn_on": associated_memory.id if associated_memory else None,
+              "vantage": vantage},
     )
 
     reshaped = None
-    if drawn is not None:
-        before = drawn.account
-        if agents.recall(world, speaker, drawn, configuration, transcript):
-            reshaped = (before, drawn.account)
+    if associated_memory is not None:
+        before = associated_memory.account
+        if agents.recall(world, speaker, associated_memory, configuration, transcript):
+            reshaped = (before, associated_memory.account)
 
-    # The listener perceives the line too, so the next turn replies to it.
+    # The listener perceives the utterance too, so the next turn replies to it.
     kept = []
     for pid in here:
         if pid == speaker.id:
@@ -126,7 +128,7 @@ def _say(world, speaker: Being, listener: Being, configuration,
         memory = agents.perceive(world, world.beings[pid], event, configuration, transcript)
         if memory is not None:
             kept.append(memory)
-    return Said(speaker.id, listener.id, line, event.id, kept, reshaped)
+    return Said(speaker.id, listener.id, utterance, event.id, kept, reshaped)
 
 
 def converse(world, a: Being, b: Being, configuration,
@@ -160,8 +162,8 @@ def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickR
     report = TickReport(label=world.label(), hours=world.at - was)
 
     # 0. Town and road first, so people can respond in the same step.
-    if agents.may_direct(world):
-        event = agents.direct(world, configuration, transcript)
+    if agents.may_stir(world):
+        event = agents.stir(world, configuration, transcript)
         if event is not None:
             schedule.rouse(world, event.reached, about=event.involved)
             kept = agents.perceive_all(world, event, configuration, transcript)
