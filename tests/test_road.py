@@ -138,7 +138,7 @@ class TestGoing(Road):
     def test_what_she_had_stays_where_it_is(self):
         self.world.memories("p_lilith").add(Memory(
             id="mem9001", owner="p_lilith", at=self.world.at,
-            account="the valley disappearing under the water", told=[self.world.at]))
+            account="the valley disappearing under the water", occasions=[self.world.at]))
         self.send_lilith_away()
         kept = list(self.world.memories("p_lilith"))
         self.assertIn("mem9001", [t.id for t in kept])
@@ -327,7 +327,7 @@ class TestReading(Road):
     def test_somebody_who_left_is_read_as_they_were(self):
         self.world.memories("p_lilith").add(Memory(
             id="mem9001", owner="p_lilith", at=self.world.at,
-            account="the valley disappearing under the water", told=[self.world.at]))
+            account="the valley disappearing under the water", occasions=[self.world.at]))
         self.send_lilith_away()
         left_at = self.lilith.when.left_at
         self.world.at += 4000 * 24                 # long enough to lose anything

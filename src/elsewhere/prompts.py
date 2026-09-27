@@ -285,8 +285,8 @@ def act_user(being: Being, when: str, at: float, place, others: Sequence[Being],
 SPEAK_SYSTEM = """You are one person in a small town, and you have turned to
 someone to say something. Say one thing, the way this person actually talks.
 
-about: first, which of the numbered things on your mind you are bringing up -
-or "nothing in particular" for small talk.
+memory_reference: first, which of the numbered things on your mind you are
+bringing up - or "nothing in particular" for small talk.
 
 utterance: then what you say. One or two short sentences, spoken out loud to
 the person in front of you. No narration, no quotation marks, no name in front.
@@ -297,13 +297,13 @@ Three people, another town - the form, not the content:
 
   Mira, to Oskar, whom she barely knows. On her mind: 1. its eye was open the
   whole time they were deciding.
-    {"about": "1", "utterance": "Did you see its eye? I keep seeing it."}
+    {"memory_reference": "1", "utterance": "Did you see its eye? I keep seeing it."}
 
   Oskar, to the reeve. On his mind: 1. two sacks of flour split in the mud.
-    {"about": "1", "utterance": "That flour was not mine. You will want to know whose it was."}
+    {"memory_reference": "1", "utterance": "That flour was not mine. You will want to know whose it was."}
 
   Pell, to a stranger at the ferry. On his mind: nothing in particular.
-    {"about": "nothing in particular", "utterance": "River's high. Mind your feet."}"""
+    {"memory_reference": "nothing in particular", "utterance": "River's high. Mind your feet."}"""
 
 
 def speak_user(being: Being, listener: Being, when: str, place_name: str,
@@ -489,9 +489,9 @@ voice, as they would think it - not a summary of the day.
 
 belief: then, only if today changed what they hold to be true, the new belief
 in one plain sentence they would say out loud. Usually empty.
-belief_from: the number of the memory it came from, or empty.
+origin_reference: the number of the memory it came from, or empty.
 
-belief_again: if what you just wrote is something they already hold, said
+restated_reference: if what you just wrote is something they already hold, said
 again in different words, the number of that one; empty if it is new. Say the
 same thing twice a year and it is one belief held twice, not two beliefs - and
 the words a person reaches for are never the same words twice, so judge it by
@@ -513,7 +513,7 @@ Three people, another town - the form, not the content:
   Mira. Today: 1. its eye was open the whole time they were deciding.
   Already holds: nothing.
     {"thought": "Why did nobody close its eye", "belief": "",
-     "belief_from": "", "belief_again": "",
+     "origin_reference": "", "restated_reference": "",
      "about_someone": "", "now_say": "",
      "want": "keep the children away from the river bend"}
 
@@ -521,14 +521,14 @@ Three people, another town - the form, not the content:
   Already holds: 1. Nobody settles a debt without being made to.
     {"thought": "He knew my name before he knew my face",
      "belief": "Somebody upriver has been talking about me",
-     "belief_from": "1", "belief_again": "",
+     "origin_reference": "1", "restated_reference": "",
      "about_someone": "", "now_say": "", "want": "find out who sent him"}
 
   Oskar, a season later. Today: 1. the reeve would not look at me.
   Already holds: 1. Nobody settles a debt without being made to.
     {"thought": "He looked at the door the whole time",
      "belief": "You get nothing here unless you stand over them for it",
-     "belief_from": "1", "belief_again": "1",
+     "origin_reference": "1", "restated_reference": "1",
      "about_someone": "Pell", "now_say": "He knew and he said nothing. I have stopped going down to the ferry.",
      "want": "be paid"}"""
 
@@ -585,7 +585,7 @@ Two memories, another town - the form, not the content:
 def recall_user(being: Being, memory: Memory, age_days: int, at: float) -> str:
     was = f'"{memory.account}"' + (f" (what it meant: {memory.means})" if memory.means else "")
     told = {0: "never told", 1: "told once"}.get(memory.recalls, f"told {memory.recalls} times")
-    last = memory.told[-2] if len(memory.told) > 1 else None
+    last = memory.occasions[-2] if len(memory.occasions) > 1 else None
     since = (f", last brought up {max(0, int((at - last) // HOURS_PER_DAY))} days ago"
              if last is not None else "")
     # `thought` left out, as in `perceive`: with it, 44% of rewrites drifted

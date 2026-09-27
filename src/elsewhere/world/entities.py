@@ -31,7 +31,7 @@ class Regard:
 @dataclass
 class Belief:
     """No confidence score: its strength is its `held` occasions, read by
-    `retrieval` with the same equation as `Memory.told`."""
+    `retrieval` with the same equation as `Memory.occasions`."""
     claim: str
     origin: List[str] = field(default_factory=list)   # memory ids, at most 3
 
@@ -41,7 +41,7 @@ class Belief:
 
     #: Lets a Belief stand in for a Memory in `retrieval`.
     @property
-    def told(self) -> List[float]:
+    def occasions(self) -> List[float]:
         return self.held
 
     @property

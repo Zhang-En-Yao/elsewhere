@@ -104,12 +104,12 @@ token, before it has written a word about what happened.
 Some fields are narrowed further, per call, to what actually exists.
 `act_grammar` restricts `target` to the places and people in reach and adds
 `leave` only where `agents.may_leave` says the road goes out from here;
-`speak_grammar` restricts `about` to the numbered things this person can bring
-to mind; `stir_grammar` restricts `where`/`who` to real places and present
-people; `reflect_grammar` restricts `belief_from`, `belief_again` and
-`about_someone` to today's memories, the beliefs already held, and people who
-exist. A model cannot answer with a place that is not adjacent, a person who
-is not in the room, or a belief nobody holds.
+`speak_grammar` restricts `memory_reference` to the numbered things this
+person can bring to mind; `stir_grammar` restricts `where`/`who` to real
+places and present people; `reflect_grammar` restricts `origin_reference`,
+`restated_reference` and `about_someone` to today's memories, the beliefs
+already held, and people who exist. A model cannot answer with a place that is
+not adjacent, a person who is not in the room, or a belief nobody holds.
 
 [`backends.ask()`](../src/elsewhere/backends/__init__.py) puts a `Call` to a
 backend: it tries once, and if the answer does not validate, hands the model
@@ -181,9 +181,9 @@ one extra model call per retrieval, which is a doubling this engine has not
 taken.
 
 Whether two beliefs are the same belief said twice is the mind's: `REFLECT`
-has a `belief_again` field, narrowed by grammar to the beliefs this person
-already holds, because it is a question about meaning and no amount of word
-overlap settles it.
+has a `restated_reference` field, narrowed by grammar to the beliefs this
+person already holds, because it is a question about meaning and no amount of
+word overlap settles it.
 
 ## Scarcity, and who supplies it
 

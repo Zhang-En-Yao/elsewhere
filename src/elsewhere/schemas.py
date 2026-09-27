@@ -69,7 +69,7 @@ ACT = {
 SPEAK = {
     "type": "object",
     "properties": {
-        "about": {"type": "string"},
+        "memory_reference": {"type": "string"},
         "utterance": {"type": "string"},
     },
     "required": ["utterance"],
@@ -91,10 +91,10 @@ REFLECT = {
     "properties": {
         "thought": {"type": "string"},
         "belief": {"type": "string"},
-        "belief_from": {"type": "string"},
+        "origin_reference": {"type": "string"},
         # Index of an existing belief this restates; asked of the model because
         # sameness of meaning cannot be decided by word overlap.
-        "belief_again": {"type": "string"},
+        "restated_reference": {"type": "string"},
         "want": {"type": "string"},
         # The only thing that rewrites a `Regard` (one side of it).
         "about_someone": {"type": "string"},
@@ -220,7 +220,7 @@ def act_grammar(places: List[str], beings: List[str],
 def speak_grammar(topics: int) -> dict:
     schema = grammar(CallName.SPEAK)
     choices = ["nothing in particular"] + [str(i) for i in range(1, topics + 1)]
-    schema["properties"]["about"] = {"type": "string", "enum": choices}
+    schema["properties"]["memory_reference"] = {"type": "string", "enum": choices}
     return schema
 
 
@@ -234,9 +234,9 @@ def stir_grammar(places: List[str], beings: List[str]) -> dict:
 def reflect_grammar(sources: int, held: int = 0,
                     known: Optional[List[str]] = None) -> dict:
     schema = grammar(CallName.REFLECT)
-    schema["properties"]["belief_from"] = {
+    schema["properties"]["origin_reference"] = {
         "type": "string", "enum": [""] + [str(i) for i in range(1, sources + 1)]}
-    schema["properties"]["belief_again"] = {
+    schema["properties"]["restated_reference"] = {
         "type": "string", "enum": [""] + [str(i) for i in range(1, held + 1)]}
     schema["properties"]["about_someone"] = {
         "type": "string", "enum": [""] + sorted(known or [])}

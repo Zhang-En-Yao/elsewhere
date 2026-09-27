@@ -32,7 +32,7 @@ class Held(Protocol):
         ...
 
     @property
-    def told(self) -> List[float]:
+    def occasions(self) -> List[float]:
         ...
 
     @property
@@ -68,10 +68,10 @@ def nearness(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 def familiarity(memory: Held, at: float) -> float:
-    """Base-level activation B_i, summed per occasion in `told`."""
-    told = memory.told or [memory.at]
+    """Base-level activation B_i, summed per occasion in `occasions`."""
+    occasions = memory.occasions or [memory.at]
     total = 0.0
-    for then in told:
+    for then in occasions:
         if then > at:
             # Future occasions don't count (clamping would make them freshest).
             continue

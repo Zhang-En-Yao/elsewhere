@@ -113,12 +113,12 @@ class TestRecall(Town):
         super().setUp()
         for pid in ("p_bezalel", "p_havvah"):
             self.world.beings[pid].where.place = "yard"
-        self.flood = Memory(id="mem9001", owner="p_havvah", at=68 * 24, told=[68 * 24],
+        self.flood = Memory(id="mem9001", owner="p_havvah", at=68 * 24, occasions=[68 * 24],
                            account="the water in the doorway before I could move anything",
                            feeling="fear")
         self.world.memories("p_havvah").add(self.flood)
         self.stub.answers["act|p_havvah"] = {"because": "", "action": "talk", "target": "Bezalel"}
-        self.stub.set(CallName.SPEAK, {"about": "1", "utterance": "That night."})
+        self.stub.set(CallName.SPEAK, {"memory_reference": "1", "utterance": "That night."})
 
     def test_telling_it_changes_it(self):
         self.stub.set(CallName.RECALL, {"account": "water, and not being able to look away",
@@ -155,7 +155,7 @@ class TestRecall(Town):
         self.assertEqual(self.flood.history, [])
 
     def test_small_talk_recalls_nothing(self):
-        self.stub.set(CallName.SPEAK, {"about": "nothing in particular", "utterance": "Cold."})
+        self.stub.set(CallName.SPEAK, {"memory_reference": "nothing in particular", "utterance": "Cold."})
         tick_mod.tick(self.world, configuration())
         self.assertEqual(self.calls(CallName.RECALL), [])
 
@@ -164,7 +164,7 @@ class TestReflect(Town):
     def setUp(self):
         super().setUp()
         self.today = Memory(id="mem9100", owner="p_lilith", at=self.world.at,
-                           told=[self.world.at],
+                           occasions=[self.world.at],
                            account="the valley disappearing under the water", feeling="unease")
 
     def reckoning(self):
@@ -174,7 +174,7 @@ class TestReflect(Town):
     def test_only_whoever_is_stopping_goes_over_their_day(self):
         self.world.memories("p_lilith").add(self.today)
         self.world.memories("p_havvah").add(Memory(
-            id="mem9110", owner="p_havvah", at=self.world.at, account="a long day", told=[self.world.at]))
+            id="mem9110", owner="p_havvah", at=self.world.at, account="a long day", occasions=[self.world.at]))
         self.reckoning()
         self.assertEqual([c.about for c in self.calls(CallName.REFLECT)], ["p_lilith"])
 
@@ -185,7 +185,7 @@ class TestReflect(Town):
     def test_a_belief_remembers_where_it_came_from(self):
         self.world.memories("p_lilith").add(self.today)
         self.stub.set(CallName.REFLECT, {"thought": "nobody went down", "belief": "Nobody here will ever leave",
-                                  "belief_from": "1", "belief_again": "",
+                                  "origin_reference": "1", "restated_reference": "",
                                   "want": "go before winter"})
         self.reckoning()
         lilith = self.world.beings["p_lilith"]
@@ -197,17 +197,17 @@ class TestReflect(Town):
     def test_the_same_belief_twice_is_held_harder_not_written_twice(self):
         self.world.memories("p_lilith").add(self.today)
         self.stub.set(CallName.REFLECT, {"belief": "Nobody here will ever leave",
-                                  "belief_from": "1", "belief_again": ""})
+                                  "origin_reference": "1", "restated_reference": ""})
         self.reckoning()
 
-        # A differently worded restatement, marked by `belief_again`.
+        # A differently worded restatement, marked by `restated_reference`.
         self.world.at += 1 * 24
         self.world.memories("p_lilith").add(Memory(
             id="mem9101", owner="p_lilith", at=self.world.at,
             account="the road again",
-            told=[self.world.at]))
+            occasions=[self.world.at]))
         self.stub.set(CallName.REFLECT, {"belief": "you die in the town you were born in",
-                                  "belief_from": "1", "belief_again": "1"})
+                                  "origin_reference": "1", "restated_reference": "1"})
         self.reckoning()
 
         beliefs = [b for b in self.world.beings["p_lilith"].who.beliefs
@@ -222,14 +222,14 @@ class TestReflect(Town):
     def test_what_they_thought_becomes_something_they_can_remember(self):
         self.world.memories("p_lilith").add(self.today)
         self.stub.set(CallName.REFLECT, {"thought": "Nobody went down to look",
-                                  "belief": "", "belief_again": ""})
+                                  "belief": "", "restated_reference": ""})
         self.reckoning()
         thoughts = [t for t in self.world.memories("p_lilith")
                     if t.account == "Nobody went down to look"]
         self.assertEqual(len(thoughts), 1)
         self.assertEqual(thoughts[0].origin, ["mem9100"],
                          "and it remembers what it was a thought about")
-        self.assertEqual(thoughts[0].told, [self.world.at])
+        self.assertEqual(thoughts[0].occasions, [self.world.at])
 
     def test_what_they_did_is_something_to_go_over(self):
         self.world.memories("p_lilith").add(self.today)
@@ -242,7 +242,7 @@ class TestReflect(Town):
     def test_how_one_person_holds_another_can_change(self):
         self.world.memories("p_lilith").add(self.today)
         before = self.world.beings["p_lilith"].who.regard("p_havvah").account
-        self.stub.set(CallName.REFLECT, {"thought": "", "belief": "", "belief_again": "",
+        self.stub.set(CallName.REFLECT, {"thought": "", "belief": "", "restated_reference": "",
                                   "about_someone": "Havvah",
                                   "now_say": "She has not looked at me since the water."})
         self.reckoning()
@@ -263,7 +263,7 @@ class TestReflect(Town):
     def test_a_belief_can_outlive_its_reasons(self):
         self.world.memories("p_lilith").add(self.today)
         self.stub.set(CallName.REFLECT, {"belief": "Nobody here will ever leave",
-                                  "belief_from": "1", "belief_again": ""})
+                                  "origin_reference": "1", "restated_reference": ""})
         self.reckoning()
         lilith = self.world.beings["p_lilith"]
         # Enough newer memories pile up that the origin falls out of reach.
@@ -272,7 +272,7 @@ class TestReflect(Town):
             self.world.memories("p_lilith").add(Memory(
                 id=f"mem92{i:02d}", owner="p_lilith", at=self.world.at,
                 account="an ordinary day",
-                told=[self.world.at]))
+                occasions=[self.world.at]))
         belief = next(b for b in lilith.who.beliefs if "leave" in b.claim)
         self.assertTrue(retrieval.on_faith(belief, self.world.memories("p_lilith"),
                                            self.world.at))

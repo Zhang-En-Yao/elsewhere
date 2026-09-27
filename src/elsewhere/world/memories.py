@@ -29,18 +29,18 @@ class Memory:
 
     #: Every hour it came up, laying-down first. Occasions rather than a count,
     #: because decay in `retrieval` sums a term per occasion.
-    told: List[float] = field(default_factory=list)
+    occasions: List[float] = field(default_factory=list)
 
     #: Earlier wordings, newest last.
     history: List[str] = field(default_factory=list)
 
     @property
     def recalls(self) -> int:
-        return max(0, len(self.told) - 1)
+        return max(0, len(self.occasions) - 1)
 
     def came_up(self, at: float, limit: int = 24) -> None:
-        self.told.append(at)
-        del self.told[:-limit]
+        self.occasions.append(at)
+        del self.occasions[:-limit]
 
     def rewrite(self, new_account: str, at: float, means: str = "",
                 feeling: str = "", embedding: Optional[List[float]] = None) -> None:
@@ -61,7 +61,7 @@ class Memory:
         d = asdict(self)
         # Rounded: full precision costs ~14KB per memory for nothing.
         d["embedding"] = [round(x, 5) for x in self.embedding]
-        d["told"] = [round(x, 2) for x in self.told]
+        d["occasions"] = [round(x, 2) for x in self.occasions]
         return {k: v for k, v in d.items()
                 if v not in (None, [], "") or k in ("id", "owner", "at", "account")}
 
@@ -73,7 +73,7 @@ class Memory:
             embedding=[float(x) for x in d.get("embedding", [])],
             event_id=d.get("event_id"),
             origin=list(d.get("origin", [])),
-            told=[float(x) for x in d.get("told", [])],
+            occasions=[float(x) for x in d.get("occasions", [])],
             history=list(d.get("history", [])),
         )
 
