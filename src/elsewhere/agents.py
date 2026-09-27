@@ -115,7 +115,7 @@ def perceive(world, being: Being, event: Event, configuration,
         feeling=answer.get("feeling", "none"),
         embedding=vectorize(configuration, text),
         event_id=event.id,
-        told=[world.at],
+        occasions=[world.at],
     )
     memories.add(memory)
     return memory
@@ -233,9 +233,9 @@ def speak(world, speaker: Being, listener: Being, configuration,
         return None, None
 
     associated_memory = None
-    about = answer.get("about", "")
-    if about.isdigit() and 1 <= int(about) <= len(associated_memories):
-        associated_memory = associated_memories[int(about) - 1]
+    memory_reference = answer.get("memory_reference", "")
+    if memory_reference.isdigit() and 1 <= int(memory_reference) <= len(associated_memories):
+        associated_memory = associated_memories[int(memory_reference) - 1]
         memories.rehearse(associated_memory, world.at)
     return utterance, associated_memory
 
@@ -451,12 +451,12 @@ def reflect(world, being: Being, configuration,
         return None
 
     text = (answer.get("belief") or "").strip().rstrip(".")
-    source = answer.get("belief_from") or ""
+    source = answer.get("origin_reference") or ""
     origin = [today[int(source) - 1].id] if source.isdigit() and 1 <= int(source) <= len(today) else []
     if text:
         from .world.entities import Belief
 
-        again = answer.get("belief_again") or ""
+        again = answer.get("restated_reference") or ""
         existing = (holds[int(again) - 1]
                     if again.isdigit() and 1 <= int(again) <= len(holds) else None)
         if existing is not None:
@@ -498,7 +498,7 @@ def reflect(world, being: Being, configuration,
             means="", feeling="",
             embedding=vectorize(configuration, thought),
             origin=[t.id for t in today],
-            told=[world.at],
+            occasions=[world.at],
         ))
     return answer
 
@@ -526,6 +526,6 @@ def recall(world, being: Being, memory: Memory, configuration,
                   feeling=answer.get("feeling") or "",
                   embedding=vectorize(configuration, new))
     # rewrite() logs the occasion; speak() already logged this one.
-    del memory.told[-1:]
+    del memory.occasions[-1:]
     world.memories(being.id).touch()
     return True

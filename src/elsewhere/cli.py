@@ -276,7 +276,7 @@ def command_being(arguments) -> None:
         print(f"    {when(memory.at):<18} [{memory.feeling}] {memory.account}")
         if memory.means:
             print(f"          ~ {memory.means}")
-        told = len(memory.told) or 1
+        told = len(memory.occasions) or 1
         print(f"          come up {told}x  "
               f"{retrieval.chance(retrieval.activation(memory, at)):.0%} it comes to mind")
         for was in reversed(memory.history):
@@ -319,7 +319,7 @@ def command_event(arguments) -> None:
             print(f"    {being.name:<8} \"{memory.account}\"")
             if memory.means:
                 print(f"    {'':<8}   {memory.feeling}: {memory.means}")
-            print(f"    {'':<8}   ({state}, come up {len(memory.told) or 1}x)")
+            print(f"    {'':<8}   ({state}, come up {len(memory.occasions) or 1}x)")
             for was in reversed(memory.history):
                 print(f"    {'':<8}   was: \"{was}\"")
 

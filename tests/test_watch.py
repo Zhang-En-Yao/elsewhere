@@ -29,7 +29,7 @@ class Window(unittest.TestCase):
     def remember(self, owner, **kw):
         base = dict(id=self.world.next_id("mem"), owner=owner, at=self.world.at,
                     account="the water rose over the fields", feeling="fear",
-                    told=[self.world.at])
+                    occasions=[self.world.at])
         base.update(kw)
         return self.world.memories(owner).add(Memory(**base))
 
@@ -154,7 +154,7 @@ class TestItShowsWhatTheEngineWouldHandOver(Window):
         for index in range(retrieval.CONTEXT_MEMORIES + 3):
             self.remember(havvah.id, account=f"the {index}th thing that happened",
                           at=self.world.at - index * 24 * 30,
-                          told=[self.world.at - index * 24 * 30])
+                          occasions=[self.world.at - index * 24 * 30])
         memories = list(self.world.memories(havvah.id))
         reach = retrieval.recallable(memories, self.world.at)
         self.assertLess(len(reach), len(memories), "the fixture proves nothing")
@@ -186,7 +186,7 @@ class TestItShowsWhatTheEngineWouldHandOver(Window):
         from elsewhere.world.entities import Belief
         havvah = self.world.beings["p_havvah"]
         gone = self.remember(havvah.id, account="a thing nobody has thought of since",
-                             at=0.0, told=[0.0])
+                             at=0.0, occasions=[0.0])
         for index in range(retrieval.CONTEXT_MEMORIES + 1):
             self.remember(havvah.id, account=f"something newer, {index}")
         havvah.who.beliefs.append(Belief(claim="the water always comes back",

@@ -150,7 +150,7 @@ def _memory_lines(world: World, being, memory, at: float,
     if memory.means:
         out.append(Line("        ~ " + memory.means, "dim", under=10))
     out.append(Line("        come up %dx, %.0f%% it comes to mind"
-                    % (len(memory.told) or 1, odds * 100), "dim"))
+                    % (len(memory.occasions) or 1, odds * 100), "dim"))
     for was in reversed(memory.history):
         out.append(Line("        was: \"" + was + "\"", "accent", under=13))
     for source in memory.origin:

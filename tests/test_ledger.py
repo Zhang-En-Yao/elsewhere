@@ -18,7 +18,7 @@ from elsewhere.world.memories import Memory
 def memory(**kw):
     base = dict(id="m1", owner="p", at=100 * 24, account="the water rose over the fields",
                 means="I was frightened", feeling="fear",
-                told=[100 * 24])
+                occasions=[100 * 24])
     base.update(kw)
     return Memory(**base)
 
@@ -111,7 +111,7 @@ class TestWorldStore(unittest.TestCase):
 class TestRetrieval(unittest.TestCase):
     def test_what_is_brought_up_stays_and_what_is_not_falls_behind(self):
         never = memory(id="a")
-        told = memory(id="b", told=[100 * 24, 101 * 24, 300 * 24, 600 * 24])
+        told = memory(id="b", occasions=[100 * 24, 101 * 24, 300 * 24, 600 * 24])
         at = (100 + 900) * 24
         self.assertGreater(retrieval.activation(told, at),
                            retrieval.activation(never, at))
@@ -119,8 +119,8 @@ class TestRetrieval(unittest.TestCase):
             retrieval.recallable([never, told], at, limit=1)[0].id, "b")
 
     def test_when_it_was_told_matters_and_not_only_how_often(self):
-        week = memory(told=[100 * 24, 101 * 24, 103 * 24, 106 * 24])
-        spread = memory(told=[100 * 24, 465 * 24, 830 * 24])
+        week = memory(occasions=[100 * 24, 101 * 24, 103 * 24, 106 * 24])
+        spread = memory(occasions=[100 * 24, 465 * 24, 830 * 24])
         self.assertEqual(week.recalls, 3)
         self.assertNotEqual(retrieval.activation(week, 1200 * 24),
                             retrieval.activation(spread, 1200 * 24))
@@ -133,7 +133,7 @@ class TestRetrieval(unittest.TestCase):
                            retrieval.activation(t, 110 * 24 + 6))
 
     def test_only_a_handful_can_be_brought_to_mind(self):
-        memories = [memory(id=f"m{i}", at=100 * 24 - i, told=[100 * 24 - i])
+        memories = [memory(id=f"m{i}", at=100 * 24 - i, occasions=[100 * 24 - i])
                   for i in range(20)]
         got = retrieval.recallable(memories, 100 * 24, limit=6)
         self.assertEqual(len(got), 6)
@@ -142,8 +142,8 @@ class TestRetrieval(unittest.TestCase):
 
     def test_what_the_moment_is_about_pulls_its_own_subject_forward(self):
         here, elsewhere_ = [1.0, 0.0], [0.0, 1.0]
-        plain = memory(id="a", at=99 * 24, told=[99 * 24], embedding=elsewhere_)
-        cued = memory(id="b", at=90 * 24, told=[90 * 24], embedding=here)
+        plain = memory(id="a", at=99 * 24, occasions=[99 * 24], embedding=elsewhere_)
+        cued = memory(id="b", at=90 * 24, occasions=[90 * 24], embedding=here)
         self.assertEqual(
             retrieval.recallable([plain, cued], 110 * 24, here, limit=2)[0].id, "b")
         # with no cue, the fresher memory wins
@@ -162,8 +162,8 @@ class TestRetrieval(unittest.TestCase):
         self.assertAlmostEqual(retrieval.nearness([1.0, 0.0], [1.0, 0.0]), 1.0)
 
     def test_something_out_of_reach_can_still_be_pointed_at(self):
-        old = memory(id="old", at=100 * 24, told=[100 * 24], embedding=[1.0, 0.0])
-        recent = [memory(id=f"n{i}", at=(800 + i) * 24, told=[(800 + i) * 24],
+        old = memory(id="old", at=100 * 24, occasions=[100 * 24], embedding=[1.0, 0.0])
+        recent = [memory(id=f"n{i}", at=(800 + i) * 24, occasions=[(800 + i) * 24],
                         embedding=[0.0, 1.0]) for i in range(6)]
         at = 1000 * 24
         self.assertTrue(retrieval.out_of_reach(old, [old] + recent, at))
@@ -176,7 +176,7 @@ class TestRetrieval(unittest.TestCase):
         self.assertEqual(t.account, "something about a flood")
         self.assertEqual(t.history, ["the water rose over the fields"])
         self.assertEqual(t.recalls, 1)
-        self.assertEqual(t.told[-1], 200 * 24,
+        self.assertEqual(t.occasions[-1], 200 * 24,
                          "the occasion is the record; there is no second copy of it")
 
 
@@ -254,7 +254,7 @@ class TestAnswers(unittest.TestCase):
             set(t.to_dict()) | {"means", "feeling", "embedding", "event_id",
                                 "history"},
             {"id", "owner", "at", "account", "means", "feeling", "embedding",
-             "event_id", "told", "history"})
+             "event_id", "occasions", "history"})
         for gone in ("source", "touched_at", "heard", "about", "place",
                      "salience"):
             self.assertFalse(hasattr(t, gone), f"{gone} is back, and unread")
@@ -323,14 +323,14 @@ class TestMannerIsAFactNotASpecification(unittest.TestCase):
 
 class TestAnOccasionThatHasNotHappened(unittest.TestCase):
     def test_a_later_telling_does_not_reach_back_and_hold_it_up(self):
-        later = memory(told=[100 * 24, 1100 * 24])
-        alone = memory(told=[100 * 24])
+        later = memory(occasions=[100 * 24, 1100 * 24])
+        alone = memory(occasions=[100 * 24])
         self.assertEqual(retrieval.activation(later, 110 * 24),
                          retrieval.activation(alone, 110 * 24))
         self.assertGreater(retrieval.activation(later, 1200 * 24),
                            retrieval.activation(alone, 1200 * 24))
 
     def test_nothing_has_happened_yet_at_all(self):
-        never = memory(told=[500 * 24])
+        never = memory(occasions=[500 * 24])
         self.assertEqual(retrieval.chance(retrieval.activation(never, 100 * 24)), 0.0)
         self.assertEqual(retrieval.recallable([never], 100 * 24), [])
