@@ -261,7 +261,7 @@ def town_detail(world: World, key: str) -> List[Line]:
               if other in world.places]
     out.append(Line("  ways out    " + (", ".join(beside) if beside else "none"),
                     "dim", under=14))
-    if world.map.road_out == place.id:
+    if world.map.road == place.id:
         out.append(Line("  the road out of the world leaves from here, and comes "
                         "back in at it", "accent", under=2))
     out.append(Line())
@@ -417,18 +417,18 @@ def event_detail(world: World, key: str) -> List[Line]:
     why = event.data.get("why_now")
     if why:
         out.append(Line("  why then: " + str(why), "dim", under=2))
-    reached = [world.beings[person_id].name for person_id in event.reached
+    informed = [world.beings[person_id].name for person_id in event.informed
                if person_id in world.beings]
-    if reached:
-        out.append(Line("  it got as far as: " + ", ".join(reached), "dim", under=2))
+    if informed:
+        out.append(Line("  it got as far as: " + ", ".join(informed), "dim", under=2))
     out += [Line(), Line("  What it left in people", "bold")]
-    vantage = event.data.get("vantage") or {}
+    viewpoints = event.data.get("viewpoints") or {}
     anybody = False
     for being in world.beings.values():
-        stood = vantage.get(being.id)
+        stood = viewpoints.get(being.id)
         memories = world.memories(being.id).about_event(event.id)
         if not memories:
-            if being.id in event.reached:
+            if being.id in event.informed:
                 anybody = True
                 out.append(Line("    " + pad(being.name, 9)
                                 + "nothing stayed.", "dim", under=13))

@@ -100,7 +100,7 @@ def _say(world, speaker: Being, listener: Being, configuration,
         return None
 
     here = [p.id for p in world.beings_at(speaker.where.place)]
-    vantage = {pid: (f"face to face with {speaker.name}" if pid == listener.id
+    viewpoints = {pid: (f"face to face with {speaker.name}" if pid == listener.id
                      else f"nearby, within earshot of {speaker.name} and {listener.name}")
                for pid in here if pid != speaker.id}
     event = world.record(
@@ -108,10 +108,10 @@ def _say(world, speaker: Being, listener: Being, configuration,
         f'{speaker.name} said to {listener.name}: "{utterance}"',
         place=speaker.where.place,
         involved=[speaker.id, listener.id],
-        reached=here,
+        informed=here,
         data={"speaker": speaker.id, "listener": listener.id, "utterance": utterance,
               "drawn_on": associated_memory.id if associated_memory else None,
-              "vantage": vantage},
+              "viewpoints": viewpoints},
     )
 
     reshaped = None
@@ -165,13 +165,13 @@ def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickR
     if agents.may_stir(world):
         event = agents.stir(world, configuration, transcript)
         if event is not None:
-            schedule.rouse(world, event.reached, about=event.involved)
+            schedule.rouse(world, event.informed, about=event.involved)
             kept = agents.perceive_all(world, event, configuration, transcript)
             report.occurrence = Occurrence(event.id, event.account, kept)
     if agents.may_arrive(world):
         event = agents.arrive(world, configuration, transcript)
         if event is not None:
-            schedule.rouse(world, event.reached, about=event.involved)
+            schedule.rouse(world, event.informed, about=event.involved)
             kept = agents.perceive_all(world, event, configuration, transcript)
             report.arrival = Arrival(event.involved[0], event.id, event.account, kept)
 
@@ -189,8 +189,8 @@ def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickR
         d = report.decisions[being.id]
         if d.action == Action.LEAVE:
             event, kept = agents.leave(world, being, d.because, configuration, transcript)
-            schedule.rouse(world, [p for p in event.reached if p != being.id],
-                           about=event.reached)
+            schedule.rouse(world, [p for p in event.informed if p != being.id],
+                           about=event.informed)
             report.departures.append(Departure(being.id, event.id, d.because, kept))
         elif d.action == Action.MOVE and d.target is not None and d.target in world.places:
             before = being.where.place

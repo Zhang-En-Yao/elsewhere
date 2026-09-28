@@ -217,7 +217,7 @@ class TestOneEventManyVersions(Window):
     def test_everyone_who_was_there_is_put_beside_everyone_else(self):
         event = self.world.chronicle.all()[0]
         kept = {}
-        for person_id in event.reached:
+        for person_id in event.informed:
             kept[person_id] = self.remember(
                 person_id, account=f"what {person_id} would say about it",
                 event_id=event.id)
@@ -229,9 +229,9 @@ class TestOneEventManyVersions(Window):
 
     def test_somebody_who_was_there_and_kept_nothing_is_still_named(self):
         event = self.world.chronicle.all()[0]
-        self.assertTrue(event.reached, "the fixture proves nothing")
+        self.assertTrue(event.informed, "the fixture proves nothing")
         body = text(views.event_detail(self.world, event.id))
-        for person_id in event.reached:
+        for person_id in event.informed:
             self.assertIn(self.world.beings[person_id].name, body)
         self.assertIn("nothing stayed", body)
 

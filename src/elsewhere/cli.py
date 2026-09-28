@@ -156,7 +156,7 @@ def report_lines(world, report) -> List[str]:
                 out.append(f"  {'':<7}   {name(world, memory.owner)} kept "
                            f"[{memory.feeling}] {memory.account}")
             event = world.chronicle.get(said.event_id)
-            for person_id in (event.reached if event else []):
+            for person_id in (event.informed if event else []):
                 if person_id not in heard and person_id != said.speaker:
                     out.append(f"  {'':<7}   {name(world, person_id)} kept nothing of it")
     for person_id, reflection in report.reflections.items():
@@ -307,7 +307,7 @@ def command_event(arguments) -> None:
     for being in world.beings.values():
         memories = world.memories(being.id).about_event(event.id)
         if not memories:
-            if being.id in event.reached:
+            if being.id in event.informed:
                 print(f"    {being.name:<8} - nothing. They were there.")
             continue
         mine = list(world.memories(being.id))
@@ -336,7 +336,7 @@ def command_news(arguments) -> None:
         mark = {chronicle.OCCURRENCE: "* ", chronicle.ARRIVAL: "+ ",
                 chronicle.DEPARTURE: "- "}
         print(f"    {mark.get(event.category, '')}{event.account}")
-        for person_id in event.reached:
+        for person_id in event.informed:
             for memory in world.memories(person_id).about_event(event.id):
                 print(f"      {name(world, person_id)} kept [{memory.feeling}] {memory.account}")
     print("\n  Now:")
@@ -514,7 +514,7 @@ def _command_remember(arguments) -> None:
             store.save(world)
     except store.Locked as exception:
         sys.exit(f"Not now: {exception}")
-    print(f"{len(made)} of {len(event.reached)} people kept something.")
+    print(f"{len(made)} of {len(event.informed)} people kept something.")
     for memory in made:
         print(f"  {world.beings[memory.owner].name:<8} [{memory.feeling}] {memory.account}")
 
