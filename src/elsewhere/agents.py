@@ -384,9 +384,7 @@ def arrive(world, configuration,
     )
 
 
-def leave(world, being: Being, because: str, configuration,
-           transcript: Optional[Transcript] = None):
-    """Returns (event, memories it left in people)."""
+def leave(world, being: Being, because: str) -> Event:
     place = world.places.get(being.where.place)
     where = place.name if place else "the road"
     informed = [p.id for p in world.beings.values() if p.present]
@@ -406,10 +404,7 @@ def leave(world, being: Being, because: str, configuration,
         place=being.where.place, involved=[being.id], informed=informed,
         data={"because": because, "person": being.id, "viewpoints": viewpoints},
     )
-    kept = perceive_all(world, event, configuration, transcript)
-    being.when.left_at = world.at
-    being.where.now("took the road out of town")
-    return event, kept
+    return event
 
 
 def reflect(world, being: Being, configuration,

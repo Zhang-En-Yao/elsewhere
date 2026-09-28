@@ -22,7 +22,7 @@ class OpenAICompatibleBackend:
         # The only setting read from the environment, since it is a secret.
         return os.environ.get("ELSEWHERE_OPENAI_KEY", "none")
 
-    def _body(self, call: Call, model: str, temperature: float,
+    def body(self, call: Call, model: str, temperature: float,
               strict: bool) -> dict:
         body = {
             "model": model,
@@ -43,7 +43,7 @@ class OpenAICompatibleBackend:
     def complete(self, call: Call, settings: Settings) -> str:
         headers = {"authorization": f"Bearer {self._key()}"}
         for strict in (True, False):
-            payload = self._body(call, settings.model, settings.temperature, strict)
+            payload = self.body(call, settings.model, settings.temperature, strict)
             payload.update(settings.extra)
             try:
                 data = post(f"{self._base(settings)}/chat/completions", payload,

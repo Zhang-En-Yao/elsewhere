@@ -82,7 +82,7 @@ class TickReport:
     reflections: Dict[str, dict] = field(default_factory=dict)
 
 
-def _meet(world, a: Being, b: Being) -> None:
+def meet(world, a: Being, b: Being) -> None:
     for x, y in ((a, b), (b, a)):
         x.who.regard(y.id).last_seen_at = world.at
 
@@ -92,7 +92,7 @@ def _meet(world, a: Being, b: Being) -> None:
 TURNS = 4
 
 
-def _say(world, speaker: Being, listener: Being, configuration,
+def say(world, speaker: Being, listener: Being, configuration,
          transcript: Optional[Transcript] = None) -> Optional[Said]:
     utterance, associated_memory = agents.speak(world, speaker, listener,
                                                 configuration, transcript)
@@ -133,11 +133,11 @@ def _say(world, speaker: Being, listener: Being, configuration,
 
 def converse(world, a: Being, b: Being, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Talk]:
-    _meet(world, a, b)
+    meet(world, a, b)
     talk = Talk(between=(a.id, b.id))
     speaker, listener = a, b
     for _ in range(TURNS):
-        said = _say(world, speaker, listener, configuration, transcript)
+        said = say(world, speaker, listener, configuration, transcript)
         if said is None:
             break
         talk.turns.append(said)
@@ -188,9 +188,14 @@ def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickR
     for being in minds:
         d = report.decisions[being.id]
         if d.action == Action.LEAVE:
-            event, kept = agents.leave(world, being, d.because, configuration, transcript)
+            event = agents.leave(world, being, d.because)
             schedule.rouse(world, [p for p in event.informed if p != being.id],
                            about=event.informed)
+            # Perceive before marking her gone, so she is still `present` for
+            # her own last look at the town.
+            kept = agents.perceive_all(world, event, configuration, transcript)
+            being.when.left_at = world.at
+            being.where.now("took the road out of town")
             report.departures.append(Departure(being.id, event.id, d.because, kept))
         elif d.action == Action.MOVE and d.target is not None and d.target in world.places:
             before = being.where.place

@@ -80,7 +80,7 @@ def clip(text: str, columns: int) -> str:
     return "".join(kept) + CUT
 
 
-def _cut(text: str, columns: int) -> int:
+def cut(text: str, columns: int) -> int:
     used = 0
     for index, character in enumerate(text):
         step = 0 if unicodedata.combining(character) else (
@@ -100,7 +100,7 @@ def wrap(line: Line, columns: int) -> List[Line]:
     out: List[Line] = []
     rest, floor = line.text, indent + 1
     while width(rest) > columns:
-        at = _cut(rest, columns)
+        at = cut(rest, columns)
         space = rest.rfind(" ", floor, at + 1)
         if space < floor:
             # A word longer than the pane: hard cut.
@@ -129,7 +129,7 @@ def span(hours: float) -> str:
     return "%.1f days" % (hours / 24.0)
 
 
-def _looks_up(world: World, being) -> Line:
+def looks_up(world: World, being) -> Line:
     absorbed = ("; deep enough in it that what happens nearby is not their "
                 "business" if being.when.absorbed else "")
     wake = being.when.wake_at
@@ -142,7 +142,7 @@ def _looks_up(world: World, being) -> Line:
     return Line("  looks up    in " + span(away) + absorbed, under=14)
 
 
-def _memory_lines(world: World, being, memory, at: float,
+def memory_lines(world: World, being, memory, at: float,
                   tone: str = "plain") -> List[Line]:
     odds = retrieval.chance(retrieval.activation(memory, at))
     out = [Line("    " + pad(when(memory.at), 16) +
@@ -179,7 +179,7 @@ def town_rows(world: World) -> List[Row]:
     return rows
 
 
-def _world_detail(world: World) -> List[Line]:
+def world_detail(world: World) -> List[Line]:
     out = [Line(world.name, "bold"),
            Line("  " + world.label()),
            Line("  the sun %s   (up at %02.0f:00, down at %02.0f:00)"
@@ -227,7 +227,7 @@ def _world_detail(world: World) -> List[Line]:
     return out
 
 
-def _gone_detail(world: World) -> List[Line]:
+def gone_detail(world: World) -> List[Line]:
     """People who left, as they were when they went."""
     gone = sorted((being for being in world.beings.values() if not being.present),
                   key=lambda being: being.when.left_at or 0.0)
@@ -247,9 +247,9 @@ def _gone_detail(world: World) -> List[Line]:
 
 def town_detail(world: World, key: str) -> List[Line]:
     if key == WORLD_KEY:
-        return _world_detail(world)
+        return world_detail(world)
     if key == GONE_KEY:
-        return _gone_detail(world)
+        return gone_detail(world)
     place = world.places.get(key)
     if place is None:
         return [Line("Nowhere.", "dim")]
@@ -327,7 +327,7 @@ def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
                         "dim", under=14))
         if being.where.doing:
             out.append(Line("  doing       " + being.where.doing, under=14))
-        out.append(_looks_up(world, being))
+        out.append(looks_up(world, being))
         if being.who.thought:
             out.append(Line("  comes back  \"" + being.who.thought + "\"",
                             "accent", under=14))
@@ -379,7 +379,7 @@ def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
                             "would hand over if they were asked now " + DASH,
                             "dim", under=4))
             said_where = True
-        out += _memory_lines(world, being, memory, at,
+        out += memory_lines(world, being, memory, at,
                              "plain" if memory in reach else "dim")
     return out
 

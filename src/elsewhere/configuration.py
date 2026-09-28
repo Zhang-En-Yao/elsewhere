@@ -87,7 +87,7 @@ def load_configuration(root) -> Dict[str, Settings]:
             for name, settings in read_configuration(root)["agents"].items()}
 
 
-def _write(root, data: dict) -> Path:
+def write(root, data: dict) -> Path:
     path = path_of(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {**data, "notes": list(NOTES)}
@@ -101,7 +101,7 @@ def write_default_configuration(root) -> Path:
     path = path_of(root)
     if path.exists():
         return path
-    return _write(root, default_configuration())
+    return write(root, default_configuration())
 
 
 def configure(root, backend: str, model: str, base: Optional[str] = None,
@@ -118,4 +118,4 @@ def configure(root, backend: str, model: str, base: Optional[str] = None,
             settings["base"] = base
         else:
             settings.pop("base", None)
-    return _write(root, data)
+    return write(root, data)

@@ -10,7 +10,7 @@ from .world.memories import Memory
 from .world.store import clock_at, day_of
 
 
-def _when(at: float) -> str:
+def when(at: float) -> str:
     return f"day {day_of(at)}, {clock_at(at)}"
 
 
@@ -50,7 +50,7 @@ def memories_block(memories: Sequence[Memory], header: str = "What you can bring
     return "\n".join(lines)
 
 
-def _since(regard, at: float) -> str:
+def since(regard, at: float) -> str:
     if regard.last_seen_at <= 0.0:
         return ""
     days = int((at - regard.last_seen_at) // HOURS_PER_DAY)
@@ -71,7 +71,7 @@ def regards_block(being: Being, others: Sequence[Being], at: float) -> str:
         if regard is None or not regard.account:
             lines.append(f"  - {other.name}, who you do not know.")
         else:
-            lines.append(f"  - {other.name}. {regard.account}{_since(regard, at)}")
+            lines.append(f"  - {other.name}. {regard.account}{since(regard, at)}")
     return "\n".join(lines)
 
 
@@ -399,7 +399,7 @@ def stir_user(world, recent) -> str:
         beings.append(f"  - {being.name}, at "
                       f"{place.name if place else 'nowhere'}.{wants}{doings}")
     record = ["Lately, in the record:"]
-    record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
+    record += [f"  - {when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,
@@ -470,7 +470,7 @@ def arrive_user(world, recent) -> str:
         beings.append("Who has gone: " + "; ".join(
             p.name for p in sorted(gone, key=lambda p: p.name)) + ".")
     record = ["Lately, in the record:"]
-    record += [f"  - {_when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
+    record += [f"  - {when(e.at)}: {e.account}" for e in recent] or ["  nothing."]
     return "\n\n".join([
         f"{world.name}. {world.label()}.",
         places,
