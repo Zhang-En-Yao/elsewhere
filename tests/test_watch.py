@@ -89,11 +89,11 @@ class TestWrapping(unittest.TestCase):
         self.assertTrue(all(one.tone == "warn" for one in got))
 
 
-class TestMap(Window):
+class TestView(Window):
     """Laid out from the ways alone, so it has to hold whatever town it is given."""
 
     def drawn(self, key="", columns=60):
-        return text(views.map_detail(self.world, key, columns))
+        return text(views.view_detail(self.world, key, columns))
 
     def test_every_place_is_on_it(self):
         drawn = self.drawn()
@@ -101,7 +101,7 @@ class TestMap(Window):
             self.assertIn(place.name, drawn)
 
     def test_the_place_looked_at_is_the_one_in_bold(self):
-        lines = views.map_detail(self.world, "marah", 60)
+        lines = views.view_detail(self.world, "marah", 60)
         spans = [span for line in lines for span in line.spans]
         self.assertEqual([(text, tone) for _, text, tone in spans], [("Marah", "bold")])
         line = next(line for line in lines if line.spans)
@@ -111,7 +111,7 @@ class TestMap(Window):
         self.assertNotIn("[", self.drawn("marah"))
 
     def test_the_whole_world_puts_no_place_in_bold(self):
-        self.assertFalse([line for line in views.map_detail(self.world, views.WORLD_KEY, 60)
+        self.assertFalse([line for line in views.view_detail(self.world, views.WORLD_KEY, 60)
                           if line.spans])
 
     def test_it_is_never_wider_than_the_pane(self):
@@ -129,7 +129,7 @@ class TestMap(Window):
 
     def test_a_wide_name_keeps_the_columns_it_is_owed(self):
         self.world.places["marah"].name = WIDE
-        for line in views.map_detail(self.world, "", 60):
+        for line in views.view_detail(self.world, "", 60):
             self.assertLessEqual(views.width(line.text), 60, line.text)
         self.assertIn(WIDE, self.drawn())
 
@@ -138,20 +138,20 @@ class TestOverview(Window):
     """The map view brings the beings, the places and the events together."""
 
     def test_the_whole_world_shows_everybody_and_the_latest_event(self):
-        drawn = text(views.map_detail(self.world, views.WORLD_KEY, 80))
+        drawn = text(views.view_detail(self.world, views.WORLD_KEY, 80))
         for being in self.world.beings.values():
             self.assertIn(being.name, drawn)
         self.assertIn(self.world.chronicle.all()[-1].account[:20], drawn)
 
     def test_a_place_shows_only_who_is_there_and_what_happened_there(self):
-        drawn = text(views.map_detail(self.world, "mizpah", 80))
+        drawn = text(views.view_detail(self.world, "mizpah", 80))
         self.assertIn("Lilith", drawn)
         self.assertNotIn("Havvah", drawn)
         self.assertIn("nothing yet", drawn)              # the backstory was elsewhere
 
     def test_every_line_fits_on_one_line(self):
         for key in (views.WORLD_KEY, *self.world.places):
-            for line in views.map_detail(self.world, key, 50):
+            for line in views.view_detail(self.world, key, 50):
                 self.assertEqual(views.wrap(line, 50), [line], line.text)
 
 
@@ -241,7 +241,7 @@ class TestGeography(Window):
 
     def test_a_world_made_before_positions_still_has_a_map(self):
         self.world.map.positions = {}
-        drawn = text(views.map_detail(self.world, "", 60))
+        drawn = text(views.view_detail(self.world, "", 60))
         for place in self.world.places.values():
             self.assertIn(place.name, drawn)
 
@@ -410,7 +410,7 @@ class TestGoing(Window):
         app = self.app
         app.cursor[0] = [row.key for row in app.rows()].index("marah")
         app.key(ord("\n"))
-        self.assertEqual(self.names()[app.tab], "map")
+        self.assertEqual(self.names()[app.tab], "view")
         self.assertEqual(app.selected(), "marah")
         app.key(127)
         self.assertEqual((self.names()[app.tab], app.selected()), ("world", "marah"))
@@ -420,7 +420,7 @@ class TestGoing(Window):
         app.key(ord("2"))
         app.cursor[1] = [row.key for row in app.rows()].index("lilith")
         app.key(ord("\n"))
-        self.assertEqual((self.names()[app.tab], app.selected()), ("map", "mizpah"))
+        self.assertEqual((self.names()[app.tab], app.selected()), ("view", "mizpah"))
 
     def test_an_event_leads_to_where_it_happened(self):
         app = self.app
@@ -428,7 +428,7 @@ class TestGoing(Window):
         app.snap()
         event = self.world.chronicle.get(app.selected())
         app.key(ord("\n"))
-        self.assertEqual((self.names()[app.tab], app.selected()), ("map", event.place))
+        self.assertEqual((self.names()[app.tab], app.selected()), ("view", event.place))
 
     def test_somebody_gone_leads_nowhere_and_says_so(self):
         self.world.beings["lilith"].when.left_at = self.world.at
@@ -441,7 +441,7 @@ class TestGoing(Window):
         app.go(0)                                   # as clicking the World tab does
         self.assertEqual(self.names()[app.tab], "world")
         app.key(27)
-        self.assertEqual((self.names()[app.tab], app.selected()), ("map", "sinai"))
+        self.assertEqual((self.names()[app.tab], app.selected()), ("view", "sinai"))
         app.key(27)
         self.assertEqual(self.names()[app.tab], "world")
 
@@ -454,7 +454,7 @@ class TestGoing(Window):
         self.app.key(ord("?"))
         self.app.key(27)
         self.assertFalse(self.app.helping)
-        self.assertEqual(self.names()[self.app.tab], "map")
+        self.assertEqual(self.names()[self.app.tab], "view")
 
     def test_there_is_no_back_before_anywhere_was_gone(self):
         self.app.key(127)

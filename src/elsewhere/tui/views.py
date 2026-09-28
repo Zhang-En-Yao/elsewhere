@@ -518,7 +518,7 @@ def place_rows(world: World) -> List[Row]:
     return rows
 
 
-def map_detail(world: World, key: str, columns: int) -> List[Line]:
+def view_detail(world: World, key: str, columns: int) -> List[Line]:
     """The map, then who is where and what happened lately: everywhere, or
     at the place looked at, whose name is in bold. One line each, so it
     all fits at once; the other views have the rest."""
@@ -571,7 +571,7 @@ def map_detail(world: World, key: str, columns: int) -> List[Line]:
 def world_link(world: World, key: str) -> Optional[Tuple[str, str]]:
     """A place, or the world as a whole, is shown on the map."""
     if key == WORLD_KEY or key in world.places:
-        return ("map", key)
+        return ("view", key)
     return None
 
 
@@ -580,7 +580,7 @@ def being_link(world: World, key: str) -> Optional[Tuple[str, str]]:
     being = world.beings.get(key)
     if being is None or not being.present or being.where.place not in world.places:
         return None
-    return ("map", being.where.place)
+    return ("view", being.where.place)
 
 
 def event_link(world: World, key: str) -> Optional[Tuple[str, str]]:
@@ -588,10 +588,10 @@ def event_link(world: World, key: str) -> Optional[Tuple[str, str]]:
     event = world.chronicle.get(key)
     if event is None or event.place not in world.places:
         return None
-    return ("map", event.place or "")
+    return ("view", event.place or "")
 
 
-def map_link(world: World, key: str) -> Optional[Tuple[str, str]]:
+def view_link(world: World, key: str) -> Optional[Tuple[str, str]]:
     """From the map, a place is read in full."""
     if key == WORLD_KEY or key in world.places:
         return ("world", key)
@@ -605,5 +605,5 @@ VIEWS = (
          lambda world, key, columns: being_detail(world, key), being_link),
     View("history", "History", chronicle_rows,
          lambda world, key, columns: event_detail(world, key), event_link),
-    View("map", "Map", place_rows, map_detail, map_link),
+    View("view", "View", place_rows, view_detail, view_link),
 )

@@ -612,7 +612,7 @@ That is two steps, and either can be run on its own:
 
 ```bash
 elsewhere initialize    # Nod: 3 beings, 7 places, and four things that already happened
-make schedule           # a launchd agent that runs `elsewhere continue` every 30 minutes
+make schedule           # a launchd agent that runs `elsewhere continue` every 24 minutes
 ```
 
 A new world starts with everyone due at once, so the schedule's first run —
@@ -658,7 +658,7 @@ size the terminal holds. Then four views, on the keys 1 to 4:
 | 1 World | every place and who is in it; and the world as a whole — its clock, what falls due next, and whether anything is running it |
 | 2 Beings | each being: where they are, what they are doing, the page they carry, and what they have kept of today |
 | 3 History | every event, oldest first, with a line where you stopped reading; beside each, what each being kept of it |
-| 4 Map | the map, then who is where, what falls due next and what happened lately — everywhere, or at the place selected, whose name is in bold |
+| 4 View | the map, then who is where, what falls due next and what happened lately — everywhere, or at the place selected, whose name is in bold |
 
 `j`/`k` (or the arrows) choose in the list on the left, Tab moves across to
 scroll what is on the right, `?` lists every key, and `q` closes the window.
@@ -695,7 +695,7 @@ make unschedule         # the world stays exactly where it is until it is run ag
 ```
 
 A world that was stopped is not owed the time it missed: when it runs again it
-lives at most eight steps and sleeps through the rest (see below).
+lives at most a day's worth of steps and sleeps through the rest (see below).
 
 ### Every time you come back
 
@@ -764,10 +764,12 @@ the three do not agree: nobody was shown anyone else's.
 
 A day here is a day there. `elsewhere continue` lives whatever the wall clock
 says is owed — counted in hours, and paid off in whatever steps the beings in
-the world asked for — at most eight steps in one go (`--max`); a longer backlog
-is slept through rather than carried, so a laptop that was shut for a week does
-not wake up and spend an hour on it. If the model cannot be reached, the world
-waits rather than inventing a day. `make schedule` runs it every 30 minutes;
+the world asked for — at most eight steps in one go (`--max`), or 48 when
+`make schedule` runs it, enough for a whole day at half an hour a step, so a
+Mac that is opened once a day misses nothing; a longer backlog is slept through
+rather than carried, so a laptop that was shut for a week does not wake up and
+spend hours on it. If the model cannot be reached, the world
+waits rather than inventing a day. `make schedule` runs it every 24 minutes;
 [Starting a world](#starting-a-world) covers setting that up.
 
 ### What is asked of a mind

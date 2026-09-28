@@ -2,13 +2,15 @@
 #
 # Keep the world going via a launchd agent that runs `elsewhere continue`.
 #
-#   scripts/schedule.sh install     # check every 30 min (CHECK_EVERY)
+#   scripts/schedule.sh install     # check every 24 min (CHECK_EVERY, in seconds)
 #   scripts/schedule.sh status      # loaded? last run? (reaching a mind is `make doctor`:
 #                                   #  it loads the model, which a status check should not)
 #   scripts/schedule.sh log
 #   scripts/schedule.sh uninstall
 #
-# At most MAX steps are lived per run.
+# At most MAX steps are lived per run: enough to cover BACKLOG_HOURS at the
+# shortest step, STEP_MINUTES (24 h at 30 min = 48), so a day the Mac spent
+# asleep is lived the next time it wakes. Set MAX to skip the calculation.
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,8 +19,10 @@ REPO="$PWD"
 LABEL="com.elsewhere.continue"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 WORLD="${WORLD:-$REPO/world}"
-MAX="${MAX:-8}"
-CHECK_EVERY="${CHECK_EVERY:-1800}"
+BACKLOG_HOURS="${BACKLOG_HOURS:-24}"   # world time one wake may catch up on
+STEP_MINUTES="${STEP_MINUTES:-30}"     # the shortest step a being asks for
+MAX="${MAX:-$(( BACKLOG_HOURS * 60 / STEP_MINUTES ))}"
+CHECK_EVERY="${CHECK_EVERY:-1440}"
 LOG="$REPO/.elsewhere/continue.log"
 
 find_cli() {
