@@ -21,8 +21,8 @@ PAUSE_MILLISECONDS = 500
 #: Rows above the list: the bar, the tabs, the rule.
 FIXED_ROWS = 3
 
-#: How long the logo stays when nothing is pressed.
-SPLASH_MILLISECONDS = 1500
+#: How long the logo stays on closing when nothing is pressed.
+CLOSING_MILLISECONDS = 3000
 
 #: Every key only moves what is being looked at; `?` lists them.
 KEYS = "esc back   ? keys   q quit"
@@ -453,27 +453,30 @@ class App:
                             else "not following; r reads again")
         return True
 
-    def splash(self) -> None:
+    def splash(self, milliseconds: int) -> None:
         """The logo, with the world's name under it, until a key is pressed
-        or `SPLASH_MILLISECONDS` pass. The key is not passed on."""
-        height, width = self.screen.getmaxyx()
-        drawing = views.logo(width - 2, height - 3)
-        if not drawing:
-            return
-        caption = [("Elsewhere", self.tones["bold"]),
-                   (self.world.name + "   " + self.world.label(), self.tones["dim"])]
-        self.screen.erase()
-        top = max(0, (height - len(drawing) - 1 - len(caption)) // 2)
-        left = max(0, (width - max(views.width(line) for line in drawing)) // 2)
-        for offset, line in enumerate(drawing):
-            self.put(top + offset, left, line, self.tones["plain"], width - left)
-        for offset, (text, attribute) in enumerate(caption, start=len(drawing) + 1):
-            self.put(top + offset, max(0, (width - views.width(text)) // 2), text,
-                     attribute, width)
-        self.screen.noutrefresh()
-        curses.doupdate()
-        self.screen.timeout(SPLASH_MILLISECONDS)
-        self.screen.getch()
+        or `milliseconds` pass (-1: until a key). The key is not passed on;
+        resizing the terminal only redraws it."""
+        self.screen.timeout(milliseconds)
+        while True:
+            height, width = self.screen.getmaxyx()
+            drawing = views.logo(width - 2, height - 3)
+            if not drawing:
+                return
+            caption = [("Elsewhere", self.tones["bold"]),
+                       (self.world.name + "   " + self.world.label(), self.tones["dim"])]
+            self.screen.erase()
+            top = max(0, (height - len(drawing) - 1 - len(caption)) // 2)
+            left = max(0, (width - max(views.width(line) for line in drawing)) // 2)
+            for offset, line in enumerate(drawing):
+                self.put(top + offset, left, line, self.tones["plain"], width - left)
+            for offset, (text, attribute) in enumerate(caption, start=len(drawing) + 1):
+                self.put(top + offset, max(0, (width - views.width(text)) // 2), text,
+                         attribute, width)
+            self.screen.noutrefresh()
+            curses.doupdate()
+            if self.screen.getch() != curses.KEY_RESIZE:
+                return
 
     def loop(self) -> None:
         curses.curs_set(0)
@@ -481,18 +484,19 @@ class App:
         curses.set_escdelay(25)
         curses.mousemask(curses.BUTTON1_CLICKED | curses.BUTTON1_DOUBLE_CLICKED
                          | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", 0))
-        self.splash()
+        self.splash(-1)
         self.screen.timeout(PAUSE_MILLISECONDS)
         while True:
             self.draw()
             try:
                 pressed = self.screen.getch()
             except KeyboardInterrupt:
-                return
+                break
             if pressed != -1 and not self.key(pressed):
-                return
+                break
             if self.follow and self._stamp() != self.stamp:
                 self.reload()
+        self.splash(CLOSING_MILLISECONDS)
 
 
 def run(root) -> None:
