@@ -12,8 +12,9 @@ typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 	    echo "  mypy not installed, skipping: pip install -e \".[dev]\""; \
 	fi
 
-world:           ## make a world in ./world (needs a reachable model)
+world:           ## make a world in ./world and keep it going (launchd)
 	elsewhere --world world initialize
+	./scripts/schedule.sh install
 
 watch:           ## sit with the world in a window; reads only
 	elsewhere watch

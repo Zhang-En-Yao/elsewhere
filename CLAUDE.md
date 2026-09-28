@@ -29,7 +29,7 @@ Other commands operate on a live world under `./world` and need a reachable mode
 (`elsewhere doctor` checks this):
 
 ```bash
-make world          # elsewhere --world world initialize — 3 people, 1 town, a flood
+make world          # initialize ./world (3 beings, 1 town, a flood), then `make schedule`
 make tick           # live one step now (TICKS=3 for three)
 make watch           # read-only TUI window onto the world
 make news            # what happened since you last looked

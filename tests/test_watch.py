@@ -155,6 +155,61 @@ class TestOverview(Window):
                 self.assertEqual(views.wrap(line, 50), [line], line.text)
 
 
+class TestNext(Window):
+    """What falls due next, and whether anything will live it."""
+
+    def setUp(self):
+        super().setUp()
+        self.was = views.AGENT
+        views.AGENT = Path(self.temporary.name) / "agent.plist"
+
+    def tearDown(self):
+        views.AGENT = self.was
+        super().tearDown()
+
+    def install(self, world_root, log_lines=None):
+        import plistlib
+        log = Path(self.temporary.name) / "continue.log"
+        if log_lines is not None:
+            log.write_text("".join(line + "\n" for line in log_lines))
+        views.AGENT.write_bytes(plistlib.dumps({
+            "ProgramArguments": ["elsewhere", "--world", str(world_root), "continue"],
+            "StartInterval": 1800, "StandardOutPath": str(log)}))
+
+    def said(self):
+        return text(views.next_lines(self.world, "  "))
+
+    def test_everybody_starts_due_at_once(self):
+        [(at, names)] = views.upcoming(self.world)
+        self.assertEqual(at, self.world.at)
+        self.assertEqual(names, ["Bezalel", "Havvah", "Lilith", "the town", "the road"])
+        self.assertIn("now", self.said())
+
+    def test_a_world_hour_falls_due_a_real_hour_after_the_last_step(self):
+        self.world.last_tick_at = 1000.0
+        self.assertEqual(views.by_clock(self.world, self.world.at + 2.0), 1000.0 + 7200.0)
+        self.assertEqual(views.by_clock(self.world, self.world.at - 5.0), 1000.0)
+
+    def test_nothing_installed_says_nothing_will_happen(self):
+        self.assertIn("make schedule", self.said())
+
+    def test_a_job_for_another_world_is_not_this_one(self):
+        self.install(Path(self.temporary.name) / "elsewhere")
+        self.assertIsNone(views.agent(self.world))
+        self.assertIn("make schedule", self.said())
+
+    def test_a_job_that_never_ran_is_said_to_have_never_run(self):
+        self.install(self.world.root)
+        self.assertIn("never ran", self.said())
+
+    def test_the_last_run_is_read_off_its_log(self):
+        self.install(self.world.root, ["[2026-09-28 18:30] checked; nothing is due for 2.0h",
+                                       "  Havvah  stayed where they were"])
+        said = self.said()
+        self.assertIn("every 30min", said)
+        self.assertIn("last ran 2026-09-28 18:30", said)
+
+
 class TestGeography(Window):
     """Laid out once, when the world is made, and kept with it."""
 
