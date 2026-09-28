@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 
 from . import HOURS_PER_DAY, configuration
+from .world import geography
 from .world.chronicle import Chronicle
 from .world.entities import (Being, Place, Where, Who,
                              ways_from_neighbours)
@@ -121,9 +122,10 @@ def build(root, name: str = "Nod") -> World:
            ["bethel", "marah", "yard"])
 
     world.map.ways = ways_from_neighbours(neighbours)
+    world.map.positions = geography.layout(list(world.places), world.map.ways)
 
     add_being(
-        world, "p_bezalel", "Bezalel",
+        world, "bezalel", "Bezalel",
         card=("You build what holds, and you would rather fix a thing "
               "than discuss it. You are steady to the point of being "
               "dull about it. You remember what your hands were doing, "
@@ -144,7 +146,7 @@ def build(root, name: str = "Nod") -> World:
         place="yard", home="bethel",
     )
     add_being(
-        world, "p_havvah", "Havvah",
+        world, "havvah", "Havvah",
         card=("You keep the garden alive, and you are good at it, and "
               "you do not much like being watched while you work. You "
               "startle easily and you know it. You kept the fish while "
@@ -164,7 +166,7 @@ def build(root, name: str = "Nod") -> World:
         place="garden", home="garden",
     )
     add_being(
-        world, "p_lilith", "Lilith",
+        world, "lilith", "Lilith",
         card=("You know what grows on Sinai better than anyone, and "
               "nobody else goes up it, and you are not sure you will be "
               "here next year. You notice change before other people do "
@@ -195,11 +197,11 @@ def build(root, name: str = "Nod") -> World:
                          "owing to them. It has run here ever since, and it is what "
                          "filled Marah.",
                          place="penuel", involved=[],
-                         informed=["p_bezalel", "p_havvah", "p_lilith"],
+                         informed=["bezalel", "havvah", "lilith"],
                          data={"viewpoints": {
-                             "p_bezalel": "down in the dry channel it came into, walking his cut stone out of it",
-                             "p_havvah": "further down the valley, watching the dust go dark all at once",
-                             "p_lilith": "up on Mizpah, nearest to where it came down, wet through",
+                             "bezalel": "down in the dry channel it came into, walking his cut stone out of it",
+                             "havvah": "further down the valley, watching the dust go dark all at once",
+                             "lilith": "up on Mizpah, nearest to where it came down, wet through",
                          }})
     world.at = CHURNING
     world.record("churning",
@@ -213,11 +215,11 @@ def build(root, name: str = "Nod") -> World:
                          "it, and it is the near reach that the town drinks from "
                          "now. Nobody in the valley slept.",
                          place="marah", involved=[],
-                         informed=["p_bezalel", "p_havvah", "p_lilith"],
+                         informed=["bezalel", "havvah", "lilith"],
                          data={"viewpoints": {
-                             "p_bezalel": "on the bank, taking a turn on the snake when the near side was short-handed",
-                             "p_havvah": "well back from the water, on the high side, out of the way of both crowds",
-                             "p_lilith": "down at the edge of it, as close as she was let, watching the near side's feet",
+                             "bezalel": "on the bank, taking a turn on the snake when the near side was short-handed",
+                             "havvah": "well back from the water, on the high side, out of the way of both crowds",
+                             "lilith": "down at the edge of it, as close as she was let, watching the near side's feet",
                          }})
     world.at = DELUGE
     world.record("flood",
@@ -229,12 +231,12 @@ def build(root, name: str = "Nod") -> World:
                          "anybody had built. The boat was tied to the fish's horn and "
                          "went aground on Mizpah, and the water did not go down for "
                          "three days.",
-                         place="marah", involved=["p_havvah", "p_bezalel"],
-                         informed=["p_bezalel", "p_havvah", "p_lilith"],
+                         place="marah", involved=["havvah", "bezalel"],
+                         informed=["bezalel", "havvah", "lilith"],
                          data={"viewpoints": {
-                             "p_bezalel": "in the boat he had built, at the rope, with the horn in front of him",
-                             "p_havvah": "in the stern of the boat, with the seed she had been told to bring",
-                             "p_lilith": "on Mizpah, above all of it, watching the valley go under and then the boat come up to her",
+                             "bezalel": "in the boat he had built, at the rope, with the horn in front of him",
+                             "havvah": "in the stern of the boat, with the seed she had been told to bring",
+                             "lilith": "on Mizpah, above all of it, watching the valley go under and then the boat come up to her",
                          }})
     world.at = LIFTING
     world.record("lifting",
@@ -248,11 +250,11 @@ def build(root, name: str = "Nod") -> World:
                          "The boat came down off Mizpah onto that dry ground after "
                          "the rain, and was turned over, and it is the house.",
                          place="bethel", involved=[],
-                         informed=["p_bezalel", "p_lilith", "p_havvah"],
+                         informed=["bezalel", "lilith", "havvah"],
                          data={"viewpoints": {
-                             "p_bezalel": "underneath it, one hand on a post he had driven that morning and did not need",
-                             "p_lilith": "at the edge of it, out in the rain, looking up at the underside of the hill",
-                             "p_havvah": "underneath it, with what she had got out of the beds in her skirt",
+                             "bezalel": "underneath it, one hand on a post he had driven that morning and did not need",
+                             "lilith": "at the edge of it, out in the rain, looking up at the underside of the hill",
+                             "havvah": "underneath it, with what she had got out of the beds in her skirt",
                          }})
 
     world.at = START_AT

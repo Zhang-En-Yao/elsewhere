@@ -1,7 +1,7 @@
 """A world on disk, and the lock that allows one tick at a time.
 
     <world>/
-      world.json            clock, places, counters
+      world.json            clock, places, the map
       beings/<id>.json      one card per being, notebook included
       chronicle.jsonl       append-only history
       notes/<id>.jsonl      every note one being has made, append-only
@@ -82,7 +82,6 @@ class World:
     map: Map = field(default_factory=Map)
 
     beings: Dict[str, Being] = field(default_factory=dict)
-    counters: Dict[str, int] = field(default_factory=dict)
     closed: bool = False           # set by `elsewhere end`; `cli.open_live` reads it
     last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     read_through: int = 0                    # chronicle length the last time you looked
@@ -125,11 +124,6 @@ class World:
     def advance(self, hours: float) -> None:
         self.at += hours
 
-    def next_id(self, prefix: str) -> str:
-        count = self.counters.get(prefix, 0) + 1
-        self.counters[prefix] = count
-        return f"{prefix}{count:04d}"
-
     def notes(self, being_id: str) -> Notes:
         return Notes(self.root / "notes" / f"{being_id}.jsonl")
 
@@ -164,7 +158,7 @@ class World:
                involved: Optional[List[str]] = None,
                informed: Optional[List[str]] = None,
                data: Optional[dict] = None) -> Event:
-        event = Event(id=self.next_id("ev"), at=self.at,
+        event = Event(id=str(len(self.chronicle) + 1), at=self.at,
                       category=category, account=account, place=place,
                       involved=list(involved or []), informed=list(informed or []),
                       data=dict(data or {}))
@@ -181,7 +175,6 @@ def atomic_write(path: Path, payload: dict) -> None:
 def save(world: World) -> None:
     atomic_write(world.root / "world.json", {
         "schema": SCHEMA_VERSION, "name": world.name, "at": world.at,
-        "counters": world.counters,
         "closed": world.closed,
         "last_tick_at": world.last_tick_at, "read_through": world.read_through,
         "town_wake_at": world.town_wake_at, "road_wake_at": world.road_wake_at,
@@ -209,7 +202,6 @@ def load(root) -> World:
             f"differently made world. This one cannot read it.")
     world = World(
         root=root, name=metadata.get("name", "Elsewhere"), at=float(metadata["at"]),
-        counters=dict(metadata.get("counters", {})),
         closed=bool(metadata.get("closed", False)),
         last_tick_at=metadata.get("last_tick_at"),
         read_through=int(metadata.get("read_through", 0)),

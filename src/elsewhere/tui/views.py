@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from typing import Callable, List, NamedTuple, Optional
 
 from .. import agents, schedule
+from . import cartography
 from ..schemas import NOTEBOOK_CHARACTERS
-from ..world import chronicle
+from ..world import chronicle, geography
 from ..world.store import DAWN, DUSK, World, clock_at, day_at
 
 #: `rule` is a divider drawn to the available width, not text.
@@ -44,7 +45,8 @@ class View(NamedTuple):
     name: str
     title: str
     rows: Callable[[World], List[Row]]
-    detail: Callable[[World, str], List[Line]]
+    #: Given the pane's width, for what is drawn rather than wrapped.
+    detail: Callable[[World, str, int], List[Line]]
 
 
 # Measured with unicodedata, since wide characters take two columns.
@@ -144,7 +146,7 @@ WORLD_KEY = "~world"
 GONE_KEY = "~gone"
 
 
-def town_rows(world: World) -> List[Row]:
+def world_rows(world: World) -> List[Row]:
     rows = [Row(WORLD_KEY, world.name + ", as a whole", "accent"), Row("")]
     for place in world.places.values():
         here = world.beings_at(place.id)
@@ -158,7 +160,7 @@ def town_rows(world: World) -> List[Row]:
     return rows
 
 
-def world_detail(world: World) -> List[Line]:
+def overview_detail(world: World) -> List[Line]:
     lines = [Line(world.name, "bold"),
            Line("  " + world.label()),
            Line("  the sun %s   (up at %02.0f:00, down at %02.0f:00)"
@@ -205,7 +207,7 @@ def world_detail(world: World) -> List[Line]:
 
 
 def gone_detail(world: World) -> List[Line]:
-    """People who left, as they were when they went."""
+    """Beings who left, as they were when they went."""
     gone = sorted((being for being in world.beings.values() if not being.present),
                   key=lambda being: being.when.left_at or 0.0)
     lines = [Line("No longer here", "bold"),
@@ -222,9 +224,9 @@ def gone_detail(world: World) -> List[Line]:
     return lines
 
 
-def town_detail(world: World, key: str) -> List[Line]:
+def world_detail(world: World, key: str) -> List[Line]:
     if key == WORLD_KEY:
-        return world_detail(world)
+        return overview_detail(world)
     if key == GONE_KEY:
         return gone_detail(world)
     place = world.places.get(key)
@@ -256,7 +258,7 @@ def town_detail(world: World, key: str) -> List[Line]:
     return lines
 
 
-def people_rows(world: World) -> List[Row]:
+def being_rows(world: World) -> List[Row]:
     present = sorted((being for being in world.beings.values() if being.present),
                      key=lambda being: being.name)
     gone = sorted((being for being in world.beings.values() if not being.present),
@@ -275,7 +277,7 @@ def people_rows(world: World) -> List[Row]:
     return rows
 
 
-def person_detail(world: World, key: str) -> List[Line]:
+def being_detail(world: World, key: str) -> List[Line]:
     being = world.beings.get(key)
     if being is None:
         return [Line("Nobody.", "dim")]
@@ -351,7 +353,7 @@ def event_detail(world: World, key: str) -> List[Line]:
     if event is None:
         return [Line("No such event.", "dim")]
     place = world.places.get(event.place or "")
-    lines = [Line(event.id + "  " + timestamp(event.at) + "  " + event.category, "bold"),
+    lines = [Line("event " + event.id + "  " + timestamp(event.at) + "  " + event.category, "bold"),
            Line("  at " + (place.name if place else "nowhere in particular"),
                 "dim"),
            Line(),
@@ -359,7 +361,7 @@ def event_detail(world: World, key: str) -> List[Line]:
     why = event.data.get("why_now")
     if why:
         lines.append(Line("  why then: " + str(why), "dim", under=2))
-    lines += [Line(), Line("  What it left in people", "bold")]
+    lines += [Line(), Line("  What it left in the beings it reached", "bold")]
     position = world.chronicle.all().index(event)
     reached = [world.beings[being_id] for being_id in event.informed
                if being_id in world.beings]
@@ -379,8 +381,37 @@ def event_detail(world: World, key: str) -> List[Line]:
     return lines
 
 
+def place_rows(world: World) -> List[Row]:
+    rows = []
+    for place in world.places.values():
+        here = world.beings_at(place.id)
+        who = ", ".join(being.name for being in here) if here else NOTHING
+        rows.append(Row(place.id, pad(clip(place.name, 16), 17) + who,
+                        "plain" if here else "dim"))
+    if not rows:
+        rows.append(Row("", "there are no places", "dim"))
+    return rows
+
+
+def map_detail(world: World, key: str, columns: int) -> List[Line]:
+    """The place looked at is in brackets."""
+    labels = {place.id: ("[" + place.name + "]" if place.id == key else place.name)
+              for place in world.places.values()}
+    positions = world.map.positions
+    if not positions:
+        # Made before places had positions: lay it out here, and keep none of it.
+        positions = geography.layout(list(world.places), world.map.ways)
+    rows = max(9, min(18, columns // 3))
+    return [Line(text) for text in
+            cartography.draw(labels, positions, world.map.ways, columns, rows)]
+
+
 VIEWS = (
-    View("town", "Town", town_rows, town_detail),
-    View("people", "People", people_rows, person_detail),
-    View("history", "History", chronicle_rows, event_detail),
+    View("world", "World", world_rows,
+         lambda world, key, columns: world_detail(world, key)),
+    View("beings", "Beings", being_rows,
+         lambda world, key, columns: being_detail(world, key)),
+    View("history", "History", chronicle_rows,
+         lambda world, key, columns: event_detail(world, key)),
+    View("map", "Map", place_rows, map_detail),
 )

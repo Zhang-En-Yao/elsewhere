@@ -18,13 +18,13 @@ from .views import VIEWS, Line, Row
 #: Key wait before re-checking the files for changes.
 PAUSE_MILLISECONDS = 500
 
-KEYS = ("1-3 view   TAB pane   j/k move   g/G ends   r read again   f follow   "
-        "? keys   q quit")
+#: Every key only moves what is being looked at; `?` lists them.
+KEYS = "? keys   q quit"
 
 HELP = """\
 Keys
 
-  1 2 3       town, people, history
+  1 2 3 4     world, beings, history, map
   TAB         move between the list and what it is showing
   j k         down and up; also the arrow keys
   g G         the top, and the end
@@ -159,7 +159,7 @@ class App:
         if self.helping:
             source = [Line(text) for text in HELP.splitlines()]
         else:
-            source = self.view().detail(self.world, self.selected())
+            source = self.view().detail(self.world, self.selected(), columns)
         wrapped: List[Line] = []
         for line in source:
             wrapped.extend(views.wrap(line, columns))

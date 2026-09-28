@@ -56,11 +56,11 @@ class MakingAWorldTest(unittest.TestCase):
                                      "action": "", "again_in_hours": 6.0})
         tick.tick(world, self.configuration())
         havvah = next(call for call in self.stub.calls
-                      if call.name == CallName.ACT and call.about == "p_havvah")
+                      if call.name == CallName.ACT and call.about == "havvah")
         for event in world.chronicle.all():
             self.assertIn(event.account, havvah.user)
-            self.assertIn(event.data["viewpoints"]["p_havvah"], havvah.user)
-        notes = world.notes("p_havvah").all()
+            self.assertIn(event.data["viewpoints"]["havvah"], havvah.user)
+        notes = world.notes("havvah").all()
         self.assertEqual(len(notes), 1, "one thing kept of all of it, in her words")
         self.assertEqual(notes[0].event_ids, [event.id for event in world.chronicle.all()])
 

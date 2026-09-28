@@ -624,7 +624,7 @@ elsewhere status                # where everyone is, and how much they carry
 elsewhere person Havvah         # the page she carries, and what she has kept of today
 elsewhere person Havvah --pages # every page she has ever written, oldest first
 elsewhere timeline              # history: what happened
-elsewhere event ev0003          # one event, and what each being kept of it
+elsewhere event 3               # one event, and what each being kept of it
 
 elsewhere end                   # end the world for good; what happened stays readable
 
@@ -640,7 +640,7 @@ wraps the common ones — `make world`, `make tick`, `make watch`, `make news`,
 One thing worth doing first, once a world has lived a few steps:
 
 ```bash
-elsewhere event ev0003
+elsewhere event 3
 ```
 
 The water came up over Marah's ring of stones before morning, and did not go
