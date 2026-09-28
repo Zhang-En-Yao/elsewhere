@@ -100,16 +100,25 @@ class TestMap(Window):
         for place in self.world.places.values():
             self.assertIn(place.name, drawn)
 
-    def test_the_place_looked_at_is_the_one_in_brackets(self):
-        drawn = self.drawn("marah")
-        self.assertIn("[Marah]", drawn)
-        self.assertNotIn("[Mizpah]", drawn)
+    def test_the_place_looked_at_is_the_one_in_bold(self):
+        lines = views.map_detail(self.world, "marah", 60)
+        spans = [span for line in lines for span in line.spans]
+        self.assertEqual([(text, tone) for _, text, tone in spans], [("Marah", "bold")])
+        line = next(line for line in lines if line.spans)
+        column = line.spans[0][0]
+        self.assertEqual(line.text[column:column + len("Marah")], "Marah",
+                         "the bold name has to land exactly on the name under it")
+        self.assertNotIn("[", self.drawn("marah"))
+
+    def test_the_whole_world_puts_no_place_in_bold(self):
+        self.assertFalse([line for line in views.map_detail(self.world, views.WORLD_KEY, 60)
+                          if line.spans])
 
     def test_it_is_never_wider_than_the_pane(self):
         for columns in (30, 45, 60, 90):
             labels = {place.id: place.name for place in self.world.places.values()}
-            drawing = cartography.draw(labels, self.world.map.positions,
-                                       self.world.map.ways, columns, 12)
+            drawing, _ = cartography.draw(labels, self.world.map.positions,
+                                          self.world.map.ways, columns, 12)
             self.assertLessEqual(len(drawing), 12)
             for row in drawing:
                 # The screen wraps every line; a drawing has to come through whole.
@@ -123,6 +132,27 @@ class TestMap(Window):
         for line in views.map_detail(self.world, "", 60):
             self.assertLessEqual(views.width(line.text), 60, line.text)
         self.assertIn(WIDE, self.drawn())
+
+
+class TestOverview(Window):
+    """The map view brings the beings, the places and the events together."""
+
+    def test_the_whole_world_shows_everybody_and_the_latest_event(self):
+        drawn = text(views.map_detail(self.world, views.WORLD_KEY, 80))
+        for being in self.world.beings.values():
+            self.assertIn(being.name, drawn)
+        self.assertIn(self.world.chronicle.all()[-1].account[:20], drawn)
+
+    def test_a_place_shows_only_who_is_there_and_what_happened_there(self):
+        drawn = text(views.map_detail(self.world, "mizpah", 80))
+        self.assertIn("Lilith", drawn)
+        self.assertNotIn("Havvah", drawn)
+        self.assertIn("nothing yet", drawn)              # the backstory was elsewhere
+
+    def test_every_line_fits_on_one_line(self):
+        for key in (views.WORLD_KEY, *self.world.places):
+            for line in views.map_detail(self.world, key, 50):
+                self.assertEqual(views.wrap(line, 50), [line], line.text)
 
 
 class TestGeography(Window):

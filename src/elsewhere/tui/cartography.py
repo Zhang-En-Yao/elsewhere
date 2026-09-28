@@ -55,12 +55,14 @@ def cells(text: str) -> List[str]:
 
 
 def draw(labels: Dict[str, str], positions: Dict[str, List[float]],
-         ways: Sequence[Sequence[str]], columns: int, rows: int) -> List[str]:
+         ways: Sequence[Sequence[str]], columns: int,
+         rows: int) -> Tuple[List[str], Dict[str, Tuple[int, int]]]:
     """Names where `positions` puts them, and a dotted line for each way, in at
-    most `columns` by `rows`; a place with no position is left off."""
+    most `columns` by `rows`; a place with no position is left off. Also gives
+    the row and column each name starts at, for whatever is drawn over it."""
     places = [place for place in labels if place in positions]
     if not places or columns <= 0 or rows <= 0:
-        return []
+        return [], {}
     widest = max(len(cells(labels[place])) for place in places)
     margin = min(widest // 2 + 1, columns // 2)
     room_x, room_y = max(0, columns - 1 - 2 * margin), rows - 1
@@ -82,11 +84,13 @@ def draw(labels: Dict[str, str], positions: Dict[str, List[float]],
         if one in centre and other in centre:
             for x, y in line(centre[one], centre[other]):
                 grid[y][x] = STROKE
+    starts: Dict[str, Tuple[int, int]] = {}
     for place in places:
         x, y = centre[place]
         pieces = cells(labels[place])
         start = min(max(0, x - len(pieces) // 2), max(0, columns - len(pieces)))
+        starts[place] = (y, start)
         for offset, piece in enumerate(pieces):
             if 0 <= start + offset < columns:
                 grid[y][start + offset] = piece
-    return ["".join(row).rstrip() for row in grid]
+    return ["".join(row).rstrip() for row in grid], starts

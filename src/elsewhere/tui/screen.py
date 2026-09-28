@@ -263,6 +263,9 @@ class App:
             line = lines[position]
             self.put(top + offset, x, line.text,
                      self.tones.get(line.tone, curses.A_NORMAL), columns)
+            for column, text, tone in line.spans:
+                self.put(top + offset, x + column, text,
+                         self.tones.get(tone, curses.A_NORMAL), columns - column)
         if self.down + body < len(lines):
             self.put(top + body - 1, x + max(0, columns - 6), " more ",
                      self.tones["dim"], 6)
