@@ -666,8 +666,9 @@ The bar across the top has the world's clock, when the next thing falls due by
 your own clock, and how much is new.
 
 Enter goes where the row leads: a place, a being or an event to where it is on
-the map, and a place on the map to everything known about it. Backspace goes
-back the way you came. The mouse works too — click a tab or a row, double-click to go where it leads,
+the map, and a place on the map to everything known about it. Esc (or
+Backspace) goes back to the page before, however you left it — by Enter, a
+click, or another tab. The mouse works too — click a tab or a row, double-click to go where it leads,
 scroll with the wheel. While the window has the mouse, the terminal needs ⌥
 held down to select text.
 
@@ -744,6 +745,7 @@ make status             # is the schedule installed, and when did it last run
 make unschedule         # stop the schedule; the world waits
 make end                # end the world for good, and stop the schedule
 make doctor             # can the minds be reached? loads the model, so it takes a while
+make logo               # draw docs/logo.jpg again for the window, after changing it
 make test               # typecheck and the whole suite, against a stub; no model needed
 ```
 
