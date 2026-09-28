@@ -359,41 +359,53 @@ class FakeScreen:
 
 
 class TestLogo(unittest.TestCase):
-    """The window opens on the logo, at the largest size the terminal holds."""
+    """The window opens on the logo, at the largest size the terminal holds,
+    its wings beating."""
 
     def test_the_largest_that_fits_is_chosen(self):
-        small, large = views.logo(40, 20), views.logo(200, 100)
+        small, large = views.logo(40, 24), views.logo(200, 100)
         self.assertTrue(small)
-        self.assertGreater(len(large), len(small))
-        for columns, rows in ((40, 20), (60, 30), (200, 100)):
-            drawing = views.logo(columns, rows)
-            self.assertLessEqual(len(drawing), rows)
-            self.assertLessEqual(max(views.width(line) for line in drawing), columns)
+        self.assertGreater(len(large[0]), len(small[0]))
+        for columns, rows in ((40, 24), (60, 30), (200, 100)):
+            for drawing in views.logo(columns, rows):
+                self.assertLessEqual(len(drawing), rows)
+                self.assertLessEqual(max(views.width(line) for line in drawing), columns)
 
     def test_a_terminal_too_small_gets_no_logo(self):
         self.assertEqual(views.logo(20, 10), [])
 
     def test_it_is_braille_and_spaces_only(self):
-        for line in views.logo(200, 100):
-            for character in line:
-                self.assertTrue(character == " " or 0x2800 <= ord(character) <= 0x28FF,
-                                repr(character))
+        for drawing in views.logo(200, 100):
+            for line in drawing:
+                for character in line:
+                    self.assertTrue(character == " " or 0x2800 <= ord(character) <= 0x28FF,
+                                    repr(character))
+
+    def test_the_wings_move_and_nothing_else_resizes(self):
+        frames = views.logo(200, 100)
+        self.assertGreater(len(frames), 1)
+        self.assertEqual({len(drawing) for drawing in frames}, {len(frames[0])})
+        self.assertGreater(len({tuple(drawing) for drawing in frames}), 1)
 
 
 class ScriptedScreen(FakeScreen):
-    """A window whose keys are given in advance; records how long each wait is."""
+    """A window whose keys are given in advance; records how long each wait
+    is and what was drawn before it."""
 
     def __init__(self, keys):
         self.keys = list(keys)
         self.waits = []
         self.wait = -1
         self.drawn = []
+        self.shown = []
 
     def timeout(self, milliseconds):
         self.wait = milliseconds
 
     def getch(self):
         self.waits.append(self.wait)
+        self.shown.append(tuple(self.drawn))
+        self.drawn = []
         return self.keys.pop(0)
 
     def erase(self):
@@ -407,24 +419,29 @@ class ScriptedScreen(FakeScreen):
 
 
 class TestSplash(Window):
-    """The logo stays until a key on opening, and three seconds on closing."""
+    """The logo beats its wings until a key on opening, and for
+    `CLOSING_MILLISECONDS` on closing."""
 
-    def test_it_opens_until_a_key_and_closes_after_three_seconds(self):
+    def test_it_opens_until_a_key_and_closes_on_its_own(self):
         from unittest import mock
         from elsewhere.tui import screen
         from elsewhere.world import store
         store.save(self.world)
-        keys = ScriptedScreen([screen.curses.KEY_RESIZE, ord("x"), ord("q"), -1])
+        closing = screen.CLOSING_MILLISECONDS // screen.FRAME_MILLISECONDS
+        opening = [-1, -1, screen.curses.KEY_RESIZE, -1, ord("x")]
+        keys = ScriptedScreen(opening + [ord("q")] + [-1] * closing)
         app = screen.App(self.world.root, keys)
         with mock.patch.multiple(screen.curses, curs_set=mock.DEFAULT,
                                  set_escdelay=mock.DEFAULT, mousemask=mock.DEFAULT,
                                  doupdate=mock.DEFAULT), \
                 mock.patch.object(app, "draw"):
             app.loop()
-        self.assertEqual(keys.waits, [-1, -1, screen.PAUSE_MILLISECONDS,
-                                      screen.CLOSING_MILLISECONDS])
-        self.assertEqual(screen.CLOSING_MILLISECONDS, 3000)
-        self.assertIn("Elsewhere", keys.drawn)
+        self.assertEqual(keys.keys, [], "closing stopped early")
+        frame = screen.FRAME_MILLISECONDS
+        self.assertEqual(keys.waits, [frame] * len(opening) + [screen.PAUSE_MILLISECONDS]
+                         + [frame] * closing)
+        self.assertIn("Elsewhere", keys.shown[0])
+        self.assertNotEqual(keys.shown[0], keys.shown[1], "the wings did not move")
 
 
 class TestGoing(Window):

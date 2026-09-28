@@ -22,7 +22,10 @@ PAUSE_MILLISECONDS = 500
 FIXED_ROWS = 3
 
 #: How long the logo stays on closing when nothing is pressed.
-CLOSING_MILLISECONDS = 3000
+CLOSING_MILLISECONDS = 1000
+
+#: How long each frame of the logo's wingbeat stays.
+FRAME_MILLISECONDS = 130
 
 #: Every key only moves what is being looked at; `?` lists them.
 KEYS = "esc back   ? keys   q quit"
@@ -454,20 +457,25 @@ class App:
         return True
 
     def splash(self, milliseconds: int) -> None:
-        """The logo, with the world's name under it, until a key is pressed
-        or `milliseconds` pass (-1: until a key). The key is not passed on;
-        resizing the terminal only redraws it."""
-        self.screen.timeout(milliseconds)
-        while True:
+        """The logo, its wings beating, with the world's name under it, until a
+        key is pressed or `milliseconds` pass (-1: until a key). The key is not
+        passed on; resizing the terminal only redraws it."""
+        shown = -1 if milliseconds < 0 else max(1, milliseconds // FRAME_MILLISECONDS)
+        self.screen.timeout(FRAME_MILLISECONDS)
+        index = 0
+        while index != shown:
             height, width = self.screen.getmaxyx()
-            drawing = views.logo(width - 2, height - 3)
-            if not drawing:
+            frames = views.logo(width - 2, height - 3)
+            if not frames:
                 return
+            drawing = frames[index % len(frames)]
+            # Centred on the widest frame, so the drawing does not shift as it beats.
+            widest = views.widest(width - 2, height - 3)
             caption = [("Elsewhere", self.tones["bold"]),
                        (self.world.name + "   " + self.world.label(), self.tones["dim"])]
             self.screen.erase()
             top = max(0, (height - len(drawing) - 1 - len(caption)) // 2)
-            left = max(0, (width - max(views.width(line) for line in drawing)) // 2)
+            left = max(0, (width - widest) // 2)
             for offset, line in enumerate(drawing):
                 self.put(top + offset, left, line, self.tones["plain"], width - left)
             for offset, (text, attribute) in enumerate(caption, start=len(drawing) + 1):
@@ -475,8 +483,9 @@ class App:
                          attribute, width)
             self.screen.noutrefresh()
             curses.doupdate()
-            if self.screen.getch() != curses.KEY_RESIZE:
+            if self.screen.getch() not in (-1, curses.KEY_RESIZE):
                 return
+            index += 1
 
     def loop(self) -> None:
         curses.curs_set(0)
