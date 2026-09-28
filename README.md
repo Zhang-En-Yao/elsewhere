@@ -602,18 +602,108 @@ in a file.
 
 Nothing above is needed to run the tests — `make test` uses a stub.
 
+### Starting a world
+
+```bash
+make world              # make ./world, then start the schedule that keeps it going
+```
+
+That is two steps, and either can be run on its own:
+
+```bash
+elsewhere initialize    # Nod: 3 beings, 7 places, and four things that already happened
+make schedule           # a launchd agent that runs `elsewhere continue` every 30 minutes
+```
+
+A new world starts with everyone due at once, so the schedule's first run —
+the moment it is installed — lives the first step: each of them looks up, sees
+the past for the first time, and keeps what they keep of it. Without the
+schedule nothing happens until you run `elsewhere tick` or `elsewhere continue`
+yourself. `make status` says whether the schedule is installed and when it last
+ran; it reads launchd and the log, and loads no model.
+
+**If this folder is under Documents, Desktop or Downloads**, macOS will not let
+a launchd job read it, and will not say so: the job never runs and its log
+stays empty. Either give the Python behind `.venv` Full Disk Access
+(`make schedule` prints its path) or keep the project somewhere else, such as
+`~/elsewhere`. The path has Python's version in it, so a Homebrew upgrade of
+Python means granting it again.
+
+The default minds run on this Mac and use about 5 GB while a step is being
+lived. On a Mac with 8 GB that can stall everything else for as long as the
+step takes; a mind somewhere else (see the configuration above) does not.
+
+To start over:
+
+```bash
+elsewhere initialize --force   # a new Nod in place of the old one
+```
+
+This replaces the world rather than archiving it: the chronicle, every being,
+their notes and their pages are deleted. Only `configuration.json` and the
+transcripts survive. `make world` refuses to overwrite a world that exists.
+
+### Watching it
+
+```bash
+make watch              # or: elsewhere watch
+```
+
+Four views, on the keys 1 to 4:
+
+| View | What it shows |
+|---|---|
+| 1 World | every place and who is in it; and the world as a whole — its clock, what falls due next, and whether anything is running it |
+| 2 Beings | each being: where they are, what they are doing, the page they carry, and what they have kept of today |
+| 3 History | every event, oldest first, with a line where you stopped reading; beside each, what each being kept of it |
+| 4 Map | the map, then who is where, what falls due next and what happened lately — everywhere, or at the place selected, whose name is in bold |
+
+`j`/`k` (or the arrows) choose in the list on the left, Tab moves across to
+scroll what is on the right, `?` lists every key, and `q` closes the window.
+The bar across the top has the world's clock, when the next thing falls due by
+your own clock, and how much is new.
+
+The window only reads. It writes nothing under the world's directory — not even
+where you stopped reading — so no key in it moves the world on or marks
+anything read. Leave it open: whatever the schedule or another terminal does
+shows up in it by itself.
+
+### Ending a world
+
+```bash
+make end                # end ./world for good, and stop the schedule
+```
+
+Ending is final: nothing more happens in the world, and it cannot be started
+again. Nothing is deleted either — `watch`, `status`, `person`, `timeline` and
+`event` still read everything that did happen. To make a new one in its place,
+`elsewhere initialize --force`.
+
+To stop it for a while instead, stop only the schedule:
+
+```bash
+make unschedule         # the world stays exactly where it is until it is run again
+```
+
+A world that was stopped is not owed the time it missed: when it runs again it
+lives at most eight steps and sleeps through the rest (see below).
+
 ### Every time you come back
 
 ```bash
 cd elsewhere
-source .venv/bin/activate
-elsewhere news              # what happened while you were gone
+make news               # what happened while you were gone
+make watch              # or sit with it
 ```
 
-### Commands
+The `make` targets use `.venv` by themselves. To type `elsewhere …` directly,
+activate it first: `source .venv/bin/activate`.
+
+### Every command
 
 ```bash
 elsewhere initialize            # 3 beings, 1 town, a flood nobody agrees about
+elsewhere initialize --force    # start over: the old world is deleted
 
 elsewhere tick -n 4             # live four steps of the world now
 elsewhere continue              # live whatever the wall clock says is owed
@@ -633,9 +723,21 @@ elsewhere doctor                # can the configured minds, and the embedder, be
 elsewhere configure --backend mlx --model mlx-community/Llama-3.2-3B-Instruct-4bit   # point every mind at one model
 ```
 
-Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`
-wraps the common ones — `make world`, `make tick`, `make watch`, `make news`,
-`make doctor`, `make test`.
+Every command takes `--world <path>`; it defaults to `./world`. The `Makefile`
+wraps the common ones:
+
+```bash
+make world              # initialize, then schedule
+make watch              # the window
+make news               # what happened since you last looked
+make tick               # live one step now (TICKS=3 for three)
+make schedule           # keep it going while you are away
+make status             # is the schedule installed, and when did it last run
+make unschedule         # stop the schedule; the world waits
+make end                # end the world for good, and stop the schedule
+make doctor             # can the minds be reached? loads the model, so it takes a while
+make test               # typecheck and the whole suite, against a stub; no model needed
+```
 
 One thing worth doing first, once a world has lived a few steps:
 
@@ -655,13 +757,8 @@ says is owed — counted in hours, and paid off in whatever steps the beings in
 the world asked for — at most eight steps in one go (`--max`); a longer backlog
 is slept through rather than carried, so a laptop that was shut for a week does
 not wake up and spend an hour on it. If the model cannot be reached, the world
-waits rather than inventing a day.
-
-```bash
-make schedule           # a launchd agent that checks every 30 minutes
-make schedule-status    # is it running, and can it reach a mind
-make unschedule         # stop it
-```
+waits rather than inventing a day. `make schedule` runs it every 30 minutes;
+[Starting a world](#starting-a-world) covers setting that up.
 
 ### What is asked of a mind
 
