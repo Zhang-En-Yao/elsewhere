@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 import unicodedata
 from dataclasses import dataclass
-from typing import Callable, List, NamedTuple, Optional
+from typing import Callable, List, NamedTuple, Optional, Tuple
 
 from .. import agents, schedule
 from . import cartography
@@ -31,6 +31,10 @@ class Line:
     #: Column that wrapped continuation lines hang under; 0 means the line's
     #: own indent.
     under: int = 0
+
+    #: (column, text, tone): drawn over the line in their own tone. Lost if
+    #: the line has to be wrapped, so only for lines drawn to fit.
+    spans: Tuple[Tuple[int, str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -381,29 +385,65 @@ def event_detail(world: World, key: str) -> List[Line]:
     return lines
 
 
+#: How many of the latest events the map shows under it.
+RECENT = 6
+
+
 def place_rows(world: World) -> List[Row]:
-    rows = []
+    rows = [Row(WORLD_KEY, world.name + ", as a whole", "accent"), Row("")]
     for place in world.places.values():
         here = world.beings_at(place.id)
         who = ", ".join(being.name for being in here) if here else NOTHING
         rows.append(Row(place.id, pad(clip(place.name, 16), 17) + who,
                         "plain" if here else "dim"))
-    if not rows:
-        rows.append(Row("", "there are no places", "dim"))
     return rows
 
 
 def map_detail(world: World, key: str, columns: int) -> List[Line]:
-    """The place looked at is in brackets."""
-    labels = {place.id: ("[" + place.name + "]" if place.id == key else place.name)
-              for place in world.places.values()}
+    """The map, then who is where and what happened lately: everywhere, or
+    at the place looked at, whose name is in bold. One line each, so it
+    all fits at once; the other views have the rest."""
+    labels = {place.id: place.name for place in world.places.values()}
     positions = world.map.positions
     if not positions:
         # Made before places had positions: lay it out here, and keep none of it.
         positions = geography.layout(list(world.places), world.map.ways)
     rows = max(9, min(18, columns // 3))
-    return [Line(text) for text in
-            cartography.draw(labels, positions, world.map.ways, columns, rows)]
+    drawing, starts = cartography.draw(labels, positions, world.map.ways, columns, rows)
+    lines = [Line(text) for text in drawing]
+    if key in starts:
+        row, column = starts[key]
+        lines[row] = Line(lines[row].text, spans=((column, labels[key], "bold"),))
+    place = world.places.get(key)
+    if place is None:
+        beings = sorted((being for being in world.beings.values() if being.present),
+                        key=lambda being: being.name)
+        events = world.chronicle.all()
+    else:
+        beings = world.beings_at(place.id)
+        events = [event for event in world.chronicle.all() if event.place == place.id]
+    lines += [Line(), Line(place.name if place else "Beings", "bold")]
+    for being in beings:
+        where = world.places.get(being.where.place)
+        text = "  " + pad(being.name, 9)
+        if place is None:
+            text += pad(clip(where.name if where else NOTHING, 14), 15)
+        lines.append(Line(clip(text + (being.where.doing or "just here"), columns)))
+    if not beings:
+        lines.append(Line("  nobody is here" if place else "  nobody is left", "dim"))
+    lines += [Line(), Line("Lately" if place is None else "Lately, here", "bold")]
+    order = {event.id: index for index, event in enumerate(world.chronicle.all())}
+    for event in events[-RECENT:]:
+        text = "  " + MARKS.get(event.category, " ") + " " + pad(timestamp(event.at), 16)
+        if place is None:
+            where = world.places.get(event.place or "")
+            text += pad(clip(where.name if where else NOTHING, 12), 13)
+        unread = order[event.id] >= world.read_through
+        lines.append(Line(clip(text + event.account, columns),
+                          "plain" if unread else "dim"))
+    if not events:
+        lines.append(Line("  nothing yet", "dim"))
+    return lines
 
 
 VIEWS = (
