@@ -138,9 +138,9 @@ def may_arrive(world) -> bool:
 
 def unused_id(world, name: str) -> str:
     slug = "".join(character for character in name.lower() if character.isalnum()) or "someone"
-    candidate, suffix = f"p_{slug}", 2
+    candidate, suffix = slug, 2
     while candidate in world.beings:
-        candidate, suffix = f"p_{slug}{suffix}", suffix + 1
+        candidate, suffix = f"{slug}{suffix}", suffix + 1
     return candidate
 
 

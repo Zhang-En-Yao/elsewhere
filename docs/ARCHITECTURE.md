@@ -71,6 +71,7 @@ into their own page, or don't.
 | --- | --- |
 | [`world/chronicle.py`](../src/elsewhere/world/chronicle.py) | `Event`, `Chronicle` — the one thing that is true |
 | [`world/entities.py`](../src/elsewhere/world/entities.py) | `Being` = `Who` + `Where` + `When`; `Place` (prose) and `Map` (the town's geography) |
+| [`world/geography.py`](../src/elsewhere/world/geography.py) | where each place lies, laid out once from the ways when the world is made |
 | [`world/notes.py`](../src/elsewhere/world/notes.py) | `Note`, `Notes` — every note each person has made |
 | [`world/pages.py`](../src/elsewhere/world/pages.py) | `Page`, `Pages` — every page each person has written |
 | [`world/store.py`](../src/elsewhere/world/store.py) | `World`, save/load, `TickLock`, the calendar |
@@ -84,7 +85,7 @@ into their own page, or don't.
 | [`backends/`](../src/elsewhere/backends/) | `Call`/`Settings`/`Transcript`/`ask()`, one module per way of reaching a mind |
 | [`seed.py`](../src/elsewhere/seed.py) | the small beginning: three people, one town, a flood |
 | [`cli.py`](../src/elsewhere/cli.py) | everything a resident can do from a terminal |
-| [`tui/`](../src/elsewhere/tui/) | the same, in a window that only reads: `views.py` decides what to show, `screen.py` where to put it |
+| [`tui/`](../src/elsewhere/tui/) | the same, in a window that only reads: `views.py` decides what to show, `screen.py` where to put it, `cartography.py` draws `Map.positions` in characters (Bresenham lines) |
 
 ## The five questions
 
@@ -353,6 +354,11 @@ touch which is a fact about the town, not about a place, and lives in
 `World.map` as one entry per way. A one-way path is not writable. `road`
 lives there too: there is one edge to this world, and it belongs to the world
 rather than to whichever place sits on it.
+`positions` too: where each place lies, worked out once when the world is made
+([`world/geography.py`](../src/elsewhere/world/geography.py), stress
+majorization — Gansner, Koren & North 2004) so that the distance between two
+places follows how many ways apart they are. The seed says only which places
+touch; where they lie follows from that, and is kept so it never moves.
 
 Every field on every one of these is read by something. A field nobody reads is
 storage pretending to be design.
@@ -406,7 +412,7 @@ Tests write a stub configuration into their own temporary world.
 
 ```
 <world>/
-  world.json             clock, places, the map, counters, the town's and the road's timers
+  world.json             clock, places, the map, the town's and the road's timers
   configuration.json     which mind answers which call site; the only place that says
   beings/<id>.json       one being, as who / where / when, notebook included
   chronicle.jsonl        append-only history

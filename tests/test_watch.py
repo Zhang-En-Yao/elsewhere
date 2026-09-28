@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from elsewhere import cli, seed
-from elsewhere.tui import views
+from elsewhere.tui import cartography, views
 
 WIDE = "去年的雨"           # four columns' worth of two characters each
 
@@ -89,33 +89,105 @@ class TestWrapping(unittest.TestCase):
         self.assertTrue(all(one.tone == "warn" for one in got))
 
 
+class TestMap(Window):
+    """Laid out from the ways alone, so it has to hold whatever town it is given."""
+
+    def drawn(self, key="", columns=60):
+        return text(views.map_detail(self.world, key, columns))
+
+    def test_every_place_is_on_it(self):
+        drawn = self.drawn()
+        for place in self.world.places.values():
+            self.assertIn(place.name, drawn)
+
+    def test_the_place_looked_at_is_the_one_in_brackets(self):
+        drawn = self.drawn("marah")
+        self.assertIn("[Marah]", drawn)
+        self.assertNotIn("[Mizpah]", drawn)
+
+    def test_it_is_never_wider_than_the_pane(self):
+        for columns in (30, 45, 60, 90):
+            labels = {place.id: place.name for place in self.world.places.values()}
+            drawing = cartography.draw(labels, self.world.map.positions,
+                                       self.world.map.ways, columns, 12)
+            self.assertLessEqual(len(drawing), 12)
+            for row in drawing:
+                # The screen wraps every line; a drawing has to come through whole.
+                self.assertLessEqual(views.width(row), columns, row)
+
+    def test_the_same_town_is_drawn_the_same_way(self):
+        self.assertEqual(self.drawn("yard"), self.drawn("yard"))
+
+    def test_a_wide_name_keeps_the_columns_it_is_owed(self):
+        self.world.places["marah"].name = WIDE
+        for line in views.map_detail(self.world, "", 60):
+            self.assertLessEqual(views.width(line.text), 60, line.text)
+        self.assertIn(WIDE, self.drawn())
+
+
+class TestGeography(Window):
+    """Laid out once, when the world is made, and kept with it."""
+
+    def test_every_place_is_given_a_position_when_the_world_is_made(self):
+        self.assertEqual(set(self.world.map.positions), set(self.world.places))
+
+    def test_places_fewer_ways_apart_lie_closer(self):
+        import math
+        from itertools import combinations
+        from elsewhere.world import geography
+        apart = geography.steps(list(self.world.places), self.world.map.ways)
+        drawn: dict = {}
+        for one, other in combinations(self.world.places, 2):
+            drawn.setdefault(apart[one][other], []).append(
+                math.dist(self.world.map.positions[one], self.world.map.positions[other]))
+        means = [sum(distances) / len(distances) for _, distances in sorted(drawn.items())]
+        self.assertEqual(means, sorted(means))
+
+    def test_the_same_town_lies_the_same_way(self):
+        from elsewhere.world import geography
+        self.assertEqual(geography.layout(list(self.world.places), self.world.map.ways),
+                         self.world.map.positions)
+
+    def test_positions_survive_a_save(self):
+        from elsewhere.world import store
+        store.save(self.world)
+        self.assertEqual(store.load(self.world.root).map.positions,
+                         self.world.map.positions)
+
+    def test_a_world_made_before_positions_still_has_a_map(self):
+        self.world.map.positions = {}
+        drawn = text(views.map_detail(self.world, "", 60))
+        for place in self.world.places.values():
+            self.assertIn(place.name, drawn)
+
+
 class TestEveryViewAnswers(Window):
     def test_nothing_in_a_list_leads_nowhere(self):
         for view in views.VIEWS:
             for row in view.rows(self.world):
                 if not row.key:
                     continue          # a divider; the cursor cannot land on it
-                lines = view.detail(self.world, row.key)
+                lines = view.detail(self.world, row.key, 60)
                 self.assertTrue(lines, f"{view.name} says nothing about {row.key}")
                 for line in lines:
                     self.assertIn(line.tone, views.TONES)
 
     def test_a_key_the_world_does_not_have_is_answered_and_not_raised(self):
         for view in views.VIEWS:
-            self.assertTrue(view.detail(self.world, "no-such-thing"))
+            self.assertTrue(view.detail(self.world, "no-such-thing", 60))
 
-    def test_the_town_holds_every_place_and_the_world_itself(self):
-        keys = [row.key for row in views.town_rows(self.world)]
+    def test_the_world_view_holds_every_place_and_the_world_itself(self):
+        keys = [row.key for row in views.world_rows(self.world)]
         self.assertIn(views.WORLD_KEY, keys)
         for place_id in self.world.places:
             self.assertIn(place_id, keys)
 
     def test_nobody_gone_means_nothing_about_who_is_gone(self):
         self.assertNotIn(views.GONE_KEY,
-                         [row.key for row in views.town_rows(self.world)])
-        self.world.beings["p_lilith"].when.left_at = self.world.at
+                         [row.key for row in views.world_rows(self.world)])
+        self.world.beings["lilith"].when.left_at = self.world.at
         self.assertIn(views.GONE_KEY,
-                      [row.key for row in views.town_rows(self.world)])
+                      [row.key for row in views.world_rows(self.world)])
 
 
 class TestWhereYouStoppedReading(Window):
@@ -142,45 +214,45 @@ class TestWhereYouStoppedReading(Window):
 class TestItShowsWhatTheyCarry(Window):
 
     def test_the_whole_page_is_shown(self):
-        havvah = self.world.beings["p_havvah"]
-        body = text(views.person_detail(self.world, havvah.id))
+        havvah = self.world.beings["havvah"]
+        body = text(views.being_detail(self.world, havvah.id))
         for line in havvah.who.notebook.splitlines():
             self.assertIn(line, body)
 
     def test_it_says_how_many_pages_came_before(self):
         from elsewhere.world.pages import Page
-        havvah = self.world.beings["p_havvah"]
+        havvah = self.world.beings["havvah"]
         self.world.pages(havvah.id).append(Page(at=self.world.at, notebook="one"))
         self.world.pages(havvah.id).append(Page(at=self.world.at, notebook="two"))
         # The page seed wrote them with, then these two.
-        self.assertIn("newest of 3 pages", text(views.person_detail(self.world, havvah.id)))
+        self.assertIn("newest of 3 pages", text(views.being_detail(self.world, havvah.id)))
 
     def test_what_they_have_not_gone_over_is_shown_apart_from_it(self):
         from elsewhere.world.notes import Note
-        havvah = self.world.beings["p_havvah"]
+        havvah = self.world.beings["havvah"]
         self.world.notes(havvah.id).append(Note(at=self.world.at,
                                                 account="feathers on the path"))
-        body = text(views.person_detail(self.world, havvah.id))
+        body = text(views.being_detail(self.world, havvah.id))
         self.assertIn("not gone over yet", body)
         self.assertIn("feathers on the path", body)
         havvah.when.settled_through = 1
-        body = text(views.person_detail(self.world, havvah.id))
+        body = text(views.being_detail(self.world, havvah.id))
         self.assertNotIn("feathers on the path", body, "once gone over, only the page has it")
 
 
 class TestSomebodyWhoLeft(Window):
     def test_they_are_read_as_they_stood_the_hour_they_went(self):
-        lilith = self.world.beings["p_lilith"]
+        lilith = self.world.beings["lilith"]
         lilith.when.left_at = self.world.at
-        was = text(views.person_detail(self.world, lilith.id))
+        was = text(views.being_detail(self.world, lilith.id))
         self.assertIn(lilith.who.notebook.splitlines()[0], was)
         self.assertIn("left on", was)
 
         # Frozen at the moment she left.
         self.world.at += 24 * 360
         self.world.record("occurrence", "A storm broke over the town.",
-                          place="bethel", informed=["p_havvah", "p_bezalel"])
-        self.assertEqual(text(views.person_detail(self.world, lilith.id)), was)
+                          place="bethel", informed=["havvah", "bezalel"])
+        self.assertEqual(text(views.being_detail(self.world, lilith.id)), was)
 
 
 class TestOneEventManyPlaces(Window):
@@ -189,9 +261,9 @@ class TestOneEventManyPlaces(Window):
         self.assertTrue(event.informed, "the fixture proves nothing")
         body = text(views.event_detail(self.world, event.id))
         self.assertIn(event.account, body, "history's own account is shown too")
-        for person_id in event.informed:
-            self.assertIn(self.world.beings[person_id].name, body)
-            self.assertIn(event.data["viewpoints"][person_id], body)
+        for being_id in event.informed:
+            self.assertIn(self.world.beings[being_id].name, body)
+            self.assertIn(event.data["viewpoints"][being_id], body)
 
 
 class FakeScreen:
@@ -222,7 +294,7 @@ class TestTheWindowWritesNothing(Window):
         for view in views.VIEWS:
             for row in view.rows(self.world):
                 if row.key:
-                    view.detail(self.world, row.key)
+                    view.detail(self.world, row.key, 60)
         self.assertEqual(self.files(), was)
 
     def test_no_key_on_it_writes_anything(self):

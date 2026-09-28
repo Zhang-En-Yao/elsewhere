@@ -74,8 +74,8 @@ class TestStir(Town):
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(event.place, "yard", "Bezalel is in his own yard, not on the ridge")
         self.assertEqual(event.category, chronicle.OCCURRENCE)
-        self.assertEqual(event.informed, ["p_bezalel"])
-        bezalel = next(call for call in self.calls(CallName.ACT) if call.about == "p_bezalel")
+        self.assertEqual(event.informed, ["bezalel"])
+        bezalel = next(call for call in self.calls(CallName.ACT) if call.about == "bezalel")
         self.assertIn("A beam cracked overhead.", bezalel.user,
                       "and it is in front of him when he decides what to do")
 
@@ -86,7 +86,7 @@ class TestStir(Town):
         report = tick.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
         self.assertEqual(sorted(event.informed), sorted(self.world.beings))
-        lilith = next(call for call in self.calls(CallName.ACT) if call.about == "p_lilith")
+        lilith = next(call for call in self.calls(CallName.ACT) if call.about == "lilith")
         self.assertIn("A storm broke over the town.", lilith.user)
         self.assertIn("word of it reached you", lilith.user)
 
@@ -116,7 +116,7 @@ class TestNoting(Town):
     """What reaches somebody is shown to them once, and what they keep of it
     is in their own words."""
 
-    def happen(self, account, to=("p_lilith",)):
+    def happen(self, account, to=("lilith",)):
         return self.world.record("occurrence", account, place="mizpah",
                                  informed=list(to))
 
@@ -127,9 +127,9 @@ class TestNoting(Town):
 
     def test_what_they_keep_is_written_in_their_own_words(self):
         event = self.happen("A hawk took one of the ridge hens.")
-        self.stub.answers["act|p_lilith"] = {**STAY, "noted": "feathers on the path, still moving"}
+        self.stub.answers["act|lilith"] = {**STAY, "noted": "feathers on the path, still moving"}
         self.look_up()
-        notes = self.world.notes("p_lilith").all()
+        notes = self.world.notes("lilith").all()
         self.assertEqual([note.account for note in notes], ["feathers on the path, still moving"])
         self.assertIn(event.id, notes[0].event_ids, "and it knows what it was a note of")
         self.assertTrue(notes[0].embedding, "placed, so it can be found by meaning later")
@@ -139,7 +139,7 @@ class TestNoting(Town):
         self.look_up()
         self.world.at += 1
         self.look_up()
-        lilith = [call for call in self.calls(CallName.ACT) if call.about == "p_lilith"]
+        lilith = [call for call in self.calls(CallName.ACT) if call.about == "lilith"]
         self.assertIn("A hawk took one of the ridge hens.", lilith[0].user)
         self.assertNotIn("A hawk took one of the ridge hens.", lilith[1].user,
                          "what she did not note, she no longer has")
@@ -147,28 +147,28 @@ class TestNoting(Town):
     def test_most_of_it_sticks_to_nobody(self):
         self.happen("A hawk took one of the ridge hens.")
         self.look_up()                        # the stub notes nothing
-        self.assertEqual(self.world.notes("p_lilith").all(), [])
+        self.assertEqual(self.world.notes("lilith").all(), [])
 
     def test_their_day_is_in_front_of_them_all_day(self):
         self.happen("A hawk took one of the ridge hens.")
-        self.stub.answers["act|p_lilith"] = {**STAY, "noted": "feathers on the path"}
+        self.stub.answers["act|lilith"] = {**STAY, "noted": "feathers on the path"}
         self.look_up()
         self.world.at += 1
-        self.stub.answers["act|p_lilith"] = STAY
+        self.stub.answers["act|lilith"] = STAY
         self.look_up()
-        later = [call for call in self.calls(CallName.ACT) if call.about == "p_lilith"][-1]
+        later = [call for call in self.calls(CallName.ACT) if call.about == "lilith"][-1]
         self.assertIn("feathers on the path", later.user)
 
     def test_what_did_not_reach_them_is_not_theirs(self):
-        self.happen("Havvah found the gate open.", to=("p_havvah",))
+        self.happen("Havvah found the gate open.", to=("havvah",))
         self.look_up()
-        lilith = next(call for call in self.calls(CallName.ACT) if call.about == "p_lilith")
+        lilith = next(call for call in self.calls(CallName.ACT) if call.about == "lilith")
         self.assertNotIn("Havvah found the gate open.", lilith.user)
 
     def test_only_so_much_is_ever_in_front_of_anyone_at_once(self):
         for index in range(agents.NEW_EVENTS + 3):
             self.happen(f"the {index}th thing")
-        seen = agents.unseen(self.world, self.world.beings["p_lilith"])
+        seen = agents.unseen(self.world, self.world.beings["lilith"])
         self.assertEqual(len(seen), agents.NEW_EVENTS)
         self.assertEqual(seen[-1][0].account, f"the {agents.NEW_EVENTS + 2}th thing",
                          "the newest, and what is older than that is gone")
@@ -177,41 +177,41 @@ class TestNoting(Town):
 class TestSettle(Town):
     PAGE = "The water is in everything I own now. Havvah will not look at me."
 
-    def note(self, account, who="p_lilith", at=None):
+    def note(self, account, who="lilith", at=None):
         return self.world.notes(who).append(Note(at=self.world.at if at is None else at,
                                                  account=account))
 
-    def settling(self, who="p_lilith"):
+    def settling(self, who="lilith"):
         self.stub.answers[f"act|{who}"] = {**STAY, "settling": True}
         return tick.tick(self.world, configuration())
 
     def test_only_whoever_is_stopping_goes_over_their_day(self):
         self.settling()
-        self.assertEqual([call.about for call in self.calls(CallName.SETTLE)], ["p_lilith"])
+        self.assertEqual([call.about for call in self.calls(CallName.SETTLE)], ["lilith"])
 
     def test_the_page_is_theirs_to_write(self):
         self.stub.set(CallName.SETTLE, {"notebook": self.PAGE})
         report = self.settling()
-        self.assertEqual(self.world.beings["p_lilith"].who.notebook, self.PAGE, "all of it, replaced")
-        self.assertEqual(report.settled, ["p_lilith"])
-        self.assertNotIn(self.PAGE, self.world.beings["p_havvah"].who.notebook, "and only hers")
+        self.assertEqual(self.world.beings["lilith"].who.notebook, self.PAGE, "all of it, replaced")
+        self.assertEqual(report.settled, ["lilith"])
+        self.assertNotIn(self.PAGE, self.world.beings["havvah"].who.notebook, "and only hers")
 
     def test_they_go_over_their_notes_and_not_what_happened(self):
         self.world.record("occurrence", "A hawk took one of the ridge hens.",
-                          place="mizpah", informed=["p_lilith"])
+                          place="mizpah", informed=["lilith"])
         self.note("feathers on the path")
-        self.world.beings["p_lilith"].when.seen_through = len(self.world.chronicle)
+        self.world.beings["lilith"].when.seen_through = len(self.world.chronicle)
         self.stub.set(CallName.SETTLE, {"notebook": self.PAGE})
         self.settling()
         user = self.calls(CallName.SETTLE)[0].user
         self.assertIn("feathers on the path", user)
         self.assertNotIn("A hawk took one of the ridge hens.", user,
                          "the chronicle is not shown twice, not even at night")
-        self.assertEqual(agents.day_notes(self.world, self.world.beings["p_lilith"]), [],
+        self.assertEqual(agents.day_notes(self.world, self.world.beings["lilith"]), [],
                          "and once gone over, the day is the page")
 
     def test_a_page_nobody_wrote_changes_nothing_and_loses_nothing(self):
-        lilith = self.world.beings["p_lilith"]
+        lilith = self.world.beings["lilith"]
         before = lilith.who.notebook
         self.note("feathers on the path")
         report = self.settling()                     # the stub writes an empty page
@@ -221,7 +221,7 @@ class TestSettle(Town):
                         "the day waits to be gone over next time")
 
     def test_what_they_did_is_something_to_go_over(self):
-        self.world.beings["p_lilith"].where.log("walking the ridge path again")
+        self.world.beings["lilith"].where.log("walking the ridge path again")
         self.settling()
         user = self.calls(CallName.SETTLE)[0].user
         self.assertIn("What you have been doing", user)
@@ -231,7 +231,7 @@ class TestSettle(Town):
         self.settling()
         user = self.calls(CallName.SETTLE)[0].user
         self.assertIn(f"of {schemas.NOTEBOOK_CHARACTERS} characters", user)
-        self.assertIn(self.world.beings["p_lilith"].who.notebook, user,
+        self.assertIn(self.world.beings["lilith"].who.notebook, user,
                       "and they are shown the page they are rewriting")
 
     def test_a_page_too_long_is_handed_back_to_be_cut(self):
@@ -246,15 +246,15 @@ class TestSettle(Town):
         self.settling()
         self.assertEqual(len(attempts), 2)
         self.assertIn("at most", attempts[1])
-        self.assertEqual(self.world.beings["p_lilith"].who.notebook, self.PAGE)
+        self.assertEqual(self.world.beings["lilith"].who.notebook, self.PAGE)
 
     def test_every_page_they_ever_wrote_is_kept(self):
-        first = self.world.beings["p_lilith"].who.notebook
+        first = self.world.beings["lilith"].who.notebook
         for page in ("the first night", "", "the second night"):
             self.stub.set(CallName.SETTLE, {"notebook": page})
             self.settling()
             self.world.at += 24
-        kept = [page.notebook for page in self.world.pages("p_lilith").all()]
+        kept = [page.notebook for page in self.world.pages("lilith").all()]
         self.assertEqual(kept, [first, "the first night", "the second night"],
                          "the page she started with, then one per night she wrote one")
 
@@ -272,7 +272,7 @@ class TestSettle(Town):
         self.assertNotIn("the goat is lame again", user, "one thing comes back, not all")
 
     def test_a_being_is_three_pieces_of_writing(self):
-        self.assertEqual(set(self.world.beings["p_lilith"].who.to_dict()),
+        self.assertEqual(set(self.world.beings["lilith"].who.to_dict()),
                          {"card", "manner", "notebook"})
 
 

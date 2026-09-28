@@ -143,6 +143,8 @@ class Map:
     ways: List[List[str]] = field(default_factory=list)
     #: Where the one road to and from the world touches down; "" if there is none.
     road: str = ""
+    #: Place id to [x, y], in units of one way; laid out once, by `geography`.
+    positions: Dict[str, List[float]] = field(default_factory=dict)
 
     def beside(self, place_id: str) -> List[str]:
         neighbours = set()
@@ -157,12 +159,15 @@ class Map:
         return other_id in self.beside(place_id)
 
     def to_dict(self) -> dict:
-        return {"ways": [list(way) for way in self.ways], "road": self.road}
+        return {"ways": [list(way) for way in self.ways], "road": self.road,
+                "positions": {place: list(point) for place, point in self.positions.items()}}
 
     @classmethod
     def from_dict(cls, data: dict) -> "Map":
         return cls(ways=[list(way) for way in data.get("ways", [])],
-                   road=data.get("road", ""))
+                   road=data.get("road", ""),
+                   positions={place: [float(value) for value in point]
+                              for place, point in data.get("positions", {}).items()})
 
 
 def ways_from_neighbours(neighbours: Dict[str, List[str]]) -> List[List[str]]:

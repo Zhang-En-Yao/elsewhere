@@ -24,30 +24,30 @@ class TestWorldStore(unittest.TestCase):
 
     def test_a_world_survives_being_written_and_read(self):
         world = seed.build(self.root)
-        world.beings["p_havvah"].who.notebook = "the water, again"
-        world.beings["p_havvah"].when.seen_through = 3
-        world.beings["p_havvah"].when.settled_through = 2
+        world.beings["havvah"].who.notebook = "the water, again"
+        world.beings["havvah"].when.seen_through = 3
+        world.beings["havvah"].when.settled_through = 2
         store.save(world)
 
         back = store.load(self.root)
         self.assertEqual(back.name, world.name)
         self.assertEqual(back.at, world.at)
         self.assertEqual(len(back.beings), len(world.beings))
-        self.assertEqual(back.beings["p_havvah"].who.card,
-                         world.beings["p_havvah"].who.card)
-        self.assertEqual(back.beings["p_havvah"].who.notebook, "the water, again")
-        self.assertEqual(back.beings["p_havvah"].when.seen_through, 3)
-        self.assertEqual(back.beings["p_havvah"].when.settled_through, 2)
+        self.assertEqual(back.beings["havvah"].who.card,
+                         world.beings["havvah"].who.card)
+        self.assertEqual(back.beings["havvah"].who.notebook, "the water, again")
+        self.assertEqual(back.beings["havvah"].when.seen_through, 3)
+        self.assertEqual(back.beings["havvah"].when.settled_through, 2)
         self.assertEqual(len(back.chronicle), len(world.chronicle))
 
     def test_a_being_round_trips_through_its_three_parts(self):
         world = seed.build(self.root)
-        havvah = world.beings["p_havvah"]
+        havvah = world.beings["havvah"]
         havvah.who.notebook = "the water again"
         havvah.where.log("standing at the edge of it")
         havvah.when.wake_at = world.at + 3.0
         store.save(world)
-        back = store.load(self.root).beings["p_havvah"]
+        back = store.load(self.root).beings["havvah"]
         self.assertEqual(back.who.notebook, "the water again")
         self.assertEqual(back.who.card, havvah.who.card)
         self.assertEqual(back.where.doing, "standing at the edge of it")
@@ -57,7 +57,7 @@ class TestWorldStore(unittest.TestCase):
 
     def test_being_here_is_one_fact_and_not_two(self):
         world = seed.build(self.root)
-        lilith = world.beings["p_lilith"]
+        lilith = world.beings["lilith"]
         self.assertTrue(lilith.present)
         lilith.when.left_at = world.at
         self.assertFalse(lilith.present, "derived, so it cannot disagree")
@@ -77,12 +77,12 @@ class TestWorldStore(unittest.TestCase):
 
     def test_starting_over_does_not_leave_the_old_town_on_disk(self):
         world = seed.build(self.root)
-        world.beings["p_ghost"] = type(world.beings["p_havvah"])(
-            id="p_ghost", name="Ghost")
+        world.beings["ghost"] = type(world.beings["havvah"])(
+            id="ghost", name="Ghost")
         store.save(world)
         again = seed.build(self.root)
         store.save(again)
-        self.assertNotIn("p_ghost", store.load(self.root).beings)
+        self.assertNotIn("ghost", store.load(self.root).beings)
 
     def test_the_chronicle_only_ever_grows(self):
         world = seed.build(self.root)
@@ -123,7 +123,7 @@ class TestAnswers(unittest.TestCase):
                     else {"notebook": "the water"})
 
         backend = StubBackend({CallName.SETTLE: answer})
-        got = ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "p_havvah"),
+        got = ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "havvah"),
                   Settings(backend="stub", model="stub"))
         self.assertEqual(got, {"notebook": "the water"})
         self.assertEqual(len(attempts), 2)
@@ -139,12 +139,12 @@ class TestAnswers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             tape = Path(temporary) / "t.jsonl"
             backend = StubBackend({CallName.SETTLE: {"notebook": "the water"}})
-            ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "p_havvah"),
+            ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "havvah"),
                 Settings(backend="stub", model="stub"), Transcript(tape))
             rows = [json.loads(line) for line in tape.read_text().splitlines()]
             self.assertEqual(len(rows), 1)
             self.assertTrue(rows[0]["ok"])
-            self.assertEqual(rows[0]["about"], "p_havvah")
+            self.assertEqual(rows[0]["about"], "havvah")
 
     def test_a_page_is_as_long_as_the_schema_says_and_no_longer(self):
         most = schemas.NOTEBOOK_CHARACTERS
@@ -163,7 +163,7 @@ class TestAnswers(unittest.TestCase):
             self.assertEqual(grammar["required"], list(grammar["properties"]))
 
     def test_a_call_name_is_spelled_the_way_it_is_written_down(self):
-        self.assertEqual(f"{CallName.ACT}|p_lilith", "act|p_lilith")
+        self.assertEqual(f"{CallName.ACT}|lilith", "act|lilith")
         self.assertEqual(json.dumps({CallName.ACT: 1}), '{"act": 1}')
         self.assertIs(Call("act", "s", "u", {}).name, CallName.ACT)
 

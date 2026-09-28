@@ -22,6 +22,8 @@ ENGINE_CATEGORIES = frozenset({OCCURRENCE, CONVERSATION}) | PRESENCE_CHANGES
 
 @dataclass
 class Event:
+    #: Its place in the chronicle, counting from 1: the third thing that ever
+    #: happened here is "3". Append-only, so it never changes.
     id: str
     at: float                      # hours into the world
     category: str                  # ENGINE_CATEGORIES or a world-specific name

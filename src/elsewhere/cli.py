@@ -222,7 +222,7 @@ def command_timeline(arguments) -> None:
     world = open_world(arguments)
     print(heading(f"{world.name}: what happened"))
     for event in world.chronicle.all()[-arguments.limit:]:
-        print(f"  {event.id}  {timestamp(event.at):<18} {event.category:<12} {event.account}")
+        print(f"  {event.id:>4}  {timestamp(event.at):<18} {event.category:<12} {event.account}")
 
 
 def command_event(arguments) -> None:
@@ -231,7 +231,7 @@ def command_event(arguments) -> None:
     if event is None:
         sys.exit(f"No event {arguments.event_id}")
     place = world.places.get(event.place or "")
-    print(heading(f"{event.id} - {timestamp(event.at)}, {event.category}, "
+    print(heading(f"Event {event.id} - {timestamp(event.at)}, {event.category}, "
                   f"at {place.name if place else '-'}"))
     print(f"  History says:  {event.account}")
     if not event.informed:

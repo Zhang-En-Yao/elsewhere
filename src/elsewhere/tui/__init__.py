@@ -1,7 +1,8 @@
 """Read-only curses window on a world.
 
-    views.py    what to show, as pure functions of a loaded world
-    screen.py   layout, colours and keys
+    views.py        what to show, as pure functions of a loaded world
+    cartography.py  the town's map, drawn in characters where the world put each place
+    screen.py       layout, colours and keys
 
 It never writes under the world's directory; it reloads when the files change.
 """

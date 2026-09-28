@@ -58,7 +58,7 @@ class TestTime(TownTest):
 
     def test_a_step_is_as_long_as_whoever_asked_for_the_least(self):
         tick.tick(self.world, configuration())
-        self.acts(p_havvah={**STAY, "again_in_hours": 1.5})
+        self.acts(havvah={**STAY, "again_in_hours": 1.5})
         tick.tick(self.world, configuration())              # Havvah now wants 1.5h
         was = self.world.at
         report = tick.tick(self.world, configuration())
@@ -66,19 +66,19 @@ class TestTime(TownTest):
         self.assertEqual(self.world.at, was + 1.5)
         # and only she was asked
         asked = [call.about for call in self.calls_for(CallName.ACT)[-1:]]
-        self.assertEqual(asked, ["p_havvah"])
+        self.assertEqual(asked, ["havvah"])
 
     def test_somebody_absorbed_is_not_woken_by_what_is_not_about_them(self):
         tick.tick(self.world, configuration())
-        for pid in ("p_bezalel", "p_havvah", "p_lilith"):
+        for pid in ("bezalel", "havvah", "lilith"):
             self.world.beings[pid].where.place = "bethel"
-        deep = self.world.beings["p_lilith"]
+        deep = self.world.beings["lilith"]
         deep.when.absorbed = True
         deep.when.wake_at = self.world.at + 100.0
-        schedule.rouse(self.world, ["p_lilith"], about=["p_havvah"])
+        schedule.rouse(self.world, ["lilith"], about=["havvah"])
         self.assertEqual(deep.when.wake_at, self.world.at + 100.0,
                          "it was not about her")
-        schedule.rouse(self.world, ["p_lilith"], about=["p_lilith"])
+        schedule.rouse(self.world, ["lilith"], about=["lilith"])
         self.assertEqual(deep.when.wake_at, self.world.at,
                          "and a thing that happens to her is not maskable")
 
@@ -98,99 +98,99 @@ class TestTime(TownTest):
         self.assertEqual(asked, sorted(self.world.beings))
 
     def test_a_mind_that_gives_nothing_stays_put(self):
-        self.acts(p_havvah="I would rather not say")
-        before = self.world.beings["p_havvah"].where.place
+        self.acts(havvah="I would rather not say")
+        before = self.world.beings["havvah"].where.place
         report = tick.tick(self.world, configuration())
-        self.assertEqual(self.world.beings["p_havvah"].where.place, before)
+        self.assertEqual(self.world.beings["havvah"].where.place, before)
         self.assertEqual(report.unanswered, 1)
 
 
 class TestChoices(TownTest):
     def test_the_grammar_only_offers_what_is_there(self):
         tick.tick(self.world, configuration())
-        havvah_call = next(call for call in self.calls_for(CallName.ACT) if call.about == "p_havvah")
+        havvah_call = next(call for call in self.calls_for(CallName.ACT) if call.about == "havvah")
         options = havvah_call.schema["properties"]["target"]["enum"]
         # Havvah is alone at the garden, next to Beth El, Marah and the Boatyard.
         self.assertEqual(sorted(options),
                          ["", "Beth El", "Marah", "The Boatyard"])
 
     def test_going_somewhere(self):
-        self.acts(p_havvah={"because": "the seedbed can wait", "action": "move",
+        self.acts(havvah={"because": "the seedbed can wait", "action": "move",
                          "target": "Beth El"})
         report = tick.tick(self.world, configuration())
-        self.assertEqual(self.world.beings["p_havvah"].where.place, "bethel")
-        self.assertIn(("p_havvah", "garden", "bethel"), report.moves)
-        self.assertEqual(report.decisions["p_havvah"].because, "the seedbed can wait")
+        self.assertEqual(self.world.beings["havvah"].where.place, "bethel")
+        self.assertIn(("havvah", "garden", "bethel"), report.moves)
+        self.assertEqual(report.decisions["havvah"].because, "the seedbed can wait")
 
 
 class TestConversation(TownTest):
     def setUp(self):
         super().setUp()
-        for pid in ("p_havvah", "p_bezalel"):
+        for pid in ("havvah", "bezalel"):
             self.world.beings[pid].where.place = "yard"
 
     def test_something_said_reaches_whoever_is_there(self):
-        self.world.beings["p_lilith"].where.place = "yard"
-        self.acts(p_havvah={"because": "he was on the roof that night",
+        self.world.beings["lilith"].where.place = "yard"
+        self.acts(havvah={"because": "he was on the roof that night",
                          "action": "talk", "target": "Bezalel"})
         self.say(CallName.SPEAK, {"utterance": "You were up there. Could you feel it?"})
-        self.stub.answers["speak|p_bezalel"] = {"noted": "she asked if I could feel it",
+        self.stub.answers["speak|bezalel"] = {"noted": "she asked if I could feel it",
                                                 "utterance": "Feel what?"}
 
         report = tick.tick(self.world, configuration())
 
         self.assertEqual(len(report.talks), 1)
         talk = report.talks[0]
-        self.assertEqual(talk.between, ("p_havvah", "p_bezalel"))
+        self.assertEqual(talk.between, ("havvah", "bezalel"))
         event = self.world.chronicle.get(talk.turns[0].event_id)
         self.assertIn("Could you feel it?", event.account)
-        self.assertEqual(sorted(event.informed), ["p_bezalel", "p_havvah", "p_lilith"])
-        kept = self.world.notes("p_bezalel").about(event.id)
+        self.assertEqual(sorted(event.informed), ["bezalel", "havvah", "lilith"])
+        kept = self.world.notes("bezalel").about(event.id)
         self.assertEqual([note.account for note in kept], ["she asked if I could feel it"],
                          "he kept his own version of it, in the answer he gave")
         stood = dict((event.id, where) for event, where in agents.unseen(
-            self.world, self.world.beings["p_lilith"]))
+            self.world, self.world.beings["lilith"]))
         self.assertIn("within earshot", stood[event.id],
                       "and she overheard it, and will see it when she looks up")
 
     def test_the_other_one_answers(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
+        self.acts(havvah={"because": "", "action": "talk", "target": "Bezalel"})
         self.say(CallName.SPEAK, {"utterance": "You were up there. Could you feel it?"})
         talk = tick.tick(self.world, configuration()).talks[0]
         self.assertGreater(len(talk.turns), 1)
-        self.assertEqual([turn.speaker for turn in talk.turns[:2]], ["p_havvah", "p_bezalel"])
+        self.assertEqual([turn.speaker for turn in talk.turns[:2]], ["havvah", "bezalel"])
         # Each turn is an event, so Bezalel is answering what she said.
-        his = [call for call in self.calls_for(CallName.SPEAK) if call.about == "p_bezalel"]
+        his = [call for call in self.calls_for(CallName.SPEAK) if call.about == "bezalel"]
         self.assertIn("Could you feel it?", his[0].user)
 
     def test_an_exchange_ends_when_somebody_has_nothing_to_say(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.stub.answers["speak|p_havvah"] = {"utterance": "Cold."}
-        self.stub.answers["speak|p_bezalel"] = {"utterance": ""}
+        self.acts(havvah={"because": "", "action": "talk", "target": "Bezalel"})
+        self.stub.answers["speak|havvah"] = {"utterance": "Cold."}
+        self.stub.answers["speak|bezalel"] = {"utterance": ""}
         talk = tick.tick(self.world, configuration()).talks[0]
         self.assertEqual(len(talk.turns), 1, "he had nothing; that is the end of it")
 
     def test_the_speaker_brings_what_they_carry(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
+        self.acts(havvah={"because": "", "action": "talk", "target": "Bezalel"})
         self.say(CallName.SPEAK, {"utterance": "Cold."})
         tick.tick(self.world, configuration())
         call = self.calls_for(CallName.SPEAK)[0]
-        self.assertIn(self.world.beings["p_havvah"].who.notebook, call.user)
-        self.assertNotIn(self.world.beings["p_bezalel"].who.notebook, call.user,
+        self.assertIn(self.world.beings["havvah"].who.notebook, call.user)
+        self.assertNotIn(self.world.beings["bezalel"].who.notebook, call.user,
                          "and not what the other one carries")
 
     def test_you_cannot_talk_to_someone_who_just_left(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
-                  p_bezalel={"because": "the roof", "action": "move",
+        self.acts(havvah={"because": "", "action": "talk", "target": "Bezalel"},
+                  bezalel={"because": "the roof", "action": "move",
                           "target": "Beth El"})
         report = tick.tick(self.world, configuration())
         self.assertEqual(report.talks, [])
-        self.assertIn(("p_havvah", "p_bezalel"), report.missed)
-        self.assertIn("who had gone", self.world.beings["p_havvah"].where.doing)
+        self.assertIn(("havvah", "bezalel"), report.missed)
+        self.assertIn("who had gone", self.world.beings["havvah"].where.doing)
 
     def test_two_beings_reaching_for_each_other_have_one_conversation(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
-                  p_bezalel={"because": "", "action": "talk", "target": "Havvah"})
+        self.acts(havvah={"because": "", "action": "talk", "target": "Bezalel"},
+                  bezalel={"because": "", "action": "talk", "target": "Havvah"})
         self.say(CallName.SPEAK, {"utterance": "Evening."})
         report = tick.tick(self.world, configuration())
         self.assertEqual(len(report.talks), 1)
@@ -206,18 +206,18 @@ class TestStayingPut(TownTest):
         self.assertNotIn("enum", schemas.ACT["properties"]["doing"])
 
     def test_staying_put_is_described_rather_than_categorised(self):
-        self.stub.answers["act|p_havvah"] = {
+        self.stub.answers["act|havvah"] = {
             "because": "nothing I could name",
             "doing": "sitting in the doorway with the seed trays, not sorting them",
             "action": "", "target": ""}
         tick.tick(self.world, configuration())
         self.assertEqual(
-            self.world.beings["p_havvah"].where.doing,
+            self.world.beings["havvah"].where.doing,
             "sitting in the doorway with the seed trays, not sorting them")
 
     def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
         tick.tick(self.world, configuration())      # the stub's doing is ""
-        self.assertEqual(self.world.beings["p_havvah"].where.doing,
+        self.assertEqual(self.world.beings["havvah"].where.doing,
                          "stayed where they were")
 
 
@@ -228,13 +228,13 @@ class TestCategories(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         world = seed.build(Path(temporary.name) / "world")
-        for pid in ("p_bezalel", "p_havvah"):
+        for pid in ("bezalel", "havvah"):
             world.beings[pid].where.place = "bethel"
         stub = StubBackend({CallName.ACT: STAY,
                             CallName.STIR: {"happens": False},
                             CallName.ARRIVE: {"happens": False},
                             CallName.SPEAK: {"utterance": "Cold."}})
-        stub.answers["act|p_bezalel"] = {"because": "", "action": "talk", "target": "Havvah"}
+        stub.answers["act|bezalel"] = {"because": "", "action": "talk", "target": "Havvah"}
         register(stub)
         tick.tick(world, configuration())
         said = [event for event in world.chronicle.all() if event.category == chronicle.CONVERSATION]
@@ -377,7 +377,7 @@ class TestContinue(unittest.TestCase):
             "notebook": "The frame took both of us to hold."}}))
         out = self.run_cli("settle", "Havvah")
         self.assertIn("went over it", out)
-        self.assertEqual(store.load(self.root).beings["p_havvah"].who.notebook,
+        self.assertEqual(store.load(self.root).beings["havvah"].who.notebook,
                          "The frame took both of us to hold.",
                          "it took the lock and then wrote nothing")
 
