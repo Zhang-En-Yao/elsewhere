@@ -358,6 +358,87 @@ class FakeScreen:
         return (34, 100)
 
 
+class TestLogo(unittest.TestCase):
+    """The window opens on the logo, at the largest size the terminal holds."""
+
+    def test_the_largest_that_fits_is_chosen(self):
+        small, large = views.logo(40, 20), views.logo(200, 100)
+        self.assertTrue(small)
+        self.assertGreater(len(large), len(small))
+        for columns, rows in ((40, 20), (60, 30), (200, 100)):
+            drawing = views.logo(columns, rows)
+            self.assertLessEqual(len(drawing), rows)
+            self.assertLessEqual(max(views.width(line) for line in drawing), columns)
+
+    def test_a_terminal_too_small_gets_no_logo(self):
+        self.assertEqual(views.logo(20, 10), [])
+
+    def test_it_is_braille_and_spaces_only(self):
+        for line in views.logo(200, 100):
+            for character in line:
+                self.assertTrue(character == " " or 0x2800 <= ord(character) <= 0x28FF,
+                                repr(character))
+
+
+class TestGoing(Window):
+    """Enter goes where a row leads, and Backspace comes back."""
+
+    def setUp(self):
+        super().setUp()
+        from elsewhere.tui import screen
+        from elsewhere.world import store
+        store.save(self.world)
+        self.screen = screen
+        self.app = screen.App(self.world.root, FakeScreen())
+
+    def names(self):
+        return [view.name for view in views.VIEWS]
+
+    def test_every_link_lands_on_a_row_that_is_there(self):
+        for view in views.VIEWS:
+            for row in view.rows(self.world):
+                target = view.link(self.world, row.key) if row.key else None
+                if target is None:
+                    continue
+                name, key = target
+                self.assertIn(name, self.names())
+                landing = views.VIEWS[self.names().index(name)]
+                self.assertIn(key, [row.key for row in landing.rows(self.world)],
+                              f"{view.name}:{row.key} leads to {target}")
+
+    def test_a_place_leads_to_the_map_and_back(self):
+        app = self.app
+        app.cursor[0] = [row.key for row in app.rows()].index("marah")
+        app.key(ord("\n"))
+        self.assertEqual(self.names()[app.tab], "map")
+        self.assertEqual(app.selected(), "marah")
+        app.key(127)
+        self.assertEqual((self.names()[app.tab], app.selected()), ("world", "marah"))
+
+    def test_a_being_leads_to_where_they_are(self):
+        app = self.app
+        app.key(ord("2"))
+        app.cursor[1] = [row.key for row in app.rows()].index("lilith")
+        app.key(ord("\n"))
+        self.assertEqual((self.names()[app.tab], app.selected()), ("map", "mizpah"))
+
+    def test_an_event_leads_to_where_it_happened(self):
+        app = self.app
+        app.key(ord("3"))
+        app.snap()
+        event = self.world.chronicle.get(app.selected())
+        app.key(ord("\n"))
+        self.assertEqual((self.names()[app.tab], app.selected()), ("map", event.place))
+
+    def test_somebody_gone_leads_nowhere_and_says_so(self):
+        self.world.beings["lilith"].when.left_at = self.world.at
+        self.assertIsNone(views.being_link(self.world, "lilith"))
+
+    def test_there_is_no_back_before_anywhere_was_gone(self):
+        self.app.key(127)
+        self.assertEqual(self.app.message, "nowhere to go back to")
+
+
 class TestTheWindowWritesNothing(Window):
 
     def files(self):
@@ -387,7 +468,8 @@ class TestTheWindowWritesNothing(Window):
 
         app = screen.App(self.world.root, FakeScreen())
         was = self.files()
-        pressed = [ord(character) for character in "123456789jkhlgGb rfcmxyz?\t"]
+        pressed = [ord(character) for character in "123456789jkhlgGb rfcmxyz?\t\n\r"]
+        pressed += [127, screen.curses.KEY_BACKSPACE, screen.curses.KEY_ENTER]
         pressed += [screen.curses.KEY_DOWN, screen.curses.KEY_UP,
                     screen.curses.KEY_NPAGE, screen.curses.KEY_PPAGE,
                     screen.curses.KEY_RESIZE, screen.curses.KEY_LEFT,

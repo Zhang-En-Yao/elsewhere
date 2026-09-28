@@ -649,7 +649,9 @@ transcripts survive. `make world` refuses to overwrite a world that exists.
 make watch              # or: elsewhere watch
 ```
 
-Four views, on the keys 1 to 4:
+It opens on the logo for a moment — any key goes straight past it — drawn in
+braille from [docs/logo.jpg](docs/logo.jpg) by `scripts/logo.py` at the largest
+size the terminal holds. Then four views, on the keys 1 to 4:
 
 | View | What it shows |
 |---|---|
@@ -662,6 +664,12 @@ Four views, on the keys 1 to 4:
 scroll what is on the right, `?` lists every key, and `q` closes the window.
 The bar across the top has the world's clock, when the next thing falls due by
 your own clock, and how much is new.
+
+Enter goes where the row leads: a place, a being or an event to where it is on
+the map, and a place on the map to everything known about it. Backspace goes
+back the way you came. The mouse works too — click a tab or a row, double-click to go where it leads,
+scroll with the wheel. While the window has the mouse, the terminal needs ⌥
+held down to select text.
 
 The window only reads. It writes nothing under the world's directory — not even
 where you stopped reading — so no key in it moves the world on or marks

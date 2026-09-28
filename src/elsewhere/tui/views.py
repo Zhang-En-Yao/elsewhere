@@ -7,6 +7,7 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
@@ -54,6 +55,8 @@ class View(NamedTuple):
     rows: Callable[[World], List[Row]]
     #: Given the pane's width, for what is drawn rather than wrapped.
     detail: Callable[[World, str, int], List[Line]]
+    #: Where Enter goes from a row: (view name, row key), or None.
+    link: Callable[[World, str], Optional[Tuple[str, str]]]
 
 
 # Measured with unicodedata, since wide characters take two columns.
@@ -254,6 +257,26 @@ def looks_up(world: World, being) -> Line:
     if away <= 0:
         return Line("  looks up    now" + absorbed, under=14)
     return Line("  looks up    in " + span(away) + absorbed, under=14)
+
+
+#: The logo in braille at a few widths, smallest first, as `scripts/logo.py`
+#: drew it from docs/logo.jpg.
+LOGO = "logo.txt"
+
+
+def logo(columns: int, rows: int) -> List[str]:
+    """The largest drawing of the logo that fits; none if even the smallest
+    does not."""
+    try:
+        text = resources.files(__package__).joinpath(LOGO).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    fitting: List[str] = []
+    for drawing in text.split("\f\n"):
+        lines = drawing.rstrip("\n").split("\n")
+        if len(lines) <= rows and max(width(line) for line in lines) <= columns:
+            fitting = lines
+    return fitting
 
 
 WORLD_KEY = "~world"
@@ -545,12 +568,42 @@ def map_detail(world: World, key: str, columns: int) -> List[Line]:
     return lines
 
 
+def world_link(world: World, key: str) -> Optional[Tuple[str, str]]:
+    """A place, or the world as a whole, is shown on the map."""
+    if key == WORLD_KEY or key in world.places:
+        return ("map", key)
+    return None
+
+
+def being_link(world: World, key: str) -> Optional[Tuple[str, str]]:
+    """Somebody here is shown where they are; somebody gone is nowhere now."""
+    being = world.beings.get(key)
+    if being is None or not being.present or being.where.place not in world.places:
+        return None
+    return ("map", being.where.place)
+
+
+def event_link(world: World, key: str) -> Optional[Tuple[str, str]]:
+    """An event is shown where it happened."""
+    event = world.chronicle.get(key)
+    if event is None or event.place not in world.places:
+        return None
+    return ("map", event.place or "")
+
+
+def map_link(world: World, key: str) -> Optional[Tuple[str, str]]:
+    """From the map, a place is read in full."""
+    if key == WORLD_KEY or key in world.places:
+        return ("world", key)
+    return None
+
+
 VIEWS = (
     View("world", "World", world_rows,
-         lambda world, key, columns: world_detail(world, key)),
+         lambda world, key, columns: world_detail(world, key), world_link),
     View("beings", "Beings", being_rows,
-         lambda world, key, columns: being_detail(world, key)),
+         lambda world, key, columns: being_detail(world, key), being_link),
     View("history", "History", chronicle_rows,
-         lambda world, key, columns: event_detail(world, key)),
-    View("map", "Map", place_rows, map_detail),
+         lambda world, key, columns: event_detail(world, key), event_link),
+    View("map", "Map", place_rows, map_detail, map_link),
 )

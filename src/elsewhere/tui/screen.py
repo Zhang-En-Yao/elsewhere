@@ -18,6 +18,12 @@ from .views import VIEWS, Line, Row
 #: Key wait before re-checking the files for changes.
 PAUSE_MILLISECONDS = 500
 
+#: Rows above the list: the bar, the tabs, the rule.
+FIXED_ROWS = 3
+
+#: How long the logo stays when nothing is pressed.
+SPLASH_MILLISECONDS = 1500
+
 #: Every key only moves what is being looked at; `?` lists them.
 KEYS = "? keys   q quit"
 
@@ -25,6 +31,11 @@ HELP = """\
 Keys
 
   1 2 3 4     world, beings, history, map
+  ENTER       go where this leads: a place, a being or an event to where it
+              is on the map; a place on the map to all of what is known of it
+  BACKSPACE   go back the way you came
+  mouse       click a tab or a row, double-click to go where it leads, and
+              scroll with the wheel
   TAB         move between the list and what it is showing
   j k         down and up; also the arrow keys
   g G         the top, and the end
@@ -81,6 +92,12 @@ class App:
         self.follow = True
         self.helping = False
         self.message = ""
+        #: Where Enter has led from, to go back to: (tab, row key).
+        self.trail: List[Tuple[int, str]] = []
+        #: Where the last frame put things, for the mouse to find.
+        self.tab_spans: List[Tuple[int, int]] = []
+        self.list_columns = 0
+        self.body = 0
         self.stamp = self._stamp()
         self._shown: Optional[Tuple] = None
         self._lines: List[Line] = []
@@ -212,19 +229,24 @@ class App:
         self.put(0, max(0, width - views.width(right) - 1), right,
                  curses.A_REVERSE | curses.A_BOLD, width)
         x = 1
+        self.tab_spans = []
         for index, view in enumerate(VIEWS):
             label = str(index + 1) + " " + view.title
+            self.tab_spans.append((x, x + views.width(label)))
             here = index == self.tab
             self.put(1, x, label,
                      (self.tones["accent"] | curses.A_BOLD) if here
                      else self.tones["dim"], max(0, width - x))
             x += views.width(label) + 3
         self.rule(2, width)
-        body, top = height - 5, 3
+        body, top = height - 5, FIXED_ROWS
+        self.body = body
+        self.list_columns = 0
         if self.helping:
             self.draw_shown(top, 0, body, width)
         else:
             columns = max(20, min(46, width * 2 // 5))
+            self.list_columns = columns
             self.draw_rows(top, 0, body, columns)
             try:
                 self.screen.vline(top, columns, curses.ACS_VLINE, body)
@@ -293,6 +315,74 @@ class App:
                 self.down = 0
                 return
 
+    def go(self, tab: int, key: str = "") -> None:
+        """Show another page, on the row `key` if it has one."""
+        self.tab = tab
+        self.helping = False
+        self.on_detail = False
+        self.down = 0
+        for index, row in enumerate(self.rows()):
+            if key and row.key == key:
+                self.cursor[tab] = index
+                break
+        self.snap()
+
+    def lead(self) -> None:
+        """Enter: go where the selected row leads, remembering the way back."""
+        selected = self.selected()
+        target = self.view().link(self.world, selected) if selected else None
+        names = [view.name for view in VIEWS]
+        if target is None or target[0] not in names:
+            self.message = "nothing leads on from here"
+            return
+        self.trail.append((self.tab, selected))
+        self.go(names.index(target[0]), target[1])
+
+    def back(self) -> None:
+        if not self.trail:
+            self.message = "nowhere to go back to"
+            return
+        tab, key = self.trail.pop()
+        self.go(tab, key)
+
+    def click(self) -> None:
+        """A mouse event: tabs and rows are clicked, the wheel scrolls."""
+        try:
+            _, x, y, _, state = curses.getmouse()
+        except curses.error:
+            return
+        up = state & curses.BUTTON4_PRESSED
+        down = state & getattr(curses, "BUTTON5_PRESSED", 0)
+        in_list = 0 <= x < self.list_columns
+        if up or down:
+            step = -1 if up else 1
+            if in_list and not self.helping:
+                self.on_detail = False
+                self.move(step)
+            else:
+                self.scroll(3 * step)
+            return
+        if y == 1:
+            for index, (start, end) in enumerate(self.tab_spans):
+                if start <= x < end and index != self.tab:
+                    self.go(index)
+            return
+        row = y - FIXED_ROWS
+        if not 0 <= row < self.body or self.helping:
+            return
+        if not in_list:
+            self.on_detail = True
+            return
+        position = self.top.get(self.tab, 0) + row
+        rows = self.rows()
+        if position < len(rows) and rows[position].key:
+            if position != self.cursor.get(self.tab):
+                self.down = 0
+            self.cursor[self.tab] = position
+            self.on_detail = False
+            if state & curses.BUTTON1_DOUBLE_CLICKED:
+                self.lead()
+
     def scroll(self, step: int) -> None:
         self.down = max(0, self.down + step)
 
@@ -310,11 +400,14 @@ class App:
             self.helping = not self.helping
             self.down = 0
         elif ord("1") <= pressed <= ord("0") + len(VIEWS):
-            self.tab = pressed - ord("1")
-            self.helping = False
-            self.on_detail = False
-            self.down = 0
-            self.snap()
+            self.go(pressed - ord("1"))
+        elif pressed in (ord("\n"), ord("\r"), curses.KEY_ENTER):
+            if not self.helping:
+                self.lead()
+        elif pressed in (curses.KEY_BACKSPACE, 127, 8):
+            self.back()
+        elif pressed == curses.KEY_MOUSE:
+            self.click()
         elif pressed in (ord("\t"), ord("l"), curses.KEY_RIGHT):
             self.on_detail = True
         elif pressed in (curses.KEY_BTAB, ord("h"), curses.KEY_LEFT):
@@ -347,8 +440,33 @@ class App:
                             else "not following; r reads again")
         return True
 
+    def splash(self) -> None:
+        """The logo, with the world's name under it, until a key is pressed
+        or `SPLASH_MILLISECONDS` pass. The key is not passed on."""
+        height, width = self.screen.getmaxyx()
+        drawing = views.logo(width - 2, height - 3)
+        if not drawing:
+            return
+        caption = [("Elsewhere", self.tones["bold"]),
+                   (self.world.name + "   " + self.world.label(), self.tones["dim"])]
+        self.screen.erase()
+        top = max(0, (height - len(drawing) - 1 - len(caption)) // 2)
+        left = max(0, (width - max(views.width(line) for line in drawing)) // 2)
+        for offset, line in enumerate(drawing):
+            self.put(top + offset, left, line, self.tones["plain"], width - left)
+        for offset, (text, attribute) in enumerate(caption, start=len(drawing) + 1):
+            self.put(top + offset, max(0, (width - views.width(text)) // 2), text,
+                     attribute, width)
+        self.screen.noutrefresh()
+        curses.doupdate()
+        self.screen.timeout(SPLASH_MILLISECONDS)
+        self.screen.getch()
+
     def loop(self) -> None:
         curses.curs_set(0)
+        curses.mousemask(curses.BUTTON1_CLICKED | curses.BUTTON1_DOUBLE_CLICKED
+                         | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", 0))
+        self.splash()
         self.screen.timeout(PAUSE_MILLISECONDS)
         while True:
             self.draw()
