@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import functools
+import json
+import lzma
 import plistlib
 import re
 import time
@@ -259,24 +262,36 @@ def looks_up(world: World, being) -> Line:
     return Line("  looks up    in " + span(away) + absorbed, under=14)
 
 
-#: The logo in braille at a few widths, smallest first, as `scripts/logo.py`
-#: drew it from docs/logo.jpg.
-LOGO = "logo.txt"
+#: The logo in braille at a few widths, smallest first, each as the frames of
+#: one beat of its wings, as `scripts/logo.py` drew it from docs/logo.jpg.
+LOGO = "logo.json.xz"
 
 
-def logo(columns: int, rows: int) -> List[str]:
-    """The largest drawing of the logo that fits; none if even the smallest
-    does not."""
+@functools.lru_cache(maxsize=1)
+def drawings() -> List[List[List[str]]]:
+    """Every size of the logo, each a list of frames of lines; read once."""
     try:
-        text = resources.files(__package__).joinpath(LOGO).read_text(encoding="utf-8")
-    except OSError:
+        packed = resources.files(__package__).joinpath(LOGO).read_bytes()
+        return json.loads(lzma.decompress(packed).decode("utf-8"))
+    except (OSError, lzma.LZMAError, ValueError):
         return []
-    fitting: List[str] = []
-    for drawing in text.split("\f\n"):
-        lines = drawing.rstrip("\n").split("\n")
-        if len(lines) <= rows and max(width(line) for line in lines) <= columns:
-            fitting = lines
+
+
+@functools.lru_cache(maxsize=8)
+def logo(columns: int, rows: int) -> List[List[str]]:
+    """The frames of the largest drawing of the logo that fits; none if even
+    the smallest does not. Cached: the window asks again for every frame."""
+    fitting: List[List[str]] = []
+    for frames in drawings():
+        if all(len(lines) <= rows and max(map(width, lines)) <= columns for lines in frames):
+            fitting = frames
     return fitting
+
+
+@functools.lru_cache(maxsize=8)
+def widest(columns: int, rows: int) -> int:
+    """Columns taken by the widest frame of `logo(columns, rows)`."""
+    return max((width(line) for lines in logo(columns, rows) for line in lines), default=0)
 
 
 WORLD_KEY = "~world"

@@ -25,7 +25,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 # The logo the window opens on, drawn by scripts/logo.py.
-"elsewhere.tui" = ["logo.txt"]
+"elsewhere.tui" = ["logo.json.xz"]
 
 [tool.mypy]
 files = ["src/elsewhere"]
