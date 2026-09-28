@@ -377,7 +377,7 @@ def command_continue(arguments) -> None:
     go_on(world, arguments.max)
 
 
-def _command_tick(arguments) -> None:
+def command_tick(arguments) -> None:
     from .tick import tick
 
     world = open_live(arguments)
@@ -416,7 +416,7 @@ def command_end(arguments) -> None:
 
 # development
 
-def _command_doctor(arguments) -> None:
+def command_doctor(arguments) -> None:
     root = Path(arguments.world)
     path = path_of(root)
     configuration = load_configuration(root)
@@ -497,7 +497,7 @@ def command_reembed(arguments) -> None:
           f"{settings.backend}/{settings.model}.")
 
 
-def _command_remember(arguments) -> None:
+def command_remember(arguments) -> None:
     """Writes memories, so it takes the lock and refuses an ended world."""
     try:
         with store.tick_lock(Path(arguments.world)):
@@ -573,7 +573,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
     subparser.add_argument("-n", type=int, default=1)
-    subparser.set_defaults(func=_command_tick)
+    subparser.set_defaults(func=command_tick)
 
     # ending
     subparser = subparsers.add_parser(
@@ -582,7 +582,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # development (internal)
     subparser = subparsers.add_parser("doctor", help="[DEV] diagnose model backend connectivity")
-    subparser.set_defaults(func=_command_doctor)
+    subparser.set_defaults(func=command_doctor)
 
     subparser = subparsers.add_parser(
         "configure", help="point the minds at one backend and model")
@@ -601,7 +601,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparser = subparsers.add_parser(
         "remember", help="[DEV] re-run one event for prompt tuning")
     subparser.add_argument("event_id")
-    subparser.set_defaults(func=_command_remember)
+    subparser.set_defaults(func=command_remember)
 
     return parser
 

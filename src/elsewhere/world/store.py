@@ -173,7 +173,7 @@ class World:
         return self.chronicle.append(event)
 
 
-def _atomic_write(path: Path, payload: dict) -> None:
+def atomic_write(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -181,7 +181,7 @@ def _atomic_write(path: Path, payload: dict) -> None:
 
 
 def save(world: World) -> None:
-    _atomic_write(world.root / "world.json", {
+    atomic_write(world.root / "world.json", {
         "schema": SCHEMA_VERSION, "name": world.name, "at": world.at,
         "counters": world.counters,
         "closed": world.closed,
@@ -191,7 +191,7 @@ def save(world: World) -> None:
         "map": world.map.to_dict(),
     })
     for being in world.beings.values():
-        _atomic_write(world.root / "beings" / f"{being.id}.json", being.to_dict())
+        atomic_write(world.root / "beings" / f"{being.id}.json", being.to_dict())
     for store in world._memories.values():
         store.save()
 

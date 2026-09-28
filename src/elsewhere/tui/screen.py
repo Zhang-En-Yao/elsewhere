@@ -51,7 +51,7 @@ This window only reads
 """
 
 
-def _tones() -> Dict[str, int]:
+def tones() -> Dict[str, int]:
     plain = curses.A_NORMAL
     accent, warn = plain, plain
     try:
@@ -72,7 +72,7 @@ class App:
         self.root = Path(root)
         self.screen = screen
         self.world = store.load(self.root)
-        self.tone = _tones()
+        self.tone = tones()
         self.tab = 0
         self.cursor: Dict[int, int] = {}
         self.top: Dict[int, int] = {}
@@ -88,7 +88,7 @@ class App:
         self._rows: List[Row] = []
         for index in range(len(VIEWS)):
             self.cursor[index], self.top[index] = 0, 0
-        self._settle()
+        self.settle()
 
     def _stamp(self) -> tuple:
         """Cheap fingerprint of the files, to detect changes."""
@@ -120,7 +120,7 @@ class App:
                 if row.key == keep:
                     self.cursor[self.tab] = index
                     break
-        self._settle()
+        self.settle()
         if say:
             self.message = "read again at " + time.strftime("%H:%M:%S")
 
@@ -140,7 +140,7 @@ class App:
         index = self.cursor.get(self.tab, 0)
         return rows[index].key if 0 <= index < len(rows) else ""
 
-    def _settle(self) -> None:
+    def settle(self) -> None:
         rows = self.rows()
         index = min(max(0, self.cursor.get(self.tab, 0)), max(0, len(rows) - 1))
         if rows and not rows[index].key:
@@ -212,15 +212,15 @@ class App:
         self.rule(2, width)
         body, top = height - 5, 3
         if self.helping:
-            self._draw_shown(top, 0, body, width)
+            self.draw_shown(top, 0, body, width)
         else:
             columns = max(20, min(46, width * 2 // 5))
-            self._draw_rows(top, 0, body, columns)
+            self.draw_rows(top, 0, body, columns)
             try:
                 self.screen.vline(top, columns, curses.ACS_VLINE, body)
             except curses.error:
                 pass
-            self._draw_shown(top, columns + 2, body, width - columns - 3)
+            self.draw_shown(top, columns + 2, body, width - columns - 3)
         self.rule(height - 2, width)
         foot = self.message or KEYS
         self.put(height - 1, 0, foot,
@@ -228,7 +228,7 @@ class App:
         self.screen.noutrefresh()
         curses.doupdate()
 
-    def _draw_rows(self, top: int, x: int, body: int, columns: int) -> None:
+    def draw_rows(self, top: int, x: int, body: int, columns: int) -> None:
         rows = self.rows()
         index = self.cursor.get(self.tab, 0)
         start = self.top.get(self.tab, 0)
@@ -251,7 +251,7 @@ class App:
             else:
                 self.put(top + offset, x, " " + row.text, attr, columns - 1)
 
-    def _draw_shown(self, top: int, x: int, body: int, columns: int) -> None:
+    def draw_shown(self, top: int, x: int, body: int, columns: int) -> None:
         lines = self.shown(max(10, columns))
         self.down = max(0, min(self.down, max(0, len(lines) - body)))
         for offset in range(body):
@@ -301,7 +301,7 @@ class App:
             self.helping = False
             self.on_detail = False
             self.down = 0
-            self._settle()
+            self.settle()
         elif pressed in (ord("\t"), ord("l"), curses.KEY_RIGHT):
             self.on_detail = True
         elif pressed in (curses.KEY_BTAB, ord("h"), curses.KEY_LEFT):
@@ -319,13 +319,13 @@ class App:
                 self.down = 0
             else:
                 self.cursor[self.tab] = 0
-                self._settle()
+                self.settle()
         elif pressed == ord("G"):
             if self.on_detail or self.helping:
-                self.down = 10 ** 9        # clamped against the room in _draw_shown
+                self.down = 10 ** 9        # clamped against the room in draw_shown
             else:
                 self.cursor[self.tab] = max(0, len(self.rows()) - 1)
-                self._settle()
+                self.settle()
         elif pressed == ord("r"):
             self.reload(say=True)
         elif pressed == ord("f"):

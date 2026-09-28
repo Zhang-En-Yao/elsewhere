@@ -101,10 +101,6 @@ def remember(world: World, event, configuration, transcript=None) -> list:
     return kept
 
 
-def unheard(line: str) -> None:
-    pass
-
-
 def past(world: World, event, configuration, transcript, say) -> None:
     started = time.time()
     kept = remember(world, event, configuration, transcript)
@@ -115,7 +111,7 @@ def past(world: World, event, configuration, transcript, say) -> None:
 
 
 def build(root, name: str = "Nod", configuration=None, transcript=None,
-          say=unheard) -> World:
+          say=lambda line: None) -> World:
     root = Path(root)
     clear_world(root)
     world = World(root=root, name=name, at=0.0)
@@ -301,7 +297,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
     return world
 
 
-def create(root, name: str = "Nod", transcript=None, say=unheard) -> World:
+def create(root, name: str = "Nod", transcript=None, say=lambda line: None) -> World:
     write_default_configuration(root)
     world = build(root, name=name, configuration=load_configuration(root),
                   transcript=transcript, say=say)

@@ -77,6 +77,13 @@ re-derive it from the modules.
   counter/registry — not an ad-hoc conventional constant.
 - When a task needs a specific algorithm, use a published one from the relevant field
   (cite it, as `retrieval.py` cites ACT-R) rather than inventing one.
+- No leading underscore on a name unless it is a class method guarding real encapsulation
+  (cached/lazily-initialized state, a thread-locked resource, a polymorphic hook a
+  subclass overrides) or the plain name would collide with an attribute of the same
+  meaning (e.g. `App._stamp()` stays underscored because `self.stamp` already holds its
+  result). A module-level helper, or a class method that is just decomposed logic with no
+  state to protect, gets a plain name — Python has no real access control, so the
+  underscore should mean something when it's there.
 
 ## Testing notes
 
