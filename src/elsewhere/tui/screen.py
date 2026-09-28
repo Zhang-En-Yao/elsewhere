@@ -33,7 +33,7 @@ TRAIL = 64
 HELP = """\
 Keys
 
-  1 2 3 4     world, beings, history, map, the tabs in order
+  1 2 3 4     world, beings, history, view, the tabs in order
   ENTER       go where this leads: a place, a being or an event to where it
               is on the map; a place on the map to all of what is known of it
   ESC         back to the page before, however you left it: Enter, a click
