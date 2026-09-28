@@ -278,7 +278,9 @@ class TestSettle(Town):
 
 def vector_extension_installed():
     import sqlite3
-    return recollection.load_vector_extension(sqlite3.connect(":memory:"))
+    from contextlib import closing
+    with closing(sqlite3.connect(":memory:")) as connection:
+        return recollection.load_vector_extension(connection)
 
 
 class TestRecollection(unittest.TestCase):
