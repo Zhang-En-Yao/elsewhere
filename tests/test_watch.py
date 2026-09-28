@@ -380,6 +380,53 @@ class TestLogo(unittest.TestCase):
                                 repr(character))
 
 
+class ScriptedScreen(FakeScreen):
+    """A window whose keys are given in advance; records how long each wait is."""
+
+    def __init__(self, keys):
+        self.keys = list(keys)
+        self.waits = []
+        self.wait = -1
+        self.drawn = []
+
+    def timeout(self, milliseconds):
+        self.wait = milliseconds
+
+    def getch(self):
+        self.waits.append(self.wait)
+        return self.keys.pop(0)
+
+    def erase(self):
+        pass
+
+    def addstr(self, y, x, text, attribute):
+        self.drawn.append(text)
+
+    def noutrefresh(self):
+        pass
+
+
+class TestSplash(Window):
+    """The logo stays until a key on opening, and three seconds on closing."""
+
+    def test_it_opens_until_a_key_and_closes_after_three_seconds(self):
+        from unittest import mock
+        from elsewhere.tui import screen
+        from elsewhere.world import store
+        store.save(self.world)
+        keys = ScriptedScreen([screen.curses.KEY_RESIZE, ord("x"), ord("q"), -1])
+        app = screen.App(self.world.root, keys)
+        with mock.patch.multiple(screen.curses, curs_set=mock.DEFAULT,
+                                 set_escdelay=mock.DEFAULT, mousemask=mock.DEFAULT,
+                                 doupdate=mock.DEFAULT), \
+                mock.patch.object(app, "draw"):
+            app.loop()
+        self.assertEqual(keys.waits, [-1, -1, screen.PAUSE_MILLISECONDS,
+                                      screen.CLOSING_MILLISECONDS])
+        self.assertEqual(screen.CLOSING_MILLISECONDS, 3000)
+        self.assertIn("Elsewhere", keys.drawn)
+
+
 class TestGoing(Window):
     """Enter goes where a row leads, and Backspace comes back."""
 

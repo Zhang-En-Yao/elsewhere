@@ -649,9 +649,10 @@ transcripts survive. `make world` refuses to overwrite a world that exists.
 make watch              # or: elsewhere watch
 ```
 
-It opens on the logo for a moment — any key goes straight past it — drawn in
-braille from [docs/logo.jpg](docs/logo.jpg) by `scripts/logo.py` at the largest
-size the terminal holds. Then four views, on the keys 1 to 4:
+It opens on the logo and waits there for any key — and closes on it too, for
+three seconds, or less if a key is pressed. The logo is drawn in braille from
+[docs/logo.jpg](docs/logo.jpg) by `scripts/logo.py` at the largest size the
+terminal holds. Past it are four views, on the keys 1 to 4:
 
 | View | What it shows |
 |---|---|
