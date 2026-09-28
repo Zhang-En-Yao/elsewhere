@@ -236,7 +236,7 @@ def next_lines(world: World, indent: str, shown: int = 3) -> List[Line]:
                           "warn", under=len(indent)))
     elif not last:
         lines.append(Line(indent + "scheduled every " + span(job.every / 3600.0)
-                          + ", never ran: `make schedule-status`", "warn", under=len(indent)))
+                          + ", never ran: `make status`", "warn", under=len(indent)))
     else:
         lines.append(Line(indent + "`continue` every " + span(job.every / 3600.0)
                           + ", last ran " + last, "dim", under=len(indent)))

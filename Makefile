@@ -1,6 +1,8 @@
 # Elsewhere
 
-PY ?= python3
+# The project's venv when there is one, so nothing depends on it being activated.
+PY ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+ELSEWHERE ?= $(if $(wildcard .venv/bin/elsewhere),.venv/bin/elsewhere,elsewhere)
 
 test: typecheck  ## run everything that needs no model
 	$(PY) -m unittest discover -s tests
@@ -13,17 +15,17 @@ typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 	fi
 
 world:           ## make a world in ./world and keep it going (launchd)
-	elsewhere --world world initialize
+	$(ELSEWHERE) --world world initialize
 	./scripts/schedule.sh install
 
 watch:           ## sit with the world in a window; reads only
-	elsewhere watch
+	$(ELSEWHERE) watch
 
 tick:            ## live one step now (TICKS=3 for three)
-	elsewhere tick -n $(or $(TICKS),1)
+	$(ELSEWHERE) tick -n $(or $(TICKS),1)
 
 news:            ## what happened since you last looked
-	elsewhere news
+	$(ELSEWHERE) news
 
 schedule:        ## keep the world going while you are away (launchd)
 	./scripts/schedule.sh install
@@ -32,14 +34,14 @@ unschedule:      ## stop it
 	./scripts/schedule.sh uninstall
 
 end:             ## end the world for good, and stop the schedule
-	elsewhere --world world end
+	$(ELSEWHERE) --world world end
 	./scripts/schedule.sh uninstall
 
-schedule-status: ## is it running, and can it reach a mind
+status:          ## is the schedule installed, and when did it last run
 	./scripts/schedule.sh status
 
 doctor:          ## can the configured minds be reached?
-	elsewhere doctor
+	$(ELSEWHERE) doctor
 
 live:            ## put a model on this Mac (MLX) and check every call site can reach it
 	./scripts/live.sh
@@ -49,4 +51,4 @@ help:
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
 .PHONY: test typecheck world doctor live help watch tick news schedule \
-        unschedule schedule-status end
+        unschedule status end

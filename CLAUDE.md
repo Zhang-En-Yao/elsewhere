@@ -33,7 +33,7 @@ make world          # initialize ./world (3 beings, 1 town, a flood), then `make
 make tick           # live one step now (TICKS=3 for three)
 make watch           # read-only TUI window onto the world
 make news            # what happened since you last looked
-make schedule / make unschedule / make schedule-status   # launchd agent that runs the world while you're away
+make schedule / make unschedule / make status   # launchd agent that runs the world while you're away
 make doctor           # can the configured minds be reached?
 make live             # put a model on this Mac via MLX and check every call site can reach it
 ```

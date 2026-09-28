@@ -3,7 +3,8 @@
 # Keep the world going via a launchd agent that runs `elsewhere continue`.
 #
 #   scripts/schedule.sh install     # check every 30 min (CHECK_EVERY)
-#   scripts/schedule.sh status      # loaded? last run? can it reach a mind?
+#   scripts/schedule.sh status      # loaded? last run? (reaching a mind is `make doctor`:
+#                                   #  it loads the model, which a status check should not)
 #   scripts/schedule.sh log
 #   scripts/schedule.sh uninstall
 #
@@ -118,12 +119,11 @@ case "${1:-status}" in
     else
       echo "not installed - run: scripts/schedule.sh install"
     fi
-    cli="$(find_cli)" && "$cli" --world "$WORLD" doctor 2>/dev/null | sed -n '/act /p'
     if [ -s "$LOG" ]; then
       echo "last lines of the log:"; tail -5 "$LOG" | sed 's/^/  /'
     else
       echo "the log is empty: the job has never written anything."
-      if [ -f "$PLIST" ] && protected_path "$REPO"; then tcc_warning "$cli"; fi
+      if [ -f "$PLIST" ] && protected_path "$REPO"; then tcc_warning "$(find_cli)"; fi
     fi
     ;;
   log)
