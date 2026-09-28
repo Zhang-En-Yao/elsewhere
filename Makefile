@@ -46,9 +46,12 @@ doctor:          ## can the configured minds be reached?
 live:            ## put a model on this Mac (MLX) and check every call site can reach it
 	./scripts/live.sh
 
+logo:            ## draw docs/logo.jpg again for the window (needs Pillow)
+	$(PY) scripts/logo.py
+
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
-.PHONY: test typecheck world doctor live help watch tick news schedule \
+.PHONY: test typecheck world doctor live logo help watch tick news schedule \
         unschedule status end

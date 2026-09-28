@@ -25,15 +25,19 @@ FIXED_ROWS = 3
 SPLASH_MILLISECONDS = 1500
 
 #: Every key only moves what is being looked at; `?` lists them.
-KEYS = "? keys   q quit"
+KEYS = "esc back   ? keys   q quit"
+
+#: How many pages back Esc and Backspace can go.
+TRAIL = 64
 
 HELP = """\
 Keys
 
-  1 2 3 4     world, beings, history, map
+  1 2 3 4     world, beings, history, map, the tabs in order
   ENTER       go where this leads: a place, a being or an event to where it
               is on the map; a place on the map to all of what is known of it
-  BACKSPACE   go back the way you came
+  ESC         back to the page before, however you left it: Enter, a click
+              or another tab (BACKSPACE too); on this page, close it
   mouse       click a tab or a row, double-click to go where it leads, and
               scroll with the wheel
   TAB         move between the list and what it is showing
@@ -231,7 +235,7 @@ class App:
         x = 1
         self.tab_spans = []
         for index, view in enumerate(VIEWS):
-            label = str(index + 1) + " " + view.title
+            label = view.title
             self.tab_spans.append((x, x + views.width(label)))
             here = index == self.tab
             self.put(1, x, label,
@@ -315,8 +319,12 @@ class App:
                 self.down = 0
                 return
 
-    def go(self, tab: int, key: str = "") -> None:
-        """Show another page, on the row `key` if it has one."""
+    def go(self, tab: int, key: str = "", remember: bool = True) -> None:
+        """Show another page, on the row `key` if it has one. Leaving a page
+        leaves it on the trail, to come back to."""
+        if remember and tab != self.tab:
+            self.trail.append((self.tab, self.selected()))
+            del self.trail[:-TRAIL]
         self.tab = tab
         self.helping = False
         self.on_detail = False
@@ -335,7 +343,6 @@ class App:
         if target is None or target[0] not in names:
             self.message = "nothing leads on from here"
             return
-        self.trail.append((self.tab, selected))
         self.go(names.index(target[0]), target[1])
 
     def back(self) -> None:
@@ -343,7 +350,7 @@ class App:
             self.message = "nowhere to go back to"
             return
         tab, key = self.trail.pop()
-        self.go(tab, key)
+        self.go(tab, key, remember=False)
 
     def click(self) -> None:
         """A mouse event: tabs and rows are clicked, the wheel scrolls."""
@@ -389,11 +396,17 @@ class App:
     def key(self, pressed: int) -> bool:
         """False when the key closes the window."""
         self.message = ""
-        if pressed in (ord("q"), 27):
+        if pressed == ord("q"):
             if self.helping:
                 self.helping = False
                 return True
             return False
+        if pressed == 27:                   # Esc: out of the keys page, else back
+            if self.helping:
+                self.helping = False
+            else:
+                self.back()
+            return True
         if pressed == curses.KEY_RESIZE:
             self._shown = None
         elif pressed == ord("?"):
@@ -464,6 +477,8 @@ class App:
 
     def loop(self) -> None:
         curses.curs_set(0)
+        # Esc on its own, without waiting to see whether a sequence follows.
+        curses.set_escdelay(25)
         curses.mousemask(curses.BUTTON1_CLICKED | curses.BUTTON1_DOUBLE_CLICKED
                          | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", 0))
         self.splash()

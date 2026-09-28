@@ -434,6 +434,28 @@ class TestGoing(Window):
         self.world.beings["lilith"].when.left_at = self.world.at
         self.assertIsNone(views.being_link(self.world, "lilith"))
 
+    def test_esc_comes_back_from_a_tab_clicked_or_typed(self):
+        app = self.app
+        app.key(ord("4"))
+        app.cursor[3] = [row.key for row in app.rows()].index("sinai")
+        app.go(0)                                   # as clicking the World tab does
+        self.assertEqual(self.names()[app.tab], "world")
+        app.key(27)
+        self.assertEqual((self.names()[app.tab], app.selected()), ("map", "sinai"))
+        app.key(27)
+        self.assertEqual(self.names()[app.tab], "world")
+
+    def test_esc_does_not_close_the_window(self):
+        self.assertTrue(self.app.key(27))
+        self.assertEqual(self.app.message, "nowhere to go back to")
+
+    def test_esc_closes_the_keys_page_first(self):
+        self.app.key(ord("4"))
+        self.app.key(ord("?"))
+        self.app.key(27)
+        self.assertFalse(self.app.helping)
+        self.assertEqual(self.names()[self.app.tab], "map")
+
     def test_there_is_no_back_before_anywhere_was_gone(self):
         self.app.key(127)
         self.assertEqual(self.app.message, "nowhere to go back to")
@@ -469,7 +491,7 @@ class TestTheWindowWritesNothing(Window):
         app = screen.App(self.world.root, FakeScreen())
         was = self.files()
         pressed = [ord(character) for character in "123456789jkhlgGb rfcmxyz?\t\n\r"]
-        pressed += [127, screen.curses.KEY_BACKSPACE, screen.curses.KEY_ENTER]
+        pressed += [127, 27, screen.curses.KEY_BACKSPACE, screen.curses.KEY_ENTER]
         pressed += [screen.curses.KEY_DOWN, screen.curses.KEY_UP,
                     screen.curses.KEY_NPAGE, screen.curses.KEY_PPAGE,
                     screen.curses.KEY_RESIZE, screen.curses.KEY_LEFT,
