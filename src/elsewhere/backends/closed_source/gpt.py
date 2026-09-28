@@ -11,7 +11,7 @@ class GPTBackend(OpenAICompatibleBackend):
     """The /v1 backend with OpenAI's address and OpenAI's key filled in."""
 
     name = "gpt"
-    base = "https://api.openai.com/v1"
+    endpoint = "https://api.openai.com/v1"
 
     def _key(self) -> str:
         key = os.environ.get("OPENAI_API_KEY")

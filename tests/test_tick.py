@@ -10,17 +10,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import cli, schedule, schemas, seed, tick as tick_mod
+from elsewhere import agents, cli, schedule, schemas, seed, tick
 from elsewhere.schemas import CallName
 from elsewhere.backends import Settings, register
 from elsewhere.configuration import DEFAULTS, configure
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle, store
-from elsewhere.world.memories import Memory
 
 CALLS = tuple(CallName)[:-1]    # every call but the probe
 STAY = {"because": "", "doing": "", "action": "", "target": "",
-        "for_hours": 6.0, "settling": False}
+        "again_in_hours": 6.0, "settling": False}
 
 
 def configuration():
@@ -29,14 +28,14 @@ def configuration():
 
 class TownTest(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name) / "world"
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name) / "world"
         self.world = seed.build(self.root)
-        self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False}})
+        self.stub = StubBackend({CallName.ACT: STAY})
         register(self.stub)
 
     def tearDown(self):
-        self.tmp.cleanup()
+        self.temporary.cleanup()
 
     def say(self, call, answer):
         self.stub.set(call, answer)
@@ -46,31 +45,31 @@ class TownTest(unittest.TestCase):
             self.stub.answers[f"act|{pid}"] = answer
 
     def calls_for(self, name):
-        return [c for c in self.stub.calls if c.name == name]
+        return [call for call in self.stub.calls if call.name == name]
 
 
 class TestTime(TownTest):
     def test_a_step_is_as_long_as_the_next_thing_due(self):
-        tick_mod.tick(self.world, configuration())              # the opening step
+        tick.tick(self.world, configuration())              # the opening step
         was = self.world.at
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertEqual(self.world.at, was + 6.0)
         self.assertEqual(report.hours, 6.0)
 
     def test_a_step_is_as_long_as_whoever_asked_for_the_least(self):
-        tick_mod.tick(self.world, configuration())
-        self.acts(p_havvah={**STAY, "for_hours": 1.5})
-        tick_mod.tick(self.world, configuration())              # Havvah now wants 1.5h
+        tick.tick(self.world, configuration())
+        self.acts(p_havvah={**STAY, "again_in_hours": 1.5})
+        tick.tick(self.world, configuration())              # Havvah now wants 1.5h
         was = self.world.at
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertEqual(report.hours, 1.5)
         self.assertEqual(self.world.at, was + 1.5)
         # and only she was asked
-        asked = [c.about for c in self.calls_for(CallName.ACT)[-1:]]
+        asked = [call.about for call in self.calls_for(CallName.ACT)[-1:]]
         self.assertEqual(asked, ["p_havvah"])
 
     def test_somebody_absorbed_is_not_woken_by_what_is_not_about_them(self):
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         for pid in ("p_bezalel", "p_havvah", "p_lilith"):
             self.world.beings[pid].where.place = "bethel"
         deep = self.world.beings["p_lilith"]
@@ -86,30 +85,30 @@ class TestTime(TownTest):
     def test_a_world_nobody_scheduled_stops_rather_than_inventing_an_hour(self):
         self.say(CallName.ACT, {"because": "", "action": "", "target": ""})
         self.say(CallName.STIR, {"happens": False})
-        self.say(CallName.ARRIVE, {"comes": False})
-        tick_mod.tick(self.world, configuration())              # everyone answers, nobody says when
+        self.say(CallName.ARRIVE, {"happens": False})
+        tick.tick(self.world, configuration())              # everyone answers, nobody says when
         was = self.world.at
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertTrue(report.idle)
         self.assertEqual(self.world.at, was, "the engine does not pick an hour for them")
 
     def test_everyone_is_asked_once(self):
-        tick_mod.tick(self.world, configuration())
-        asked = sorted(c.about for c in self.calls_for(CallName.ACT))
+        tick.tick(self.world, configuration())
+        asked = sorted(call.about for call in self.calls_for(CallName.ACT))
         self.assertEqual(asked, sorted(self.world.beings))
 
     def test_a_mind_that_gives_nothing_stays_put(self):
         self.acts(p_havvah="I would rather not say")
         before = self.world.beings["p_havvah"].where.place
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertEqual(self.world.beings["p_havvah"].where.place, before)
-        self.assertEqual(report.silent, 1)
+        self.assertEqual(report.unanswered, 1)
 
 
 class TestChoices(TownTest):
     def test_the_grammar_only_offers_what_is_there(self):
-        tick_mod.tick(self.world, configuration())
-        havvah_call = next(c for c in self.calls_for(CallName.ACT) if c.about == "p_havvah")
+        tick.tick(self.world, configuration())
+        havvah_call = next(call for call in self.calls_for(CallName.ACT) if call.about == "p_havvah")
         options = havvah_call.schema["properties"]["target"]["enum"]
         # Havvah is alone at the garden, next to Beth El, Marah and the Boatyard.
         self.assertEqual(sorted(options),
@@ -118,7 +117,7 @@ class TestChoices(TownTest):
     def test_going_somewhere(self):
         self.acts(p_havvah={"because": "the seedbed can wait", "action": "move",
                          "target": "Beth El"})
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertEqual(self.world.beings["p_havvah"].where.place, "bethel")
         self.assertIn(("p_havvah", "garden", "bethel"), report.moves)
         self.assertEqual(report.decisions["p_havvah"].because, "the seedbed can wait")
@@ -129,73 +128,62 @@ class TestConversation(TownTest):
         super().setUp()
         for pid in ("p_havvah", "p_bezalel"):
             self.world.beings[pid].where.place = "yard"
-        self.flood = Memory(id="mem9001", owner="p_havvah", at=68 * 24, occasions=[68 * 24],
-                           account="the water in the doorway before I could move anything",
-                           means="", feeling="fear")
-        self.world.memories("p_havvah").add(self.flood)
 
-    def test_something_said_is_something_someone_else_can_keep(self):
+    def test_something_said_reaches_whoever_is_there(self):
+        self.world.beings["p_lilith"].where.place = "yard"
         self.acts(p_havvah={"because": "he was on the roof that night",
                          "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"memory_reference": "1", "utterance": "You were up there. Could you feel it?"})
-        self.stub.answers["perceive|p_bezalel"] = {
-            "account": "she asked if I could feel it", "means": "", "feeling": "unease",
-            "stuck": True}
+        self.say(CallName.SPEAK, {"utterance": "You were up there. Could you feel it?"})
+        self.stub.answers["speak|p_bezalel"] = {"noted": "she asked if I could feel it",
+                                                "utterance": "Feel what?"}
 
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
 
         self.assertEqual(len(report.talks), 1)
         talk = report.talks[0]
         self.assertEqual(talk.between, ("p_havvah", "p_bezalel"))
-        opening = talk.turns[0]
-        event = self.world.chronicle.get(opening.event_id)
+        event = self.world.chronicle.get(talk.turns[0].event_id)
         self.assertIn("Could you feel it?", event.account)
-
-        kept = self.world.memories("p_bezalel").about_event(event.id)
-        self.assertEqual(len(kept), 1, "Bezalel kept his own version of it")
-        self.assertEqual(kept[0].account, "she asked if I could feel it")
-        self.assertEqual(self.world.memories("p_havvah").about_event(event.id), [],
-                         "the speaker is not asked to perceive her own sentence")
+        self.assertEqual(sorted(event.informed), ["p_bezalel", "p_havvah", "p_lilith"])
+        kept = self.world.notes("p_bezalel").about(event.id)
+        self.assertEqual([note.account for note in kept], ["she asked if I could feel it"],
+                         "he kept his own version of it, in the answer he gave")
+        stood = dict((event.id, where) for event, where in agents.unseen(
+            self.world, self.world.beings["p_lilith"]))
+        self.assertIn("within earshot", stood[event.id],
+                      "and she overheard it, and will see it when she looks up")
 
     def test_the_other_one_answers(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"memory_reference": "nothing in particular", "utterance": "Cold."})
-        talk = tick_mod.tick(self.world, configuration()).talks[0]
+        self.say(CallName.SPEAK, {"utterance": "You were up there. Could you feel it?"})
+        talk = tick.tick(self.world, configuration()).talks[0]
         self.assertGreater(len(talk.turns), 1)
-        self.assertEqual([t.speaker for t in talk.turns[:2]], ["p_havvah", "p_bezalel"])
-        # Each turn is an event, so Bezalel replies to his perceived version.
-        his = [c for c in self.calls_for(CallName.SPEAK) if c.about == "p_bezalel"]
-        self.assertTrue(his)
+        self.assertEqual([turn.speaker for turn in talk.turns[:2]], ["p_havvah", "p_bezalel"])
+        # Each turn is an event, so Bezalel is answering what she said.
+        his = [call for call in self.calls_for(CallName.SPEAK) if call.about == "p_bezalel"]
+        self.assertIn("Could you feel it?", his[0].user)
 
     def test_an_exchange_ends_when_somebody_has_nothing_to_say(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.stub.answers["speak|p_havvah"] = {"memory_reference": "nothing in particular",
-                                            "utterance": "Cold."}
+        self.stub.answers["speak|p_havvah"] = {"utterance": "Cold."}
         self.stub.answers["speak|p_bezalel"] = {"utterance": ""}
-        talk = tick_mod.tick(self.world, configuration()).talks[0]
+        talk = tick.tick(self.world, configuration()).talks[0]
         self.assertEqual(len(talk.turns), 1, "he had nothing; that is the end of it")
 
-    def test_saying_it_keeps_it_in_reach(self):
+    def test_the_speaker_brings_what_they_carry(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"memory_reference": "1", "utterance": "That night."})
-        tick_mod.tick(self.world, configuration())
-        self.assertEqual(self.flood.recalls, 2, "she had the floor twice")
-        self.assertEqual(self.flood.occasions[-1], self.world.at)
-
-    def test_the_speaker_is_offered_what_they_can_reach(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"memory_reference": "nothing in particular", "utterance": "Cold."})
-        tick_mod.tick(self.world, configuration())
+        self.say(CallName.SPEAK, {"utterance": "Cold."})
+        tick.tick(self.world, configuration())
         call = self.calls_for(CallName.SPEAK)[0]
-        self.assertIn("the water in the doorway", call.user)
-        self.assertEqual(call.schema["properties"]["memory_reference"]["enum"],
-                         ["nothing in particular", "1"])
+        self.assertIn(self.world.beings["p_havvah"].who.notebook, call.user)
+        self.assertNotIn(self.world.beings["p_bezalel"].who.notebook, call.user,
+                         "and not what the other one carries")
 
     def test_you_cannot_talk_to_someone_who_just_left(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
                   p_bezalel={"because": "the roof", "action": "move",
                           "target": "Beth El"})
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertEqual(report.talks, [])
         self.assertIn(("p_havvah", "p_bezalel"), report.missed)
         self.assertIn("who had gone", self.world.beings["p_havvah"].where.doing)
@@ -203,23 +191,15 @@ class TestConversation(TownTest):
     def test_two_beings_reaching_for_each_other_have_one_conversation(self):
         self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"},
                   p_bezalel={"because": "", "action": "talk", "target": "Havvah"})
-        self.say(CallName.SPEAK, {"memory_reference": "nothing in particular", "utterance": "Evening."})
-        report = tick_mod.tick(self.world, configuration())
+        self.say(CallName.SPEAK, {"utterance": "Evening."})
+        report = tick.tick(self.world, configuration())
         self.assertEqual(len(report.talks), 1)
-
-    def test_meeting_is_written_into_both_ties(self):
-        self.acts(p_havvah={"because": "", "action": "talk", "target": "Bezalel"})
-        self.say(CallName.SPEAK, {"memory_reference": "nothing in particular", "utterance": "Evening."})
-        tick_mod.tick(self.world, configuration())
-        for a, b in (("p_bezalel", "p_havvah"), ("p_havvah", "p_bezalel")):
-            self.assertEqual(self.world.beings[a].who.regards[b].last_seen_at,
-                             self.world.at)
 
 
 class TestStayingPut(TownTest):
 
     def test_the_verbs_are_only_what_the_engine_can_resolve(self):
-        self.assertEqual(set(schemas.ACTIONS), {"move", "talk"})
+        self.assertEqual(set(schemas.ALWAYS_OFFERED), {"move", "talk"})
         offered = schemas.act_grammar([], [])["properties"]["action"]["enum"]
         self.assertEqual(offered, ["", "move", "talk"],
                          "there is no verb for doing nothing; that is an empty action")
@@ -230,13 +210,13 @@ class TestStayingPut(TownTest):
             "because": "nothing I could name",
             "doing": "sitting in the doorway with the seed trays, not sorting them",
             "action": "", "target": ""}
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         self.assertEqual(
             self.world.beings["p_havvah"].where.doing,
             "sitting in the doorway with the seed trays, not sorting them")
 
     def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
-        tick_mod.tick(self.world, configuration())      # the stub's doing is ""
+        tick.tick(self.world, configuration())      # the stub's doing is ""
         self.assertEqual(self.world.beings["p_havvah"].where.doing,
                          "stayed where they were")
 
@@ -245,20 +225,20 @@ class TestCategories(unittest.TestCase):
     """Categories are matched by string, so a typo fails silently."""
 
     def test_a_conversation_is_recorded_under_the_name_the_engine_knows(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        world = seed.build(Path(tmp.name) / "world")
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        world = seed.build(Path(temporary.name) / "world")
         for pid in ("p_bezalel", "p_havvah"):
             world.beings[pid].where.place = "bethel"
-        stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
-                            CallName.STIR: {"happens": False}, CallName.REFLECT: {},
-                            CallName.ARRIVE: {"comes": False},
-                            CallName.SPEAK: {"memory_reference": "nothing in particular", "utterance": "Cold."}})
+        stub = StubBackend({CallName.ACT: STAY,
+                            CallName.STIR: {"happens": False},
+                            CallName.ARRIVE: {"happens": False},
+                            CallName.SPEAK: {"utterance": "Cold."}})
         stub.answers["act|p_bezalel"] = {"because": "", "action": "talk", "target": "Havvah"}
         register(stub)
-        tick_mod.tick(world, configuration())
-        said = [e for e in world.chronicle.all() if e.category == chronicle.CONVERSATION]
-        self.assertEqual(len(said), tick_mod.TURNS,
+        tick.tick(world, configuration())
+        said = [event for event in world.chronicle.all() if event.category == chronicle.CONVERSATION]
+        self.assertEqual(len(said), tick.TURNS,
                          "one event per turn, and the stub always has a line")
 
     def test_the_three_kinds_account_for_everything_the_engine_writes(self):
@@ -279,31 +259,31 @@ class TestCategories(unittest.TestCase):
 
 class TestOwedTime(unittest.TestCase):
     def test_what_is_owed_is_hours_and_not_steps(self):
-        self.assertEqual(tick_mod.owed_hours(None, 1e9), 0.0)
-        self.assertEqual(tick_mod.owed_hours(0, 5.9 * 3600), 5.9)
-        self.assertEqual(tick_mod.owed_hours(0, 25 * 3600), 25.0)
-        self.assertEqual(tick_mod.owed_hours(100 * 3600, 0), 0.0)
+        self.assertEqual(tick.owed_hours(None, 1e9), 0.0)
+        self.assertEqual(tick.owed_hours(0, 5.9 * 3600), 5.9)
+        self.assertEqual(tick.owed_hours(0, 25 * 3600), 25.0)
+        self.assertEqual(tick.owed_hours(100 * 3600, 0), 0.0)
 
     def test_a_capped_backlog_is_slept_through(self):
         self.assertEqual(
-            tick_mod.settle_clock(0, 100 * 3600, lived=24.0, owed=96.0), 100 * 3600)
+            tick.reconcile(0, 100 * 3600, lived=24.0, owed=96.0), 100 * 3600)
 
     def test_an_uncapped_backlog_keeps_its_remainder(self):
         self.assertEqual(
-            tick_mod.settle_clock(0, 25 * 3600, lived=24.0, owed=24.0), 24 * 3600)
+            tick.reconcile(0, 25 * 3600, lived=24.0, owed=24.0), 24 * 3600)
 
 
 class TestContinue(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name) / "world"
-        register(StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False}}))
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name) / "world"
+        register(StubBackend({CallName.ACT: STAY}))
         # Configured to the stub so nothing reaches a real model.
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
         seed.create(self.root)
 
     def tearDown(self):
-        self.tmp.cleanup()
+        self.temporary.cleanup()
 
     def run_cli(self, *argv):
         out = io.StringIO()
@@ -355,7 +335,7 @@ class TestContinue(unittest.TestCase):
 
     def test_a_running_tick_is_not_joined(self):
         self.set_last_tick(13)
-        with store.tick_lock(self.root):
+        with store.TickLock(self.root):
             out = self.run_cli("continue")
         self.assertIn("skipped", out)
 
@@ -371,7 +351,7 @@ class TestContinue(unittest.TestCase):
         self.assertEqual(after.at, before.at)
         self.assertEqual(len(after.chronicle), len(before.chronicle))
         # nothing more happens in it, including a tuning run...
-        for command in (("tick",), ("continue",), ("remember", "ev0001")):
+        for command in (("tick",), ("continue",), ("settle", "Havvah")):
             with self.assertRaises(SystemExit) as raised:
                 self.run_cli(*command)
             self.assertIn("has ended", str(raised.exception))
@@ -380,29 +360,26 @@ class TestContinue(unittest.TestCase):
         self.assertIn("had already ended", self.run_cli("end"))
 
     def test_a_running_tick_is_not_ended_underneath(self):
-        with store.tick_lock(self.root):
+        with store.TickLock(self.root):
             with self.assertRaises(SystemExit) as raised:
                 self.run_cli("end")
         self.assertIn("Not now", str(raised.exception))
         self.assertFalse(store.load(self.root).closed)
 
     def test_a_running_tick_is_not_written_over_by_a_tuning_run(self):
-        with store.tick_lock(self.root):
+        with store.TickLock(self.root):
             with self.assertRaises(SystemExit) as raised:
-                self.run_cli("remember", "ev0001")
+                self.run_cli("settle", "Havvah")
         self.assertIn("Not now", str(raised.exception))
 
     def test_a_tuning_run_does_write_when_nothing_is_in_its_way(self):
-        event = store.load(self.root).chronicle.all()[0]
-        register(StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {
-            "stuck": True, "account": "what the frame felt like to hold",
-            "means": "I was there", "feeling": "pride"}}))
-        out = self.run_cli("remember", event.id)
-        self.assertIn("kept something", out)
-        world = store.load(self.root)
-        kept = [memory for being_id in world.beings
-                for memory in world.memories(being_id).about_event(event.id)]
-        self.assertTrue(kept, "it took the lock and then wrote nothing")
+        register(StubBackend({CallName.ACT: STAY, CallName.SETTLE: {
+            "notebook": "The frame took both of us to hold."}}))
+        out = self.run_cli("settle", "Havvah")
+        self.assertIn("went over it", out)
+        self.assertEqual(store.load(self.root).beings["p_havvah"].who.notebook,
+                         "The frame took both of us to hold.",
+                         "it took the lock and then wrote nothing")
 
 
 if __name__ == "__main__":

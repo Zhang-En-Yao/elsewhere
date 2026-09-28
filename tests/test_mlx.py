@@ -27,7 +27,7 @@ class ClosedTest(unittest.TestCase):
         self.assertEqual(schema["additionalProperties"], {"type": "string"})
 
     def test_the_original_is_not_touched(self):
-        original = grammar(CallName.PERCEIVE)
+        original = grammar(CallName.SETTLE)
         closed(original)
         self.assertNotIn("additionalProperties", original)
 

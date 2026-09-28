@@ -29,7 +29,7 @@ class Event:
     place: Optional[str] = None
 
     #: `involved`: who it happened to. `informed`: everyone it got to, who are
-    #: then asked to perceive it.
+    #: shown it the next time they look up (`agents.unseen`).
     involved: List[str] = field(default_factory=list)
     informed: List[str] = field(default_factory=list)
 
@@ -40,12 +40,12 @@ class Event:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Event":
-        return cls(id=d["id"], at=float(d["at"]), category=d["category"],
-                   account=d["account"], place=d.get("place"),
-                   involved=list(d.get("involved", [])),
-                   informed=list(d.get("informed", [])),
-                   data=dict(d.get("data", {})))
+    def from_dict(cls, data: dict) -> "Event":
+        return cls(id=data["id"], at=float(data["at"]), category=data["category"],
+                   account=data["account"], place=data.get("place"),
+                   involved=list(data.get("involved", [])),
+                   informed=list(data.get("informed", [])),
+                   data=dict(data.get("data", {})))
 
 
 class Chronicle:
@@ -56,30 +56,30 @@ class Chronicle:
 
     def append(self, event: Event) -> Event:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+        with self.path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
         if self._events is not None:
             self._events.append(event)
         return event
 
     def all(self) -> List[Event]:
         if self._events is None:
-            self._events = list(self._read())
+            self._events = list(self.read())
         return self._events
 
-    def _read(self) -> Iterator[Event]:
+    def read(self) -> Iterator[Event]:
         if not self.path.exists():
             return
-        with self.path.open(encoding="utf-8") as fh:
-            for line in fh:
+        with self.path.open(encoding="utf-8") as file:
+            for line in file:
                 line = line.strip()
                 if line:
                     yield Event.from_dict(json.loads(line))
 
     def get(self, event_id: str) -> Optional[Event]:
-        for e in self.all():
-            if e.id == event_id:
-                return e
+        for event in self.all():
+            if event.id == event_id:
+                return event
         return None
 
     def __len__(self) -> int:

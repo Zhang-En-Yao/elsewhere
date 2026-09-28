@@ -35,30 +35,22 @@ class Backend(Protocol):
         ...
 
 
-class Embedder(Protocol):
-    name: str
-
-    def embed(self, texts: List[str], settings: "Settings") -> List[List[float]]:
-        """One vector per text, in order."""
-        ...
-
-
 @dataclass
 class Settings:
     backend: str = "stub"
     model: str = "stub"
     temperature: float = 0.8
-    extra: Dict = field(default_factory=dict)
-    base: str = ""                  # "" for the backend's own default
+    options: Dict = field(default_factory=dict)
+    endpoint: str = ""                  # "" for the backend's own default
     timeout: float = 180.0          # seconds
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Settings":
-        return cls(backend=d.get("backend", "stub"), model=d.get("model", "stub"),
-                   temperature=float(d.get("temperature", 0.8)),
-                   extra=dict(d.get("extra", {})),
-                   base=str(d.get("base", "")),
-                   timeout=float(d.get("timeout", 180.0)))
+    def from_dict(cls, data: dict) -> "Settings":
+        return cls(backend=data.get("backend", "stub"), model=data.get("model", "stub"),
+                   temperature=float(data.get("temperature", 0.8)),
+                   options=dict(data.get("options", {})),
+                   endpoint=str(data.get("endpoint", "")),
+                   timeout=float(data.get("timeout", 180.0)))
 
 
 class Transcript:
@@ -70,8 +62,8 @@ class Transcript:
         if self.path is None:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        with self.path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def extract_json(text: str) -> Optional[dict]:
@@ -101,7 +93,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
             error = None
         except Exception as exception:
             raw, error = "", f"{type(exception).__name__}: {exception}"
-        took = time.time() - started
+        elapsed = time.time() - started
 
         parsed = extract_json(raw) if raw else None
         clean, complaint = (None, "nothing came back") if parsed is None \
@@ -112,7 +104,7 @@ def ask(backend: Backend, call: Call, settings: Settings,
                 "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "call": call.name.value,
                 "about": call.about, "backend": settings.backend,
                 "model": settings.model, "attempt": attempt + 1,
-                "seconds": round(took, 2), "system": call.system, "user": user,
+                "seconds": round(elapsed, 2), "system": call.system, "user": user,
                 "raw": raw, "ok": clean is not None,
                 "complaint": complaint, "error": error,
             })
@@ -124,18 +116,18 @@ def ask(backend: Backend, call: Call, settings: Settings,
 
 
 def embed(texts: List[str], settings: Settings) -> List[List[float]]:
-    """Empty list on any failure or if the backend cannot embed."""
+    """One vector per text; an empty list on any failure, or if the backend
+    cannot embed."""
     if not texts:
         return []
-    backend = get(settings.backend)
-    backend_embed = getattr(backend, "embed", None)
-    if backend_embed is None:
+    embedder = getattr(get(settings.backend), "embed", None)
+    if embedder is None:
         return []
     try:
-        out = backend_embed(list(texts), settings)
+        vectors = embedder(list(texts), settings)
     except Exception:
         return []
-    return out if len(out) == len(texts) else []
+    return vectors if len(vectors) == len(texts) else []
 
 
 def probe(settings: Settings) -> tuple:
@@ -147,8 +139,8 @@ def probe(settings: Settings) -> tuple:
     try:
         raw = get(settings.backend).complete(
             call, replace(settings, temperature=0.0))
-    except Exception as exc:
-        return False, f"unreachable: {type(exc).__name__}: {exc}"
+    except Exception as exception:
+        return False, f"unreachable: {type(exception).__name__}: {exception}"
     if extract_json(raw) is None:
         return False, f"answered, but not with JSON: {raw[:60]!r}"
     return True, f"ok ({time.time() - started:.1f}s)"

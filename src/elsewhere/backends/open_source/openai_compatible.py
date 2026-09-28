@@ -13,43 +13,43 @@ class OpenAICompatibleBackend:
     """Tries a json_schema response format, falling back to json_object."""
 
     name = "openai"
-    base = "http://localhost:8000/v1"
+    endpoint = "http://localhost:8000/v1"
 
-    def _base(self, settings: Settings) -> str:
-        return (settings.base or self.base).rstrip("/")
+    def _endpoint(self, settings: Settings) -> str:
+        return (settings.endpoint or self.endpoint).rstrip("/")
 
     def _key(self) -> str:
         # The only setting read from the environment, since it is a secret.
         return os.environ.get("ELSEWHERE_OPENAI_KEY", "none")
 
-    def body(self, call: Call, model: str, temperature: float,
-              strict: bool) -> dict:
-        body = {
+    def payload(self, call: Call, model: str, temperature: float,
+                strict: bool) -> dict:
+        payload = {
             "model": model,
             "messages": [{"role": "system", "content": call.system},
                          {"role": "user", "content": call.user}],
             "temperature": temperature,
         }
         if strict:
-            body["response_format"] = {
+            payload["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {"name": call.name.value, "schema": call.schema,
                                 "strict": False},
             }
         else:
-            body["response_format"] = {"type": "json_object"}
-        return body
+            payload["response_format"] = {"type": "json_object"}
+        return payload
 
     def complete(self, call: Call, settings: Settings) -> str:
         headers = {"authorization": f"Bearer {self._key()}"}
         for strict in (True, False):
-            payload = self.body(call, settings.model, settings.temperature, strict)
-            payload.update(settings.extra)
+            payload = self.payload(call, settings.model, settings.temperature, strict)
+            payload.update(settings.options)
             try:
-                data = post(f"{self._base(settings)}/chat/completions", payload,
+                data = post(f"{self._endpoint(settings)}/chat/completions", payload,
                              settings.timeout, headers)
-            except urllib.error.HTTPError as exc:
-                if strict and exc.code in (400, 422):
+            except urllib.error.HTTPError as exception:
+                if strict and exception.code in (400, 422):
                     continue                      # server has no schema support
                 raise
             choices = data.get("choices") or [{}]

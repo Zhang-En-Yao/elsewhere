@@ -45,13 +45,13 @@ class HostedBackendTest(unittest.TestCase):
                 mock.patch("elsewhere.backends.open_source.openai_compatible.post",
                            return_value=ANSWER) as post:
             backends.get("gpt").complete(
-                call(), Settings(backend="gpt", model="m", base="http://proxy:9/v1/"))
+                call(), Settings(backend="gpt", model="m", endpoint="http://proxy:9/v1/"))
         self.assertEqual(post.call_args.args[0], "http://proxy:9/v1/chat/completions")
 
     def test_no_key_is_said_plainly_and_nothing_is_sent(self):
         for name, variable in (("gpt", "OPENAI_API_KEY"), ("gemini", "GEMINI_API_KEY")):
             with self.subTest(name):
-                env = {k: v for k, v in os.environ.items() if k != variable}
+                env = {key: value for key, value in os.environ.items() if key != variable}
                 with mock.patch.dict(os.environ, env, clear=True), \
                         mock.patch("elsewhere.backends.open_source.openai_compatible.post") as post:
                     ok, message = backends.probe(Settings(backend=name, model="m"))

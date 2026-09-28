@@ -1,8 +1,4 @@
-"""What the TUI shows, as pure functions of a loaded `World`; no curses here.
-
-Unlike `elsewhere person`, views also list memories out of reach, below a line
-marking where retrieval stops.
-"""
+"""What the TUI shows, as pure functions of a loaded `World`; no curses here."""
 
 from __future__ import annotations
 
@@ -11,9 +7,10 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Callable, List, NamedTuple, Optional
 
-from .. import retrieval, schedule
+from .. import agents, schedule
+from ..schemas import NOTEBOOK_CHARACTERS
 from ..world import chronicle
-from ..world.store import DAWN, DUSK, World, clock_at, day_of
+from ..world.store import DAWN, DUSK, World, clock_at, day_at
 
 #: `rule` is a divider drawn to the available width, not text.
 TONES = ("plain", "dim", "bold", "accent", "warn", "rule")
@@ -22,7 +19,7 @@ TONES = ("plain", "dim", "bold", "accent", "warn", "rule")
 # allowed inside f-string expressions before 3.12.
 DASH = "\u2014"
 NOTHING = DASH
-CUT = "\u2026"
+ELLIPSIS = "\u2026"
 
 
 @dataclass(frozen=True)
@@ -77,10 +74,11 @@ def clip(text: str, columns: int) -> str:
             break
         kept.append(character)
         used += step
-    return "".join(kept) + CUT
+    return "".join(kept) + ELLIPSIS
 
 
-def cut(text: str, columns: int) -> int:
+def fit(text: str, columns: int) -> int:
+    """How many characters of `text` fit in `columns`."""
     used = 0
     for index, character in enumerate(text):
         step = 0 if unicodedata.combining(character) else (
@@ -97,26 +95,26 @@ def wrap(line: Line, columns: int) -> List[Line]:
         return [line]
     indent = len(line.text) - len(line.text.lstrip(" "))
     hang = " " * min(line.under or indent, max(0, columns - 12))
-    out: List[Line] = []
+    wrapped: List[Line] = []
     rest, floor = line.text, indent + 1
     while width(rest) > columns:
-        at = cut(rest, columns)
-        space = rest.rfind(" ", floor, at + 1)
+        limit = fit(rest, columns)
+        space = rest.rfind(" ", floor, limit + 1)
         if space < floor:
             # A word longer than the pane: hard cut.
-            space = max(at, floor)
-            out.append(Line(rest[:space], line.tone))
+            space = max(limit, floor)
+            wrapped.append(Line(rest[:space], line.tone))
             rest = hang + rest[space:].lstrip(" ")
         else:
-            out.append(Line(rest[:space], line.tone))
+            wrapped.append(Line(rest[:space], line.tone))
             rest = hang + rest[space + 1:].lstrip(" ")
         floor = len(hang) + 1
-    out.append(Line(rest, line.tone))
-    return out
+    wrapped.append(Line(rest, line.tone))
+    return wrapped
 
 
-def when(at: float) -> str:
-    return "day " + str(day_of(at)) + ", " + clock_at(at)
+def timestamp(at: float) -> str:
+    return "day " + str(day_at(at)) + ", " + clock_at(at)
 
 
 def span(hours: float) -> str:
@@ -132,33 +130,14 @@ def span(hours: float) -> str:
 def looks_up(world: World, being) -> Line:
     absorbed = ("; deep enough in it that what happens nearby is not their "
                 "business" if being.when.absorbed else "")
-    wake = being.when.wake_at
-    if wake is None:
+    wake_at = being.when.wake_at
+    if wake_at is None:
         return Line("  looks up    whenever the world next stirs; they did not say",
                     "dim", under=14)
-    away = wake - world.at
+    away = wake_at - world.at
     if away <= 0:
         return Line("  looks up    now" + absorbed, under=14)
     return Line("  looks up    in " + span(away) + absorbed, under=14)
-
-
-def memory_lines(world: World, being, memory, at: float,
-                  tone: str = "plain") -> List[Line]:
-    odds = retrieval.chance(retrieval.activation(memory, at))
-    out = [Line("    " + pad(when(memory.at), 16) +
-                "[" + memory.feeling + "] " + memory.account, tone, under=4)]
-    if memory.means:
-        out.append(Line("        ~ " + memory.means, "dim", under=10))
-    out.append(Line("        come up %dx, %.0f%% it comes to mind"
-                    % (len(memory.occasions) or 1, odds * 100), "dim"))
-    for was in reversed(memory.history):
-        out.append(Line("        was: \"" + was + "\"", "accent", under=13))
-    for source in memory.origin:
-        came = world.memories(being.id).get(source)
-        if came is not None:
-            out.append(Line("        out of: \"" + came.account + "\"",
-                            "dim", under=16))
-    return out
 
 
 WORLD_KEY = "~world"
@@ -180,69 +159,67 @@ def town_rows(world: World) -> List[Row]:
 
 
 def world_detail(world: World) -> List[Line]:
-    out = [Line(world.name, "bold"),
+    lines = [Line(world.name, "bold"),
            Line("  " + world.label()),
            Line("  the sun %s   (up at %02.0f:00, down at %02.0f:00)"
                 % ("is up" if world.daylight else "is down", DAWN, DUSK), "dim"),
            Line()]
     if world.closed:
-        out += [Line("  This world has ended. Nothing more happens in it, and "
+        lines += [Line("  This world has ended. Nothing more happens in it, and "
                      "all that did stays readable.", "warn", under=2), Line()]
     present = [being for being in world.beings.values() if being.present]
-    kept = sum(len(world.memories(being.id)) for being in world.beings.values())
-    out += [Line("  what there is", "bold"),
+    lines += [Line("  what there is", "bold"),
             Line("    %d here, %d gone"
                  % (len(present), len(world.beings) - len(present))),
             Line("    %d places, %d ways between them"
                  % (len(world.places), len(world.map.ways))),
-            Line("    %d events on record, %d memories made of them"
-                 % (len(world.chronicle), kept)),
+            Line("    %d events on record" % len(world.chronicle)),
             Line()]
-    out.append(Line("  what is next due", "bold"))
+    lines.append(Line("  what is next due", "bold"))
     due = schedule.next_at(world)
     if due is None:
-        out.append(Line("    nothing. Every mind declined to say when it wanted "
+        lines.append(Line("    nothing. Every mind declined to say when it wanted "
                         "asking again, and the engine is not going to decide "
                         "that for them.", "warn", under=4))
     else:
-        out.append(Line("    the world moves next in "
+        lines.append(Line("    the world moves next in "
                         + span(max(0.0, due - world.at)) + " of its own time"))
     for label, timer in (("the town", world.town_wake_at),
                          ("the road", world.road_wake_at)):
         if timer is None:
-            out.append(Line("    " + pad(label, 10) + "no timer set", "dim"))
+            lines.append(Line("    " + pad(label, 10) + "no timer set", "dim"))
         else:
-            out.append(Line("    " + pad(label, 10) + "asked again in "
+            lines.append(Line("    " + pad(label, 10) + "asked again in "
                             + span(max(0.0, timer - world.at)), "dim"))
     if world.last_tick_at is not None:
-        out += [Line(),
+        lines += [Line(),
                 Line("  out here", "bold"),
                 Line("    a step was last lived "
                      + span((time.time() - world.last_tick_at) / 3600.0)
                      + " ago by the wall clock", "dim", under=4)]
-    unseen = len(world.chronicle) - world.news_seen
-    out += [Line(),
+    unseen = len(world.chronicle) - world.read_through
+    lines += [Line(),
             Line("  %d events since you last looked" % unseen if unseen
                  else "  you have read everything that has happened", "dim")]
-    return out
+    return lines
 
 
 def gone_detail(world: World) -> List[Line]:
     """People who left, as they were when they went."""
     gone = sorted((being for being in world.beings.values() if not being.present),
                   key=lambda being: being.when.left_at or 0.0)
-    out = [Line("No longer here", "bold"),
+    lines = [Line("No longer here", "bold"),
            Line("  Nothing has touched what they hold since they went. The "
                 "world has no idea what has become of them and will not "
                 "pretend to.", "dim", under=2),
            Line()]
     for being in gone:
         left = being.when.left_at
-        out.append(Line("  " + pad(being.name, 9)
-                        + (when(left) if left else "gone at some point")))
-        out.append(Line("           %d memories, held as they were then"
-                        % len(world.memories(being.id)), "dim"))
-    return out
+        lines.append(Line("  " + pad(being.name, 9)
+                        + (timestamp(left) if left else "gone at some point")))
+        lines.append(Line("           a page of %d characters, as it was then"
+                        % len(being.who.notebook), "dim"))
+    return lines
 
 
 def town_detail(world: World, key: str) -> List[Line]:
@@ -253,33 +230,30 @@ def town_detail(world: World, key: str) -> List[Line]:
     place = world.places.get(key)
     if place is None:
         return [Line("Nowhere.", "dim")]
-    out = [Line(place.name, "bold")]
+    lines = [Line(place.name, "bold")]
     if place.description:
-        out.append(Line("  " + place.description, under=2))
-    out.append(Line())
+        lines.append(Line("  " + place.description, under=2))
+    lines.append(Line())
     beside = [world.places[other].name for other in world.map.beside(place.id)
               if other in world.places]
-    out.append(Line("  ways out    " + (", ".join(beside) if beside else "none"),
+    lines.append(Line("  ways out    " + (", ".join(beside) if beside else "none"),
                     "dim", under=14))
     if world.map.road == place.id:
-        out.append(Line("  the road out of the world leaves from here, and comes "
+        lines.append(Line("  the road out of the world leaves from here, and comes "
                         "back in at it", "accent", under=2))
-    out.append(Line())
+    lines.append(Line())
     here = world.beings_at(place.id)
-    out.append(Line("  who is here" if here else "  nobody is here", "bold"))
+    lines.append(Line("  who is here" if here else "  nobody is here", "bold"))
     for being in here:
-        out.append(Line("    " + pad(being.name, 9)
+        lines.append(Line("    " + pad(being.name, 9)
                         + (being.where.doing or "just here"), under=13))
-        if being.who.thought:
-            out.append(Line("             keeps coming back to: \""
-                            + being.who.thought + "\"", "dim", under=13))
     events = [event for event in world.chronicle.all() if event.place == place.id]
     if events:
-        out += [Line(), Line("  what happened here", "bold")]
+        lines += [Line(), Line("  what happened here", "bold")]
         for event in events[-6:]:
-            out.append(Line("    " + pad(when(event.at), 16) + event.account,
+            lines.append(Line("    " + pad(timestamp(event.at), 16) + event.account,
                             under=4))
-    return out
+    return lines
 
 
 def people_rows(world: World) -> List[Row]:
@@ -297,91 +271,59 @@ def people_rows(world: World) -> List[Row]:
         for being in gone:
             left = being.when.left_at
             rows.append(Row(being.id, pad(being.name, 9) + "left "
-                            + (when(left) if left else "at some point"), "dim"))
+                            + (timestamp(left) if left else "at some point"), "dim"))
     return rows
 
 
-def person_detail(world: World, key: str, most: int = 60) -> List[Line]:
+def person_detail(world: World, key: str) -> List[Line]:
     being = world.beings.get(key)
     if being is None:
         return [Line("Nobody.", "dim")]
-    # Someone who left is frozen at the moment they went.
-    at = world.at if being.present else (being.when.left_at or world.at)
-    out = [Line(being.name, "bold")]
+    lines = [Line(being.name, "bold")]
     if being.mind == "player":
-        out.append(Line("  this one answers for themselves", "accent"))
+        lines.append(Line("  this one answers for themselves", "accent"))
     if being.who.card:
-        out.append(Line("  " + being.who.card, under=2))
+        lines.append(Line("  " + being.who.card, under=2))
     if being.who.manner:
-        out.append(Line("  " + being.who.manner, "dim", under=2))
-    out.append(Line())
+        lines.append(Line("  " + being.who.manner, "dim", under=2))
+    lines.append(Line())
     if not being.present:
-        out += [Line("  left on     " + when(at), "warn", under=14),
+        # Nothing reaches somebody who left, so this is how they stood then.
+        lines += [Line("  left on     " + timestamp(being.when.left_at or world.at),
+                     "warn", under=14),
                 Line("  What follows is how they stood then.", "dim", under=2)]
     else:
         place = world.places.get(being.where.place)
         home = world.places.get(being.where.home)
-        out.append(Line("  at          " + (place.name if place else NOTHING),
+        lines.append(Line("  at          " + (place.name if place else NOTHING),
                         under=14))
-        out.append(Line("  sleeps      " + (home.name if home else "nowhere yet"),
+        lines.append(Line("  sleeps      " + (home.name if home else "nowhere yet"),
                         "dim", under=14))
         if being.where.doing:
-            out.append(Line("  doing       " + being.where.doing, under=14))
-        out.append(looks_up(world, being))
-        if being.who.thought:
-            out.append(Line("  comes back  \"" + being.who.thought + "\"",
-                            "accent", under=14))
+            lines.append(Line("  doing       " + being.where.doing, under=14))
+        lines.append(looks_up(world, being))
     if being.when.arrived_at:
-        out.append(Line("  came up the road on " + when(being.when.arrived_at),
+        lines.append(Line("  came up the road on " + timestamp(being.when.arrived_at),
                         "dim", under=2))
     earlier = being.where.lately[:-1]
     if earlier:
-        out += [Line(), Line("  what they had been doing before that", "bold")]
+        lines += [Line(), Line("  what they had been doing before that", "bold")]
         for what in reversed(earlier):
-            out.append(Line("    " + what, "dim", under=4))
-    if being.who.wants:
-        out += [Line(), Line("  wants", "bold")]
-        for want in being.who.wants:
-            out.append(Line("    " + want, under=4))
-    if being.who.beliefs:
-        out += [Line(), Line("  holds to be true", "bold")]
-        for belief in retrieval.recallable(being.who.beliefs, at,
-                                          limit=len(being.who.beliefs)):
-            out.append(Line("    [held %dx] %s"
-                            % (len(belief.held) or 1, belief.claim), under=4))
-            if retrieval.on_faith(belief, world.memories(being.id), at):
-                # Held on faith: no origin memory is reachable.
-                out.append(Line("        held on faith now: what it grew out of "
-                                "does not come back to them any more",
-                                "warn", under=8))
-    known = [(world.beings[person_id], regard)
-             for person_id, regard in sorted(being.who.regards.items(),
-                                             key=lambda pair: -pair[1].last_seen_at)
-             if person_id in world.beings]
-    out += [Line(), Line("  who they know" if known
-                         else "  they know nobody here yet", "bold")]
-    for other, regard in known:
-        out.append(Line("    " + pad(other.name, 9) + (regard.account or NOTHING)
-                        + ("" if other.present else "   (gone)"), under=13))
-        if regard.last_seen_at:
-            out.append(Line("             last stood with them "
-                            + when(regard.last_seen_at), "dim"))
-    memories = list(world.memories(being.id))
-    reach = retrieval.recallable(memories, at)
-    within = retrieval.recallable(memories, at, limit=most)
-    out += [Line(), Line("  memory: %d in all, %d of them within reach right now"
-                         % (len(memories), len(reach)), "bold", under=2)]
-    # In reach, then the cutoff line, then the rest, all in activation order.
-    said_where = False
-    for memory in within:
-        if memory not in reach and not said_where:
-            out.append(Line("    " + DASH + " below here, nothing the engine "
-                            "would hand over if they were asked now " + DASH,
-                            "dim", under=4))
-            said_where = True
-        out += memory_lines(world, being, memory, at,
-                             "plain" if memory in reach else "dim")
-    return out
+            lines.append(Line("    " + what, "dim", under=4))
+    lines += [Line(), Line("  what they carry, %d of %d characters"
+                         % (len(being.who.notebook), NOTEBOOK_CHARACTERS), "bold")]
+    for line in (being.who.notebook or "nothing yet").splitlines():
+        lines.append(Line("    " + line, under=4))
+    lines.append(Line("    the newest of %d pages they have written; every one is kept"
+                    % len(world.pages(being.id)), "dim", under=4))
+    today = agents.day_notes(world, being)
+    lines += [Line(), Line("  what they have kept of today, not gone over yet" if today
+                         else "  nothing kept since they last went over their day", "bold")]
+    for note in today:
+        lines.append(Line("    " + pad(timestamp(note.at), 16) + note.account, under=4))
+    lines.append(Line("    %d notes in all; every one is kept"
+                    % len(world.notes(being.id)), "dim", under=4))
+    return lines
 
 
 MARKS = {chronicle.OCCURRENCE: "*", chronicle.ARRIVAL: "+",
@@ -395,10 +337,10 @@ def chronicle_rows(world: World) -> List[Row]:
     rows: List[Row] = []
     events = world.chronicle.all()
     for index, event in enumerate(events):
-        if index == world.news_seen:
+        if index == world.read_through:
             rows.append(Row("", UNREAD, "accent"))
         rows.append(Row(event.id, MARKS.get(event.category, " ") + " "
-                        + pad(when(event.at), 16) + event.account))
+                        + pad(timestamp(event.at), 16) + event.account))
     if not events:
         rows.append(Row("", "nothing has happened yet", "dim"))
     return rows
@@ -409,58 +351,32 @@ def event_detail(world: World, key: str) -> List[Line]:
     if event is None:
         return [Line("No such event.", "dim")]
     place = world.places.get(event.place or "")
-    out = [Line(event.id + "  " + when(event.at) + "  " + event.category, "bold"),
+    lines = [Line(event.id + "  " + timestamp(event.at) + "  " + event.category, "bold"),
            Line("  at " + (place.name if place else "nowhere in particular"),
                 "dim"),
            Line(),
            Line("  History says: " + event.account, under=2)]
     why = event.data.get("why_now")
     if why:
-        out.append(Line("  why then: " + str(why), "dim", under=2))
-    informed = [world.beings[person_id].name for person_id in event.informed
-               if person_id in world.beings]
-    if informed:
-        out.append(Line("  it got as far as: " + ", ".join(informed), "dim", under=2))
-    out += [Line(), Line("  What it left in people", "bold")]
-    viewpoints = event.data.get("viewpoints") or {}
-    anybody = False
-    for being in world.beings.values():
-        stood = viewpoints.get(being.id)
-        memories = world.memories(being.id).about_event(event.id)
-        if not memories:
-            if being.id in event.informed:
-                anybody = True
-                out.append(Line("    " + pad(being.name, 9)
-                                + "nothing stayed.", "dim", under=13))
-                if stood:
-                    out.append(Line("             they were " + str(stood),
-                                    "dim", under=13))
-            continue
-        anybody = True
-        at = world.at if being.present else (being.when.left_at or world.at)
-        mine = list(world.memories(being.id))
-        for memory in memories:
-            out.append(Line("    " + pad(being.name, 9) + "\"" + memory.account
-                            + "\"", under=13))
-            if stood:
-                out.append(Line("             they were " + str(stood),
-                                "dim", under=13))
-            if memory.means:
-                out.append(Line("             " + memory.feeling + ": "
-                                + memory.means, "dim", under=13))
-            if memory in retrieval.recallable(mine, at):
-                odds = retrieval.chance(retrieval.activation(memory, at))
-                out.append(Line("             %.0f%% it comes to mind"
-                                % (odds * 100), "dim"))
-            else:
-                out.append(Line("             something else comes back instead",
-                                "warn"))
-            for was in reversed(memory.history):
-                out.append(Line("             was: \"" + was + "\"",
-                                "accent", under=18))
-    if not anybody:
-        out.append(Line("    nobody was reached by it.", "dim"))
-    return out
+        lines.append(Line("  why then: " + str(why), "dim", under=2))
+    lines += [Line(), Line("  What it left in people", "bold")]
+    position = world.chronicle.all().index(event)
+    reached = [world.beings[being_id] for being_id in event.informed
+               if being_id in world.beings]
+    for being in reached:
+        notes = world.notes(being.id).about(event.id)
+        for note in notes:
+            lines.append(Line("    " + pad(being.name, 9) + "\"" + note.account + "\"",
+                            under=13))
+        if not notes:
+            lines.append(Line("    " + pad(being.name, 9)
+                            + ("nothing stayed." if being.when.seen_through > position
+                               else "has not looked up since."), "dim", under=13))
+        lines.append(Line("             they were " + agents.viewpoint(world, being, event),
+                        "dim", under=13))
+    if not reached:
+        lines.append(Line("    nobody was reached by it.", "dim"))
+    return lines
 
 
 VIEWS = (

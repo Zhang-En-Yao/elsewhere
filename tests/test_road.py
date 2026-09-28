@@ -7,28 +7,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import agents, cli, seed, tick as tick_mod
+from elsewhere import agents, cli, seed, tick
 from elsewhere.schemas import CallName
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import chronicle
 from elsewhere.world.entities import Where
-from elsewhere.world.memories import Memory
 
 CALLS = tuple(CallName)[:-1]    # every call but the probe
 STAY = {"because": "", "doing": "", "action": "", "target": "",
-        "for_hours": 6.0, "settling": False}
+        "again_in_hours": 6.0, "settling": False}
 QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
          "reach": "the people there", "happens": False,
-         "ask_again_in_hours": 24.0}
+         "again_in_hours": 24.0}
 GOING = {"because": "I said I would go before the rains", "action": "leave",
          "target": ""}
-NOBODY = {"comes": False, "ask_again_in_hours": 24.0}
+NOBODY = {"happens": False, "again_in_hours": 24.0}
 SOMEBODY = {"why_now": "nobody has tended the ridge plants since she went",
             "name": "Tam", "from_where": "beyond the ridge",
             "card": "You came for the plants and you keep to them.",
-            "manner": "You say a thing once.", "comes": True,
-            "ask_again_in_hours": 8760.0}
+            "manner": "You say a thing once.", "happens": True,
+            "again_in_hours": 8760.0}
 
 
 def configuration():
@@ -37,27 +36,31 @@ def configuration():
 
 class Road(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.world = seed.build(Path(self.tmp.name) / "world")
-        self.stub = StubBackend({CallName.ACT: STAY, CallName.PERCEIVE: {"stuck": False},
-                                 CallName.STIR: QUIET, CallName.REFLECT: {}, CallName.ARRIVE: NOBODY})
+        self.temporary = tempfile.TemporaryDirectory()
+        self.world = seed.build(Path(self.temporary.name) / "world")
+        self.stub = StubBackend({CallName.ACT: STAY, CallName.STIR: QUIET,
+                                 CallName.ARRIVE: NOBODY})
         register(self.stub)
         self.lilith = self.world.beings["p_lilith"]
 
     def tearDown(self):
-        self.tmp.cleanup()
+        self.temporary.cleanup()
 
     def calls(self, name):
-        return [c for c in self.stub.calls if c.name == name]
+        return [call for call in self.stub.calls if call.name == name]
 
+    def stood(self, pid, event):
+        """Where `pid` stood for `event`, as it is put in front of them."""
+        return dict((event.id, where) for event, where in agents.unseen(
+            self.world, self.world.beings[pid]))[event.id]
 
     def present(self):
-        return sorted(p.id for p in self.world.beings.values() if p.present)
+        return sorted(being.id for being in self.world.beings.values() if being.present)
 
     def send_lilith_away(self):
         self.lilith.where.place = "mizpah"
         self.stub.answers["act|p_lilith"] = GOING
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.stub.answers["act|p_lilith"] = STAY
         return report
 
@@ -94,21 +97,21 @@ class TestWhetherAnyoneCanGoAtAll(Road):
 
     def test_the_verb_is_not_in_the_vocabulary_anywhere_else(self):
         self.lilith.where.place = "yard"
-        tick_mod.tick(self.world, configuration())
-        schema = next(c for c in self.calls(CallName.ACT) if c.about == "p_lilith").schema
+        tick.tick(self.world, configuration())
+        schema = next(call for call in self.calls(CallName.ACT) if call.about == "p_lilith").schema
         self.assertNotIn("leave", schema["properties"]["action"]["enum"])
 
     def test_and_is_where_it_is(self):
-        tick_mod.tick(self.world, configuration())
-        schema = next(c for c in self.calls(CallName.ACT) if c.about == "p_lilith").schema
+        tick.tick(self.world, configuration())
+        schema = next(call for call in self.calls(CallName.ACT) if call.about == "p_lilith").schema
         self.assertIn("leave", schema["properties"]["action"]["enum"])
-        user = next(c for c in self.calls(CallName.ACT) if c.about == "p_lilith").user
+        user = next(call for call in self.calls(CallName.ACT) if call.about == "p_lilith").user
         self.assertIn("road also goes out", user)
 
     def test_a_lenient_backend_still_cannot_walk_someone_out(self):
         self.lilith.where.place = "yard"           # no road out of the yard
         self.stub.answers["act|p_lilith"] = GOING
-        report = tick_mod.tick(self.world, configuration())
+        report = tick.tick(self.world, configuration())
         self.assertIsNone(report.decisions["p_lilith"].action)
         self.assertIn("p_lilith", self.present())
 
@@ -127,27 +130,25 @@ class TestGoing(Road):
         event = self.world.chronicle.get(report.departures[0].event_id)
         self.assertEqual(event.category, chronicle.DEPARTURE)
         self.assertEqual(sorted(event.informed), sorted(self.world.beings))
-        havvah = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_havvah")
-        self.assertIn("word of it reached you", havvah.user)
+        self.assertIn("word of it reached you", self.stood("p_havvah", event))
 
-    def test_she_gets_one_last_look_at_it(self):
-        self.send_lilith_away()
-        hers = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_lilith")
-        self.assertIn("looking back", hers.user)
+    def test_the_record_has_where_she_stood_as_she_went(self):
+        report = self.send_lilith_away()
+        event = self.world.chronicle.get(report.departures[0].event_id)
+        self.assertIn("looking back", event.data["viewpoints"]["p_lilith"])
 
     def test_what_she_had_stays_where_it_is(self):
-        self.world.memories("p_lilith").add(Memory(
-            id="mem9001", owner="p_lilith", at=self.world.at,
-            account="the valley disappearing under the water", occasions=[self.world.at]))
+        page = self.lilith.who.notebook
         self.send_lilith_away()
-        kept = list(self.world.memories("p_lilith"))
-        self.assertIn("mem9001", [t.id for t in kept])
+        self.stub.set(CallName.SETTLE, {"notebook": "somebody else's page"})
+        for _ in range(3):
+            tick.tick(self.world, configuration())
+        self.assertEqual(self.lilith.who.notebook, page)
 
     def test_and_so_does_what_everyone_wrote_about_her(self):
         self.send_lilith_away()
-        havvah = self.world.beings["p_havvah"]
-        self.assertEqual(havvah.who.regards["p_lilith"].account,
-                         "Young. Always about to go somewhere.")
+        self.assertIn("young. Always about to go somewhere.",
+                      self.world.beings["p_havvah"].who.notebook)
 
     def test_whoever_went_to_find_her_finds_the_road(self):
         bezalel = self.world.beings["p_bezalel"]
@@ -162,15 +163,15 @@ class TestGoing(Road):
     def test_the_town_stops_asking_her_anything(self):
         self.send_lilith_away()
         before = len(self.calls(CallName.ACT))
-        tick_mod.tick(self.world, configuration())
-        asked = [c.about for c in self.calls(CallName.ACT)[before:]]
+        tick.tick(self.world, configuration())
+        asked = [call.about for call in self.calls(CallName.ACT)[before:]]
         self.assertNotIn("p_lilith", asked)
 
     def test_and_stops_offering_her_to_the_town(self):
         self.send_lilith_away()
         # The town was already asked in the step she left; wait for the next.
         self.world.at += 24
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         call = self.calls(CallName.STIR)[-1]
         self.assertNotIn("Lilith", call.schema["properties"]["who"]["enum"])
         listed = call.user.split("People:")[1].split("Lately")[0]
@@ -186,10 +187,10 @@ class TestComing(Road):
             self.world.at += hours
         else:
             self.world.road_wake_at = self.world.at
-        return tick_mod.tick(self.world, configuration())
+        return tick.tick(self.world, configuration())
 
     def test_the_road_keeps_its_own_timer(self):
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         self.assertEqual(len(self.calls(CallName.ARRIVE)), 1)
         self.assertEqual(self.world.road_wake_at, self.world.at + 24.0,
                          "the stub said a day; nothing in the engine said anything")
@@ -197,13 +198,13 @@ class TestComing(Road):
             self.assertFalse(hasattr(agents, name))
 
     def test_it_is_not_asked_again_until_it_said_so(self):
-        tick_mod.tick(self.world, configuration())
-        self.stub.set(CallName.ARRIVE, {"comes": False, "ask_again_in_hours": 8760.0})
+        tick.tick(self.world, configuration())
+        self.stub.set(CallName.ARRIVE, {"happens": False, "again_in_hours": 8760.0})
         self.world.road_wake_at = self.world.at
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         asked = len(self.calls(CallName.ARRIVE))
         for _ in range(3):
-            tick_mod.tick(self.world, configuration())
+            tick.tick(self.world, configuration())
         self.assertEqual(len(self.calls(CallName.ARRIVE)), asked,
                          "it said a year, and a year is what it gets")
 
@@ -238,25 +239,30 @@ class TestComing(Road):
         self.stub.set(CallName.ARRIVE, SOMEBODY)
         before = len(self.calls(CallName.ACT))
         self.after_a_gap()
-        asked = [c.about for c in self.calls(CallName.ACT)[before:]]
+        asked = [call.about for call in self.calls(CallName.ACT)[before:]]
         self.assertIn("p_tam", asked,
                       "they live the day they arrived, not the one after")
 
     def test_they_see_the_place_for_the_first_time(self):
         self.send_lilith_away()
         self.stub.set(CallName.ARRIVE, SOMEBODY)
-        before = len(self.calls(CallName.PERCEIVE))
+        before = len(self.calls(CallName.ACT))
         self.after_a_gap()
-        theirs = next(c for c in self.calls(CallName.PERCEIVE)[before:] if c.about == "p_tam")
+        theirs = next(call for call in self.calls(CallName.ACT)[before:] if call.about == "p_tam")
         self.assertIn("for the first time", theirs.user)
 
-    def test_nobody_here_knows_them(self):
+    def test_nothing_from_before_they_came_is_theirs(self):
         self.send_lilith_away()
         self.stub.set(CallName.ARRIVE, SOMEBODY)
+        before = len(self.calls(CallName.ACT))
         self.after_a_gap()
         tam = self.world.being_by_name("Tam")
-        self.assertEqual(tam.who.regards, {})
-        self.assertEqual(self.world.beings["p_havvah"].who.regards.get("p_tam"), None)
+        self.assertEqual(tam.who.notebook, "", "they carry nothing of this place yet")
+        theirs = next(call for call in self.calls(CallName.ACT)[before:] if call.about == "p_tam")
+        self.assertIn("came up the road", theirs.user,
+                      "the first thing that is theirs is coming up the road")
+        self.assertNotIn("Lilith took the road", theirs.user)
+        self.assertNotIn("Tam", self.world.beings["p_havvah"].who.notebook)
 
     def test_the_road_is_told_who_is_missing(self):
         self.send_lilith_away()
@@ -267,12 +273,12 @@ class TestComing(Road):
         self.assertIn("Lilith", user)
 
     def test_a_road_that_answers_nothing_usable_is_asked_again(self):
-        tick_mod.tick(self.world, configuration())
-        self.stub.set(CallName.ARRIVE, {"comes": False})
+        tick.tick(self.world, configuration())
+        self.stub.set(CallName.ARRIVE, {"happens": False})
         self.world.road_wake_at = self.world.at
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         asked = len(self.calls(CallName.ARRIVE))
-        tick_mod.tick(self.world, configuration())
+        tick.tick(self.world, configuration())
         self.assertEqual(len(self.calls(CallName.ARRIVE)), asked + 1)
 
     def test_and_can_then_be_more_than_it_ever_was(self):
@@ -291,9 +297,9 @@ class TestComing(Road):
         self.assertEqual(len(self.present()), 1)
 
     def test_and_nobody_is_turned_away_for_the_town_being_big(self):
-        for n in range(10):
-            self.world.beings[f"p_x{n}"] = type(self.lilith)(
-                id=f"p_x{n}", name=f"X{n}", where=Where(place="bethel"))
+        for index in range(10):
+            self.world.beings[f"p_x{index}"] = type(self.lilith)(
+                id=f"p_x{index}", name=f"X{index}", where=Where(place="bethel"))
         self.assertGreater(len(self.present()), 8)
         self.world.road_wake_at = self.world.at
         self.assertTrue(agents.may_arrive(self.world))
@@ -310,8 +316,8 @@ class TestComing(Road):
         report = self.after_a_gap()
         self.assertIsNotNone(report.arrival)
         self.assertEqual(len(self.present()), 3)
-        havvahs = [p for p in self.world.beings.values()
-                  if p.present and p.name == "Havvah"]
+        havvahs = [being for being in self.world.beings.values()
+                  if being.present and being.name == "Havvah"]
         self.assertEqual(len(havvahs), 2)
         self.assertNotEqual(havvahs[0].when.arrived_at, havvahs[1].when.arrived_at)
 
@@ -329,22 +335,16 @@ class TestReading(Road):
         cli.print_report(self.world, report)          # must not raise
         self.stub.set(CallName.ARRIVE, SOMEBODY)
         self.world.road_wake_at = self.world.at
-        cli.print_report(self.world, tick_mod.tick(self.world, configuration()))
+        cli.print_report(self.world, tick.tick(self.world, configuration()))
 
-    def test_somebody_who_left_is_read_as_they_were(self):
-        self.world.memories("p_lilith").add(Memory(
-            id="mem9001", owner="p_lilith", at=self.world.at,
-            account="the valley disappearing under the water", occasions=[self.world.at]))
+    def test_nothing_that_happens_after_reaches_somebody_who_left(self):
         self.send_lilith_away()
-        left_at = self.lilith.when.left_at
-        self.world.at += 4000 * 24                 # long enough to lose anything
-        from elsewhere import retrieval
-        memory = list(self.world.memories("p_lilith"))[0]
-        # A departed person's memories are read at `left_at`.
-        self.assertGreater(retrieval.chance(retrieval.activation(memory, left_at)),
-                           0.5, "as of the day she went, she still had it")
-        self.assertLess(retrieval.chance(retrieval.activation(memory, self.world.at)),
-                        0.05, "and on today's clock it would be long gone")
+        was = agents.unseen(self.world, self.lilith)
+        self.stub.set(CallName.STIR, {**QUIET, "what": "A storm broke over the town.",
+                                      "reach": "the whole town", "happens": True})
+        self.world.at += 24
+        tick.tick(self.world, configuration())
+        self.assertEqual(agents.unseen(self.world, self.lilith), was)
 
 
 if __name__ == "__main__":

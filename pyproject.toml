@@ -1,6 +1,6 @@
 [project]
 name = "elsewhere"
-version = "2.0"
+version = "1.0.0"
 description = "A persistent world that remembers."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -9,7 +9,8 @@ dependencies = []
 
 [project.optional-dependencies]
 llm = ["anthropic>=0.40"]
-mlx = ["mlx-lm>=0.31", "mlx-embeddings>=0.1", "llguidance>=1.8"]
+mlx = ["mlx-lm>=0.31", "mlx-embeddings>=0.1", "llguidance>=1.8", "sqlite-vec>=0.1.6"]
+recall = ["sqlite-vec>=0.1.6"]
 dev = ["mypy>=1.8"]
 
 [project.scripts]
@@ -35,5 +36,5 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["mlx", "mlx.*", "mlx_lm", "mlx_lm.*", "mlx_embeddings", "mlx_embeddings.*",
-          "llguidance", "llguidance.*", "huggingface_hub"]
+          "llguidance", "llguidance.*", "huggingface_hub", "sqlite_vec"]
 ignore_missing_imports = true

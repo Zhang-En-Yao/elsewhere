@@ -38,4 +38,3 @@ elsewhere --world "$WORLD" configure --backend mlx --model "$EMBEDDER" --call em
 elsewhere --world "$WORLD" doctor
 
 say "done"
-echo "If the embedder changed, place every memory again: elsewhere --world $WORLD reembed"

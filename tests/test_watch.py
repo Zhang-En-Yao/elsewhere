@@ -7,9 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import cli, retrieval, seed
+from elsewhere import cli, seed
 from elsewhere.tui import views
-from elsewhere.world.memories import Memory
 
 WIDE = "去年的雨"           # four columns' worth of two characters each
 
@@ -20,18 +19,11 @@ def text(lines):
 
 class Window(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.world = seed.build(Path(self.tmp.name) / "world")
+        self.temporary = tempfile.TemporaryDirectory()
+        self.world = seed.build(Path(self.temporary.name) / "world")
 
     def tearDown(self):
-        self.tmp.cleanup()
-
-    def remember(self, owner, **kw):
-        base = dict(id=self.world.next_id("mem"), owner=owner, at=self.world.at,
-                    account="the water rose over the fields", feeling="fear",
-                    occasions=[self.world.at])
-        base.update(kw)
-        return self.world.memories(owner).add(Memory(**base))
+        self.temporary.cleanup()
 
 
 class TestMeasuring(unittest.TestCase):
@@ -128,7 +120,7 @@ class TestEveryViewAnswers(Window):
 
 class TestWhereYouStoppedReading(Window):
     def test_the_line_falls_where_you_stopped(self):
-        self.world.news_seen = 1
+        self.world.read_through = 1
         rows = views.chronicle_rows(self.world)
         divider = [index for index, row in enumerate(rows) if row.text == views.UNREAD]
         self.assertEqual(len(divider), 1)
@@ -136,104 +128,70 @@ class TestWhereYouStoppedReading(Window):
         self.assertEqual(rows[divider[0] + 1].key, self.world.chronicle.all()[1].id)
 
     def test_having_read_it_all_leaves_no_line(self):
-        self.world.news_seen = len(self.world.chronicle)
+        self.world.read_through = len(self.world.chronicle)
         self.assertNotIn(views.UNREAD,
                          [row.text for row in views.chronicle_rows(self.world)])
 
     def test_a_divider_is_not_something_the_cursor_can_land_on(self):
-        self.world.news_seen = 1
+        self.world.read_through = 1
         for row in views.chronicle_rows(self.world):
             if row.text == views.UNREAD:
                 self.assertEqual(row.key, "")
 
 
-class TestItShowsWhatTheEngineWouldHandOver(Window):
+class TestItShowsWhatTheyCarry(Window):
 
-    def test_out_of_reach_is_shown_as_out_of_reach_and_not_left_out(self):
+    def test_the_whole_page_is_shown(self):
         havvah = self.world.beings["p_havvah"]
-        for index in range(retrieval.CONTEXT_MEMORIES + 3):
-            self.remember(havvah.id, account=f"the {index}th thing that happened",
-                          at=self.world.at - index * 24 * 30,
-                          occasions=[self.world.at - index * 24 * 30])
-        memories = list(self.world.memories(havvah.id))
-        reach = retrieval.recallable(memories, self.world.at)
-        self.assertLess(len(reach), len(memories), "the fixture proves nothing")
-
-        lines = views.person_detail(self.world, havvah.id)
-        body = text(lines)
-        for memory in memories:
-            self.assertIn(memory.account, body,
-                          "a window has room for what would not come back")
-        self.assertIn("below here", body,
-                      "and has to say where reach ended, or it is claiming "
-                      "they hold all of it equally")
-        dim = [line for line in lines if line.tone == "dim"]
-        for memory in memories:
-            if memory in reach:
-                continue
-            self.assertTrue(any(memory.account in line.text for line in dim),
-                            f"{memory.account!r} is out of reach and not dimmed")
-
-    def test_a_memory_that_moved_shows_what_it_used_to_be(self):
-        havvah = self.world.beings["p_havvah"]
-        memory = self.remember(havvah.id, account="the water rose over the fields")
-        memory.rewrite("the water came for us", self.world.at)
         body = text(views.person_detail(self.world, havvah.id))
-        self.assertIn("the water came for us", body)
-        self.assertIn("the water rose over the fields", body)
+        for line in havvah.who.notebook.splitlines():
+            self.assertIn(line, body)
 
-    def test_a_belief_with_nothing_left_to_point_at_says_so(self):
-        from elsewhere.world.entities import Belief
+    def test_it_says_how_many_pages_came_before(self):
+        from elsewhere.world.pages import Page
         havvah = self.world.beings["p_havvah"]
-        gone = self.remember(havvah.id, account="a thing nobody has thought of since",
-                             at=0.0, occasions=[0.0])
-        for index in range(retrieval.CONTEXT_MEMORIES + 1):
-            self.remember(havvah.id, account=f"something newer, {index}")
-        havvah.who.beliefs.append(Belief(claim="the water always comes back",
-                                      origin=[gone.id], held=[self.world.at]))
-        self.assertTrue(retrieval.on_faith(havvah.who.beliefs[0],
-                                           self.world.memories(havvah.id), self.world.at),
-                        "the fixture proves nothing")
-        self.assertIn("on faith", text(views.person_detail(self.world, havvah.id)))
+        self.world.pages(havvah.id).append(Page(at=self.world.at, notebook="one"))
+        self.world.pages(havvah.id).append(Page(at=self.world.at, notebook="two"))
+        # The page seed wrote them with, then these two.
+        self.assertIn("newest of 3 pages", text(views.person_detail(self.world, havvah.id)))
+
+    def test_what_they_have_not_gone_over_is_shown_apart_from_it(self):
+        from elsewhere.world.notes import Note
+        havvah = self.world.beings["p_havvah"]
+        self.world.notes(havvah.id).append(Note(at=self.world.at,
+                                                account="feathers on the path"))
+        body = text(views.person_detail(self.world, havvah.id))
+        self.assertIn("not gone over yet", body)
+        self.assertIn("feathers on the path", body)
+        havvah.when.settled_through = 1
+        body = text(views.person_detail(self.world, havvah.id))
+        self.assertNotIn("feathers on the path", body, "once gone over, only the page has it")
 
 
 class TestSomebodyWhoLeft(Window):
     def test_they_are_read_as_they_stood_the_hour_they_went(self):
         lilith = self.world.beings["p_lilith"]
-        memory = self.remember(lilith.id, account="the ridge path, and the valley")
         lilith.when.left_at = self.world.at
         was = text(views.person_detail(self.world, lilith.id))
-        self.assertIn("the ridge path, and the valley", was)
+        self.assertIn(lilith.who.notebook.splitlines()[0], was)
         self.assertIn("left on", was)
 
         # Frozen at the moment she left.
         self.world.at += 24 * 360
+        self.world.record("occurrence", "A storm broke over the town.",
+                          place="bethel", informed=["p_havvah", "p_bezalel"])
         self.assertEqual(text(views.person_detail(self.world, lilith.id)), was)
-        self.assertIn(memory.account,
-                      text(views.person_detail(self.world, lilith.id)))
 
 
-class TestOneEventManyVersions(Window):
-    def test_everyone_who_was_there_is_put_beside_everyone_else(self):
-        event = self.world.chronicle.all()[0]
-        kept = {}
-        for person_id in event.informed:
-            kept[person_id] = self.remember(
-                person_id, account=f"what {person_id} would say about it",
-                event_id=event.id)
-        body = text(views.event_detail(self.world, event.id))
-        self.assertIn(event.account, body, "history's own account is shown too")
-        for person_id, memory in kept.items():
-            self.assertIn(memory.account, body)
-            self.assertIn(self.world.beings[person_id].name, body)
-
-    def test_somebody_who_was_there_and_kept_nothing_is_still_named(self):
+class TestOneEventManyPlaces(Window):
+    def test_everyone_it_reached_is_named_with_where_they_stood(self):
         event = self.world.chronicle.all()[0]
         self.assertTrue(event.informed, "the fixture proves nothing")
         body = text(views.event_detail(self.world, event.id))
+        self.assertIn(event.account, body, "history's own account is shown too")
         for person_id in event.informed:
             self.assertIn(self.world.beings[person_id].name, body)
-        self.assertIn("nothing stayed", body)
+            self.assertIn(event.data["viewpoints"][person_id], body)
 
 
 class FakeScreen:
@@ -258,7 +216,6 @@ class TestTheWindowWritesNothing(Window):
         super().setUp()
         from elsewhere.world import store
         store.save(self.world)
-        self.world.memories("p_havvah").save(force=True)
 
     def test_looking_at_all_of_it_changes_none_of_it(self):
         was = self.files()
@@ -273,7 +230,7 @@ class TestTheWindowWritesNothing(Window):
 
         app = screen.App(self.world.root, FakeScreen())
         was = self.files()
-        pressed = [ord(ch) for ch in "123456789jkhlgGb rfcmxyz?\t"]
+        pressed = [ord(character) for character in "123456789jkhlgGb rfcmxyz?\t"]
         pressed += [screen.curses.KEY_DOWN, screen.curses.KEY_UP,
                     screen.curses.KEY_NPAGE, screen.curses.KEY_PPAGE,
                     screen.curses.KEY_RESIZE, screen.curses.KEY_LEFT,
@@ -290,8 +247,8 @@ class TestTheWindowWritesNothing(Window):
         source = Path(__file__).resolve().parents[1] / "src" / "elsewhere" / "tui"
         for path in sorted(source.glob("*.py")):
             body = path.read_text(encoding="utf-8")
-            for writer in ("store.save", "tick_lock", ".save(", "open(",
-                           "write_text", "news_seen ="):
+            for writer in ("store.save", "TickLock", ".save(", "open(",
+                           "write_text", "read_through ="):
                 self.assertNotIn(writer, body,
                                  f"{path.name} reaches for {writer!r}; the "
                                  f"window is supposed to only read")

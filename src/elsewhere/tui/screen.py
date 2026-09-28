@@ -16,7 +16,7 @@ from . import views
 from .views import VIEWS, Line, Row
 
 #: Key wait before re-checking the files for changes.
-PAUSE_MS = 500
+PAUSE_MILLISECONDS = 500
 
 KEYS = ("1-3 view   TAB pane   j/k move   g/G ends   r read again   f follow   "
         "? keys   q quit")
@@ -72,7 +72,7 @@ class App:
         self.root = Path(root)
         self.screen = screen
         self.world = store.load(self.root)
-        self.tone = tones()
+        self.tones = tones()
         self.tab = 0
         self.cursor: Dict[int, int] = {}
         self.top: Dict[int, int] = {}
@@ -88,26 +88,27 @@ class App:
         self._rows: List[Row] = []
         for index in range(len(VIEWS)):
             self.cursor[index], self.top[index] = 0, 0
-        self.settle()
+        self.snap()
 
     def _stamp(self) -> tuple:
         """Cheap fingerprint of the files, to detect changes."""
-        out = []
+        times = []
         for path in (self.root / "world.json", self.root / "chronicle.jsonl"):
             try:
-                out.append(path.stat().st_mtime_ns)
+                times.append(path.stat().st_mtime_ns)
             except OSError:
-                out.append(0)
+                times.append(0)
         try:
-            out.append(sum(path.stat().st_mtime_ns for path in
-                           (self.root / "memories").glob("*.jsonl")))
+            times.append(sum(path.stat().st_mtime_ns for path in
+                             [*(self.root / "beings").glob("*.json"),
+                              *(self.root / "notes").glob("*.jsonl")]))
         except OSError:
-            out.append(0)
-        return tuple(out)
+            times.append(0)
+        return tuple(times)
 
-    def reload(self, say: bool = False) -> None:
+    def reload(self, announce: bool = False) -> None:
         """Reload, keeping the current selection."""
-        keep = self.selected()
+        selected = self.selected()
         try:
             self.world = store.load(self.root)
         except (OSError, ValueError) as exception:
@@ -115,13 +116,13 @@ class App:
             return
         self.stamp = self._stamp()
         self._shown = self._listed = None
-        if keep:
+        if selected:
             for index, row in enumerate(self.rows()):
-                if row.key == keep:
+                if row.key == selected:
                     self.cursor[self.tab] = index
                     break
-        self.settle()
-        if say:
+        self.snap()
+        if announce:
             self.message = "read again at " + time.strftime("%H:%M:%S")
 
     def view(self):
@@ -140,12 +141,13 @@ class App:
         index = self.cursor.get(self.tab, 0)
         return rows[index].key if 0 <= index < len(rows) else ""
 
-    def settle(self) -> None:
+    def snap(self) -> None:
+        """Put the cursor back on a selectable row."""
         rows = self.rows()
         index = min(max(0, self.cursor.get(self.tab, 0)), max(0, len(rows) - 1))
         if rows and not rows[index].key:
-            after = [i for i in range(index, len(rows)) if rows[i].key]
-            before = [i for i in range(index, -1, -1) if rows[i].key]
+            after = [position for position in range(index, len(rows)) if rows[position].key]
+            before = [position for position in range(index, -1, -1) if rows[position].key]
             index = after[0] if after else (before[0] if before else index)
         self.cursor[self.tab] = index
 
@@ -155,20 +157,20 @@ class App:
         if key == self._shown:
             return self._lines
         if self.helping:
-            raw = [Line(text) for text in HELP.splitlines()]
+            source = [Line(text) for text in HELP.splitlines()]
         else:
-            raw = self.view().detail(self.world, self.selected())
-        out: List[Line] = []
-        for line in raw:
-            out.extend(views.wrap(line, columns))
-        self._shown, self._lines = key, out
-        return out
+            source = self.view().detail(self.world, self.selected())
+        wrapped: List[Line] = []
+        for line in source:
+            wrapped.extend(views.wrap(line, columns))
+        self._shown, self._lines = key, wrapped
+        return wrapped
 
-    def put(self, y: int, x: int, text: str, attr: int, columns: int) -> None:
+    def put(self, y: int, x: int, text: str, attribute: int, columns: int) -> None:
         if columns <= 0 or y < 0:
             return
         try:
-            self.screen.addstr(y, x, views.clip(text, columns), attr)
+            self.screen.addstr(y, x, views.clip(text, columns), attribute)
         except curses.error:
             pass                        # the last cell of the last line
 
@@ -182,7 +184,7 @@ class App:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
         if height < 8 or width < 40:
-            self.put(0, 0, "a little more room, please", self.tone["dim"], width)
+            self.put(0, 0, "a little more room, please", self.tones["dim"], width)
             self.screen.noutrefresh()
             curses.doupdate()
             return
@@ -191,7 +193,7 @@ class App:
                 + ("is up" if world.daylight else "is down"))
         if world.closed:
             left += "   (ended)"
-        unseen = len(world.chronicle) - world.news_seen
+        unseen = len(world.chronicle) - world.read_through
         right = str(unseen) + " new" if unseen > 0 else "all read"
         if not self.follow:
             right += "   not following"
@@ -206,8 +208,8 @@ class App:
             label = str(index + 1) + " " + view.title
             here = index == self.tab
             self.put(1, x, label,
-                     (self.tone["accent"] | curses.A_BOLD) if here
-                     else self.tone["dim"], max(0, width - x))
+                     (self.tones["accent"] | curses.A_BOLD) if here
+                     else self.tones["dim"], max(0, width - x))
             x += views.width(label) + 3
         self.rule(2, width)
         body, top = height - 5, 3
@@ -224,7 +226,7 @@ class App:
         self.rule(height - 2, width)
         foot = self.message or KEYS
         self.put(height - 1, 0, foot,
-                 self.tone["accent"] if self.message else self.tone["dim"], width)
+                 self.tones["accent"] if self.message else self.tones["dim"], width)
         self.screen.noutrefresh()
         curses.doupdate()
 
@@ -239,44 +241,44 @@ class App:
             start = index - body + 1
         self.top[self.tab] = max(0, start)
         for offset in range(body):
-            at = start + offset
-            if at >= len(rows):
+            position = start + offset
+            if position >= len(rows):
                 break
-            row = rows[at]
-            attr = self.tone.get(row.tone, curses.A_NORMAL)
-            if at == index and row.key:
-                attr = curses.A_REVERSE | (0 if self.on_detail else curses.A_BOLD)
+            row = rows[position]
+            attribute = self.tones.get(row.tone, curses.A_NORMAL)
+            if position == index and row.key:
+                attribute = curses.A_REVERSE | (0 if self.on_detail else curses.A_BOLD)
                 self.put(top + offset, x, views.pad(" " + row.text, columns - 1),
-                         attr, columns - 1)
+                         attribute, columns - 1)
             else:
-                self.put(top + offset, x, " " + row.text, attr, columns - 1)
+                self.put(top + offset, x, " " + row.text, attribute, columns - 1)
 
     def draw_shown(self, top: int, x: int, body: int, columns: int) -> None:
         lines = self.shown(max(10, columns))
         self.down = max(0, min(self.down, max(0, len(lines) - body)))
         for offset in range(body):
-            at = self.down + offset
-            if at >= len(lines):
+            position = self.down + offset
+            if position >= len(lines):
                 break
-            line = lines[at]
+            line = lines[position]
             self.put(top + offset, x, line.text,
-                     self.tone.get(line.tone, curses.A_NORMAL), columns)
+                     self.tones.get(line.tone, curses.A_NORMAL), columns)
         if self.down + body < len(lines):
             self.put(top + body - 1, x + max(0, columns - 6), " more ",
-                     self.tone["dim"], 6)
+                     self.tones["dim"], 6)
 
     def move(self, step: int) -> None:
         if self.helping or self.on_detail:
             self.scroll(step)
             return
         rows = self.rows()
-        at = self.cursor.get(self.tab, 0)
+        position = self.cursor.get(self.tab, 0)
         while True:
-            at += step
-            if not 0 <= at < len(rows):
+            position += step
+            if not 0 <= position < len(rows):
                 return
-            if rows[at].key:
-                self.cursor[self.tab] = at
+            if rows[position].key:
+                self.cursor[self.tab] = position
                 self.down = 0
                 return
 
@@ -301,7 +303,7 @@ class App:
             self.helping = False
             self.on_detail = False
             self.down = 0
-            self.settle()
+            self.snap()
         elif pressed in (ord("\t"), ord("l"), curses.KEY_RIGHT):
             self.on_detail = True
         elif pressed in (curses.KEY_BTAB, ord("h"), curses.KEY_LEFT):
@@ -319,15 +321,15 @@ class App:
                 self.down = 0
             else:
                 self.cursor[self.tab] = 0
-                self.settle()
+                self.snap()
         elif pressed == ord("G"):
             if self.on_detail or self.helping:
                 self.down = 10 ** 9        # clamped against the room in draw_shown
             else:
                 self.cursor[self.tab] = max(0, len(self.rows()) - 1)
-                self.settle()
+                self.snap()
         elif pressed == ord("r"):
-            self.reload(say=True)
+            self.reload(announce=True)
         elif pressed == ord("f"):
             self.follow = not self.follow
             self.message = ("following what lands" if self.follow
@@ -336,7 +338,7 @@ class App:
 
     def loop(self) -> None:
         curses.curs_set(0)
-        self.screen.timeout(PAUSE_MS)
+        self.screen.timeout(PAUSE_MILLISECONDS)
         while True:
             self.draw()
             try:
