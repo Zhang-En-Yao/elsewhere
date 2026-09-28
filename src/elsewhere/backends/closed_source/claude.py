@@ -10,7 +10,8 @@ from .. import Call, Settings
 class AnthropicBackend:
     name = "claude"
 
-    def __init__(self, max_tokens: int = 600):
+    # Room for a whole notebook, which `settle` writes in one answer.
+    def __init__(self, max_tokens: int = 1024):
         self.max_tokens = max_tokens
         self._client = None
 
@@ -34,9 +35,9 @@ class AnthropicBackend:
             system=call.system, tools=[tool],
             tool_choice={"type": "tool", "name": call.name.value},
             messages=[{"role": "user", "content": call.user}],
-            **settings.extra,
+            **settings.options,
         )
         for block in response.content:
             if getattr(block, "type", "") == "tool_use":
                 return json.dumps(block.input, ensure_ascii=False)
-        return "".join(getattr(b, "text", "") for b in response.content)
+        return "".join(getattr(block, "text", "") for block in response.content)

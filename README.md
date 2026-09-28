@@ -553,158 +553,109 @@ The goal is to build a world that feels worth returning to.
 
 ## ▶ Running It
 
-> **v2 is a rewrite in progress, and what follows is what it does today.**
-> In v0.1 (tagged `v0.1`) every judgement — what stuck, what it meant, what got
-> said — was made by a formula. In v2 the engine keeps the ledger and decides
-> only what can be *reached*; a language model decides what any of it meant.
-> Nothing left on the engine's side is an algorithm anybody here made up: what
-> comes to mind is ACT-R's declarative memory used as published, and everything
-> that used to be a constant somebody chose — how long a memory lasts, how much
-> quiet a town gets, how often the road is worth asking, when a day ends — is
-> now a question put to a mind, answered in the same breath as the rest.
-> The town now lives on its own and remembers. It does not yet make anything,
-> and you cannot yet live in it. [What It Does](#-what-it-does) is the honest
-> list, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how this engine is put
-> together, and [docs/ROADMAP.md](docs/ROADMAP.md) is what is left.
+> What follows is what Elsewhere does today. The engine keeps the record and
+> decides only what can be *reached*; a language model decides what any of it
+> meant. Nothing on the engine's side is an algorithm of its own: what a being
+> remembers is what they wrote down themselves, and everything that could have
+> been a constant somebody chose — how long a memory lasts, how much quiet a
+> town gets, how often the road is worth asking, when a day ends — is a
+> question put to a mind, answered in the same breath as the rest.
+> The town lives on its own and remembers. It does not yet make anything, and
+> you cannot yet live in it. [What It Does](#-what-it-does) is the honest list,
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how the engine is put
+> together, and [docs/ROADMAP.md](docs/ROADMAP.md) is what comes next.
 
-The engine is Python 3.10+ with no dependencies. Everything that thinks needs a
-model it can reach — by default one running on the same machine.
+The engine itself is Python 3.10+ with no dependencies. Everything that thinks
+needs a model it can reach — by default one running on the same machine.
 
 ### Setup (first time)
 
-The development environment uses Python 3.12 through
-[pyenv](https://github.com/pyenv/pyenv):
-
 ```bash
-cd ~/Documents/elsewhere
-
-pyenv install 3.12.0        # install Python 3.12
-pyenv local 3.12.0          # use 3.12 in this directory
-python3 --version           # verify: Python 3.12.0
-
-python3 -m venv .venv       # create the virtual environment
-source .venv/bin/activate   # activate it
-pip install -e ".[dev,mlx]" # install Elsewhere, mypy for `make test`, and MLX
+cd elsewhere
+python3 -m venv .venv       # Python 3.10 or newer
+source .venv/bin/activate
+pip install -e ".[dev,mlx]" # Elsewhere, mypy for `make test`, and MLX
 ```
 
 Then a mind for the town to think with. The default configuration runs one on
 this Mac through [MLX](https://github.com/ml-explore/mlx), Apple's own
-framework, inside the process that asks - there is no server to start. The
+framework, inside the process that asks — there is no server to start. The
 first call downloads the weights from Hugging Face and caches them:
 
 ```bash
-elsewhere doctor    # fetches Gemma 4 E2B (~4GB) and EmbeddingGemma (~330MB) the
-                    # first time, then says whether each call site can be reached
+make live           # fetches Gemma 4 E2B (~4GB) and EmbeddingGemma (~330MB),
+                    # then says whether each call site can be reached
 ```
 
 `world/configuration.json` names a model per call site, so the cheap decisions
 can run at home while the ones that need judgement go somewhere larger. Anything
 with an OpenAI-compatible `/v1` works (llama-server, LM Studio, vLLM), as does
-Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`, and OpenAI and Gemini
-with `OPENAI_API_KEY` and `GEMINI_API_KEY`. The notes at the
-top of that file say how; `elsewhere configure --backend … --model …` changes
-every mind at once; `elsewhere doctor` says whether it worked.
+Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`, and OpenAI and
+Gemini with `OPENAI_API_KEY` and `GEMINI_API_KEY`. The notes at the top of that
+file say how; `elsewhere configure --backend … --model …` changes every mind at
+once; `elsewhere doctor` says whether it worked.
 
 That file is the only thing that decides. No environment variable overrides it,
-so what it says is what runs - from a terminal or from the schedule alike. Keys
+so what it says is what runs — from a terminal or from the schedule alike. Keys
 are the one thing read from the environment, because a secret does not belong
 in a file.
 
-Nothing above is needed to run the tests or the demo — both use a stub.
+Nothing above is needed to run the tests — `make test` uses a stub.
 
 ### Every time you come back
 
 ```bash
-cd ~/Documents/elsewhere
+cd elsewhere
 source .venv/bin/activate
 elsewhere news              # what happened while you were gone
-```
-
-Leave the environment with `deactivate`.
-
-### Starting over
-
-If the environment breaks, or you want a clean one:
-
-```bash
-cd ~/Documents/elsewhere
-deactivate                  # if a venv is active
-rm -rf .venv
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
 ```
 
 ### Commands
 
 ```bash
-elsewhere initialize            # 3 people, 1 town, a flood nobody agrees about
+elsewhere initialize            # 3 beings, 1 town, a flood nobody agrees about
 
 elsewhere tick -n 4             # live four steps of the world now
-elsewhere continue              # let the world go on: live whatever the wall clock says is owed
+elsewhere continue              # live whatever the wall clock says is owed
 elsewhere news                  # what happened since you last looked
 
 elsewhere watch                 # sit with it: one window on the world, which only reads
-elsewhere status                # where everyone is, and how much they still hold
-elsewhere person Havvah         # who she has become: beliefs, ties, what is in reach
+elsewhere status                # where everyone is, and how much they carry
+elsewhere person Havvah         # the page she carries, and what she has kept of today
+elsewhere person Havvah --pages # every page she has ever written, oldest first
 elsewhere timeline              # history: what happened
-elsewhere event ev0003          # one event, and every version of it
+elsewhere event ev0003          # one event, and what each being kept of it
 
 elsewhere end                   # end the world for good; what happened stays readable
 
-elsewhere remember ev0003       # put an event past everyone again
-elsewhere doctor                # can the configured minds be reached?
+elsewhere settle Havvah         # have one being go over their day now, for prompt tuning
+elsewhere doctor                # can the configured minds, and the embedder, be reached?
 elsewhere configure --backend mlx --model mlx-community/Llama-3.2-3B-Instruct-4bit   # point every mind at one model
-elsewhere reembed               # after changing the embedder: place every memory again
 ```
 
 Every command takes `--world <path>`; it defaults to `./world`. A `Makefile`
-wraps the common ones — `make test`, `make watch`, `make tick`, `make news`,
-`make doctor`.
+wraps the common ones — `make world`, `make tick`, `make watch`, `make news`,
+`make doctor`, `make test`.
 
-`initialize` and `continue` are the two that wait on a model — making a world
-puts a question to one for every person the backstory reached, and one step of
-`continue` can put out dozens — so both keep a line at the bottom of the
-terminal saying which question is out and how long it has been out:
-
-```
-⠹ Havvah is taking it in · 12s · 7 answered in 2m04s
-```
-
-It is on stderr and only ever on a terminal, so what happened still pipes and
-the scheduled run's log gets nothing extra.
-
-One thing that is worth doing first:
+One thing worth doing first, once a world has lived a few steps:
 
 ```bash
 elsewhere event ev0003
 ```
 
 The water came up over Marah's ring of stones before morning, and did not go
-down for three days. Havvah was frightened. Bezalel remembers the boat he
-built and the joinery of it. Lilith, who watched the valley go under from
-Mizpah, remembers working out that the valley has an outside.
-
-People also say things out loud, and what the other person walks away with is a
-shorter, flatter version of it — sometimes the wrong one:
-
-```
-Havvah said:  "It was not as bad as people say now. The river came up over
-               Marah. It went down again."
-Lilith kept:  "What I took from it was the river came up over Marah
-               - though it may have been the opposite."
-```
-
-`elsewhere event <id>` shows both, for every conversation.
+down for three days — that is what the record says, and where each of them was
+standing. Under it is what each of them kept of it, in their own words, and
+the three do not agree: nobody was shown anyone else's.
 
 ### A world that keeps going while you are away
 
 A day here is a day there. `elsewhere continue` lives whatever the wall clock
-says is owed — counted in hours, and paid off in whatever steps the people in
-the world asked for — at most eight steps in one go; a longer backlog is slept
-through rather than carried, so a laptop that was shut for a week does not wake
-up and spend an hour on it. If the model cannot be reached, the world waits
-rather than inventing a day.
+says is owed — counted in hours, and paid off in whatever steps the beings in
+the world asked for — at most eight steps in one go (`--max`); a longer backlog
+is slept through rather than carried, so a laptop that was shut for a week does
+not wake up and spend an hour on it. If the model cannot be reached, the world
+waits rather than inventing a day.
 
 ```bash
 make schedule           # a launchd agent that checks every 30 minutes
@@ -714,72 +665,72 @@ make unschedule         # stop it
 
 ### What is asked of a mind
 
-Seven questions, and nothing else:
+Five questions, and nothing else:
 
 | | |
 |---|---|
-| `perceive` | something happened in front of you — what, if anything, stays? |
-| `act` | it is this hour and you are standing here — what do you do? |
-| `speak` | you are talking to this person — what do you say, and what do you draw on? |
-| `recall` | you are bringing this up years later — how does it come back now? |
-| `reflect` | you have stopped — what did the day leave you holding, and who is on your mind? |
+| `act` | this just reached you — what do you keep of it? It is this hour and you are standing here — what do you do? |
+| `speak` | this was just said to you — what do you keep of it? What do you say back? |
+| `settle` | you have stopped for the day — here is what you kept of it; what is on your page now? |
 | `stir` | does anything happen to the town — and when should you be asked again? |
 | `arrive` | does anybody come up the road, who would they be, and when should you be asked again? |
 
 Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed
 to the model as a decoding grammar and checked again on the way in, so an
 answer the world cannot use is not representable. A mind only ever sees what
-its person could see. The engine never writes a memory and never edits one —
-it only records when a memory was last touched, and decides whether it can be
-reached at all. **Forgetting is the engine declining to hand something over**,
-because a model asked "do you still remember this?" with the memory sitting in
-its context will always say yes.
+its being could see.
 
-What decides that is ACT-R's declarative memory — Anderson, Bothell, Byrne,
-Douglass, Lebiere & Qin (2004), with Anderson & Schooler's (1991) base-level
-term inside it — at its published parameters, and there is no retrieval
-threshold and so no number in the file that had to be picked. Memory is a
-*request*, answered with the most active handful and not with all of them; a
-memory that does not come back is forgotten for the purposes of the next
-thought. A memory carries no weight and no importance score: what it is worth
-is how often anybody has had cause to think of it. And because the thing
-somebody is looking at enters the same equation as spreading activation, a
-moment can raise a memory that was long gone — which is the "memory that
-unexpectedly returns years later" this README asks for, with no special case
-for it anywhere.
+What happens is shown to a being once, as it reaches them, and what they keep
+of it is a note in their own words — a fragment, often less than what happened
+and sometimes wrong — or nothing, which is usual. At night they go over their
+notes, never what happened, and write their page again.
 
-Four of the seven also say when they want to be asked again, and that is the
+What a being carries from one day to the next is one page in their own words —
+what keeps coming back to them, what they want, what they hold true, what they
+make of the others, whatever of the past is still with them — and it has a
+fixed size. When they stop for the day they write it again, whole, with the old
+page and the day's notes in front of them. Whatever does not fit is gone from
+them. **The engine never writes a word of it and never decides what goes.**
+That is MemGPT's self-edited core memory (Packer et al. 2023), done once a day.
+
+Nothing is thrown away because a formula said so, and nothing is kept because
+the engine thought it mattered. A memory wears down, gets shorter, gets
+something wrong, or goes, because the being writing the page had to choose.
+But every note and every page is kept — the chronicle is what happened, the
+notes and pages are what it was to them, and none of it is ever revised — so
+what they lost is lost to them, not to the world. And it can come back:
+whenever they act, speak or go over their day, the moment is searched against
+every note they made before today — by words (BM25) and by meaning
+(embeddings), fused by Reciprocal Rank Fusion — and the best match is put in
+front of them, in the words they had it in then. Whether it goes back on the
+page is theirs.
+
+Three of the five also say when they want to be asked again, and that is the
 only thing anywhere that paces this world. See below.
 
 ### The road runs both ways
 
-People can leave, and the town does not get them back. Leaving is a fourth verb
-that `act` is only offered where the road actually goes out of the town and
-where the town could spare somebody — two facts about the map and the size of
-the place, checked before the word is even in the vocabulary. There used to be
-two more, and both were the engine deciding something that is not its to
-decide: not at night, because nobody here is the sort of person who leaves in
-the dark, and not within forty-five days of the last one who went, because a
-town of this size does not lose people that often. Whether to go, whether to go
-at three in the morning, and whether two people would go in the same week are
-nobody's business but theirs.
+Beings can leave, and the town does not get them back. Leaving is a verb `act`
+is only offered where the road actually goes out of the town — a fact about the
+map, checked before the word is even in the vocabulary. Whether to go, whether
+to go at three in the morning, and whether two of them would go in the same
+week are nobody's business but theirs.
 
 When somebody goes, the whole town hears it and each of them keeps their own
 version. What they took with them stays exactly as it was on the day they
-walked out: `elsewhere person <name>` still reads them, frozen, and the notes
-everyone wrote about them stay in their heads, wrong now and not updated.
+walked out: `elsewhere person <name>` still reads them, frozen, and whatever
+the others wrote about them stays on their pages, wrong now and not updated.
 
 Somebody may also come up it. The road is asked whether anybody is on it, is
-told who has gone, and says both who that person would be and how long before
-it is worth asking again — a year for a town that is short of nobody, a month
-for one that has just lost the only person who could do a thing it needs
-doing. The answer is usually nobody. When it is somebody, they arrive knowing
-nobody, with nowhere of their own to sleep, and live the day they arrived.
+told who has gone, and says both who that would be and how long before it is
+worth asking again — a year for a town that is short of nobody, a month for one
+that has just lost the only one who could do a thing it needs doing. The
+answer is usually nobody. When it is somebody, they arrive knowing nobody, with
+nowhere of their own to sleep, and live the day they arrived.
 
-So the town's population moves in both directions. It cannot fall below two,
-which is where it stops being a town, or rise above eight, which is where it
-stops being one where everybody knows everybody — and between those it is the
-minds, not the engine, that decide.
+So the town's population moves in both directions, and the engine sets no
+floor and no ceiling on it: anybody may leave, even the last of them, and the
+road is asked however many are already here.
 
 ### One clock, and no step on it
 
@@ -795,21 +746,21 @@ town's own history is dated in, so that the flood in its past falls on Chaitra
 convenient number.
 
 That is deliberate. "Morning" and "night" are not facts about a town so much as
-a suggestion about what the people in it should be doing, and the engine has no
-business making it — a restless person works through the small hours and
-somebody content is asleep by dusk. So a mind is told the time and whether the
-sun is up, and nothing else:
+a suggestion about what the beings in it should be doing, and the engine has no
+business making it — a restless one works through the small hours and one who
+is content is asleep by dusk. So a mind is told the time and whether the sun is
+up, and nothing else:
 
 ```
-It is 03:00 and dark, spring, day 2.
+It is 03:00 and dark, spring, Chaitra 3 waxing.
 ```
 
 What that hour is worth doing with is read off who they are.
 
 Nothing divides that clock into steps, either. The world advances to whatever
-is next due and no further, and what is due is whatever the people in it asked
-for: every entity carries exactly one timer and sets it itself. A person says
-how long they will be at what they are doing — half an hour for a
+is next due and no further, and what is due is whatever the beings in it asked
+for: everything in the world carries exactly one timer and sets it itself. A
+being says how long they will be at what they are doing — half an hour for a
 conversation, four for mending a net, eight for a night's sleep — and is not
 asked anything again until it runs out. The town says how long a quiet stretch
 it is giving itself. The road says how long before it is worth asking who is
@@ -817,32 +768,25 @@ on it. A town where everybody has settled sleeps through the night in one
 move; a town in the middle of something is asked again in minutes.
 
 Anything that reaches somebody pulls their timer to now, so a fire does not
-wait for the person it is about to finish mending a net. (Both of those — the
+wait for the one it is about to finish mending a net. (Both of those — the
 per-entity timer and the non-maskable interrupt over it — are
 [Concordia](https://github.com/google-deepmind/concordia)'s interrupt-driven
 scheduler, in a small version.)
 
-Going over a day works the same way. It used to be everyone at nightfall, and
-then a rolling twenty-four hours each; both were the engine deciding when a
-day ends. A person says when they are stopping, and goes over whatever has
-happened to them since the last time they did.
+A day ends the same way: when a being says they are stopping, not at a
+nightfall the engine keeps for everyone. They go over whatever they kept since
+the last time they did.
 
-`make test` type-checks before it runs anything. That is not thoroughness for
-its own sake: the one mistake this codebase keeps making is an attribute that
-stopped existing, in code nothing calls — `Chronicle.since` read `e.day` for
-several commits after days stopped being stored, and 84 passing tests had
-nothing to say about it, because nothing called it. `Chronicle.all()` is
-annotated, so mypy says so the day it is written. Tests cannot; they only
-reach code that runs.
+### Checking it
 
-Every exchange is appended to a transcript, which is how a run is explained
-after the fact — there is no random seed to hold on to any more. The test
-suite's own reproducibility comes from a stub backend instead: `make test` is
-the whole suite and no model.
+`make test` type-checks before it runs anything. The one mistake tests cannot
+catch is an attribute that stops existing in code nothing calls: tests only
+reach code that runs, and mypy reads all of it. The suite runs against a stub
+backend — no model, no key.
 
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) has how this engine is put
-together. What has not been built is written down in
-[docs/ROADMAP.md](docs/ROADMAP.md).
+Every exchange with a mind is appended to a transcript, which is how a run is
+explained after the fact; there is no dice roll in the engine, so there is no
+random seed to keep.
 
 ---
 
@@ -855,51 +799,43 @@ together. What has not been built is written down in
   stores a named part of the day.
 - No step on that clock. Everything in the world keeps one timer and sets it
   itself; the world advances to whichever comes first, and anything that
-  reaches somebody wakes them. A day here is still a day there.
+  reaches somebody wakes them. A day here is a day there.
 - Places, and a town that decides for itself how long a quiet stretch it gets
   between things happening to it.
-- A population that moves both ways. People take the road out and do not come
+- A population that moves both ways. Beings take the road out and do not come
   back; sometimes somebody comes up it, knowing nobody.
 - An append-only chronicle of what happened, and a transcript of every question
   ever put to a mind.
 
-### The people
+### The beings
 
-- A paragraph and a way of speaking, not five floats — and beliefs with no
-  confidence number under them either.
-- Regards that are one-way by construction: each being's own account of
-  another, which never has to agree with the account coming back.
-- Wants, rewritten in the night, and the one thing from the day that keeps
-  coming back, in the words they thought it in.
-- Everyone decides at once, from where they stand, and then the world settles
-  what is physically so.
+- A paragraph and a way of speaking, not a vector of traits — and beliefs with
+  no confidence number under them either.
+- What one being makes of another is a line on their own page, which never has
+  to agree with the line coming back.
+- Everyone due decides at once, from where they stand, and then the world
+  settles what is physically so.
 - Conversations that go both ways. An exchange is turns, alternating, until
   somebody has nothing to say; each turn is an event, and everyone in earshot
-  keeps their own version of it — sometimes the wrong one. What somebody
-  answers is a reply to what they kept of the line before, not to the line.
-- Regards that change. What one person would say about another is rewritten
-  when they stop and think about them, and only their side of it moves.
+  is shown it once and keeps their own version of it — sometimes the wrong one.
 
 ### Memory
 
-- The mind decides what stuck. Nothing decides what it was worth: a memory
-  carries no weight and no importance score, and what keeps it is that somebody
-  has had cause to think of it.
-- Forgetting is the engine declining to hand something over, by ACT-R's
-  declarative memory at its published parameters — no threshold, no curve
-  fitted here, and no constant this project chose.
-- Bringing something up in conversation keeps it in reach, and can change the
-  words it comes back in.
-- A memory long out of reach can come back because of where somebody is
-  standing, through the same equation and not a second mechanism for it.
-- Each being goes over their day when they say they are stopping — not the
-  whole town at one nightfall, and not on a clock the engine keeps for them.
-- Beliefs that outlive their reasons: still held as firmly as ever, with
-  nothing left they can point at for why.
-- Thoughts that are memories. What a reckoning leaves somebody holding goes
-  into the same store as everything else, carrying what it was a thought
-  about, and fades the same way if nobody ever comes back to it.
-- What they have been doing, which is what a reckoning goes over and what the
+- What happens is shown once; what a being keeps of it is a note in their own
+  words, or nothing.
+- One page per being, in their own words, of a fixed size. It is all they carry
+  from one day to the next, and they rewrite it when they stop for the day, from
+  their notes — never from what happened.
+- The mind decides what stays. Nothing decides what a memory was worth: there
+  is no weight, no importance score, no decay curve — the engine keeps no
+  memory algorithm of its own.
+- Forgetting is the page being full. What wears down, what gets misremembered,
+  and what goes, is decided by the being writing it.
+- Every note and every page is kept, and an old note can come back whenever the
+  moment points at it — by its words or by its meaning.
+- Beliefs, wants, and what they make of each other are all on the same page,
+  and change when the being writing it has a reason to change them.
+- What they have been doing, which is what an evening goes over and what the
   town reads to decide whether anything came of it.
 
 ### Watching it
@@ -907,10 +843,8 @@ together. What has not been built is written down in
 - `elsewhere status`, `person`, `timeline`, `event`, `news`.
 - `elsewhere watch`: the same views in a window, which is where to sit with it.
   The printed commands each answer one question and stop; a window has room to
-  put a memory in reach beside the same memory out of reach, and the hour
-  somebody arrived beside what everyone turned out to have kept of it. It shows
-  what the engine *would not* hand over, dimmed, under the line where reach
-  ended — which is this project's one claim about memory, on one screen.
+  put the page a being carries beside what they have kept of today, and an
+  event beside what each of them kept of it.
 
   The window only reads. It writes nothing under the world's directory, not
   even where you stopped reading, so there is no key on it that lets the world
@@ -979,13 +913,13 @@ A few memories.
 
 Enough time to see what happens.
 
-That world now runs. It has three people and a flood in its past that each of
-them remembers differently.
+That world runs. It has three beings and a flood in its past that each of them
+keeps differently.
 
-On `v2` it also keeps going without being watched: the town decides for itself
-whether anything happens to it, everyone decides what to do from where they
-stand, what gets said is heard imperfectly, and going over a day changes what
-people hold. A launchd agent can be left to run it at a day per day.
+It keeps going without being watched: the town decides for itself whether
+anything happens to it, everyone decides what to do from where they stand, what
+gets said is heard imperfectly, and going over a day changes what each of them
+carries. A launchd agent can be left to run it at a day per day.
 
 What it does not do yet: let you live in it, let anyone make anything, or grow
 anything above the individual. See [docs/ROADMAP.md](docs/ROADMAP.md).

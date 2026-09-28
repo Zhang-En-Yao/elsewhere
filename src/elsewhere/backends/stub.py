@@ -12,14 +12,13 @@ from . import Call, Settings
 from ..schemas import CallName
 
 DEFAULTS: Dict[str, dict] = {
-    CallName.PERCEIVE: {"stuck": False},
     CallName.ACT: {"because": "", "doing": "", "action": "", "target": "",
-            "for_hours": 6.0, "settling": False, "absorbed": False},
+            "again_in_hours": 6.0, "settling": False, "absorbed": False},
     CallName.SPEAK: {"utterance": "..."},
-    CallName.RECALL: {"account": "", "changed": False},
-    CallName.REFLECT: {},
-    CallName.STIR: {"happens": False, "ask_again_in_hours": 24.0},
-    CallName.ARRIVE: {"comes": False, "ask_again_in_hours": 24.0},
+    # An empty page is no answer, so by default nobody's page changes.
+    CallName.SETTLE: {"notebook": ""},
+    CallName.STIR: {"happens": False, "again_in_hours": 24.0},
+    CallName.ARRIVE: {"happens": False, "again_in_hours": 24.0},
 }
 
 
@@ -30,13 +29,13 @@ class StubBackend:
     #: semantically near anything else.
     def embed(self, texts, settings: Optional[Settings] = None):
         import hashlib
-        out = []
+        vectors = []
         for text in texts:
             digest = hashlib.sha256(text.encode("utf-8")).digest()
-            v = [b / 127.5 - 1.0 for b in digest[:32]]
-            norm = sum(x * x for x in v) ** 0.5 or 1.0
-            out.append([x / norm for x in v])
-        return out
+            vector = [byte / 127.5 - 1.0 for byte in digest[:32]]
+            norm = sum(component * component for component in vector) ** 0.5 or 1.0
+            vectors.append([component / norm for component in vector])
+        return vectors
 
     def __init__(self, answers: Optional[Dict[str, object]] = None,
                  script_from_env: bool = False):

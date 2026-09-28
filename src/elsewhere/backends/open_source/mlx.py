@@ -18,18 +18,18 @@ def closed(schema: Any) -> Any:
     """Set ``additionalProperties: false`` on every object, so the grammar
     doesn't let the model invent fields."""
     if isinstance(schema, list):
-        return [closed(s) for s in schema]
+        return [closed(item) for item in schema]
     if not isinstance(schema, dict):
         return schema
-    out = {k: closed(v) for k, v in schema.items()}
-    if "properties" in out:
-        out.setdefault("additionalProperties", False)
-    return out
+    result = {key: closed(value) for key, value in schema.items()}
+    if "properties" in result:
+        result.setdefault("additionalProperties", False)
+    return result
 
 
 class MLXBackend:
     """Runs ``mlx-lm`` in-process with an ``llguidance`` token mask. Weights
-    load once per process. Thinking is off unless ``extra`` says otherwise.
+    load once per process. Thinking is off unless ``options`` says otherwise.
     Needs Apple silicon and ``pip install -e '.[mlx]'``."""
 
     name = "mlx"
@@ -46,16 +46,17 @@ class MLXBackend:
             from huggingface_hub import snapshot_download
             from mlx_lm import load
 
-            loaded, tokenizer, *_ = load(model)
-            where = Path(model) if Path(model).exists() \
+            weights, tokenizer, *_ = load(model)
+            directory = Path(model) if Path(model).exists() \
                 else Path(snapshot_download(model, local_files_only=True))
             # The model's own sampling defaults, except temperature.
             sampling: dict = {}
-            generation = where / "generation_config.json"
-            if generation.exists():
-                config = json.loads(generation.read_text(encoding="utf-8"))
-                sampling = {k: config[k] for k in ("top_p", "top_k") if k in config}
-            self._minds[model] = (loaded, tokenizer,
+            path = directory / "generation_config.json"
+            if path.exists():
+                generation = json.loads(path.read_text(encoding="utf-8"))
+                sampling = {key: generation[key] for key in ("top_p", "top_k")
+                            if key in generation}
+            self._minds[model] = (weights, tokenizer,
                                   llguidance.hf.from_tokenizer(tokenizer._tokenizer),
                                   sampling)
         return self._minds[model]
@@ -72,7 +73,7 @@ class MLXBackend:
                 [{"role": "system", "content": call.system},
                  {"role": "user", "content": call.user}],
                 add_generation_prompt=True,
-                **{"enable_thinking": False, **settings.extra})
+                **{"enable_thinking": False, **settings.options})
             matcher = llguidance.LLMatcher(
                 vocabulary,
                 llguidance.LLMatcher.grammar_from_json_schema(closed(call.schema)))
@@ -112,6 +113,7 @@ class MLXBackend:
             model, tokenizer = self._embedders[settings.model]
             batch = tokenizer(list(texts), padding=True, truncation=True,
                               return_tensors="np")
-            out = model(mx.array(batch["input_ids"]),
-                        attention_mask=mx.array(batch["attention_mask"]))
-            return [[float(x) for x in v] for v in out.text_embeds.tolist()]
+            output = model(mx.array(batch["input_ids"]),
+                           attention_mask=mx.array(batch["attention_mask"]))
+            return [[float(component) for component in vector]
+                    for vector in output.text_embeds.tolist()]

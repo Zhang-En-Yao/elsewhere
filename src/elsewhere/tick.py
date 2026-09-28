@@ -12,22 +12,19 @@ from .schemas import Action
 from .backends import Transcript
 from .world.chronicle import CONVERSATION
 from .world.entities import Being
-from .world.memories import Memory
 
 @dataclass
-class Said:
+class Turn:
     speaker: str
     listener: str
     utterance: str
     event_id: str
-    kept: List[Memory] = field(default_factory=list)
-    reshaped: Optional[Tuple[str, str]] = None      # (was, now)
 
 
 @dataclass
 class Talk:
     between: Tuple[str, str]
-    turns: List[Said] = field(default_factory=list)
+    turns: List[Turn] = field(default_factory=list)
 
     @property
     def speaker(self) -> str:
@@ -37,16 +34,11 @@ class Talk:
     def listener(self) -> str:
         return self.between[1]
 
-    @property
-    def kept(self) -> List[Memory]:
-        return [t for turn in self.turns for t in turn.kept]
-
 
 @dataclass
 class Occurrence:
     event_id: str
     account: str
-    kept: List[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -54,7 +46,6 @@ class Arrival:
     being_id: str
     event_id: str
     account: str
-    kept: List[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -62,7 +53,6 @@ class Departure:
     being_id: str
     event_id: str
     because: str = ""
-    kept: List[Memory] = field(default_factory=list)
 
 
 @dataclass
@@ -75,16 +65,12 @@ class TickReport:
     moves: List[Tuple[str, str, str]] = field(default_factory=list)   # who, from, to
     talks: List[Talk] = field(default_factory=list)
     missed: List[Tuple[str, str]] = field(default_factory=list)       # who, sought
-    silent: int = 0                                                    # minds that gave nothing
+    unanswered: int = 0                                                # minds that gave nothing
     occurrence: Optional[Occurrence] = None
     arrival: Optional[Arrival] = None
     departures: List[Departure] = field(default_factory=list)
-    reflections: Dict[str, dict] = field(default_factory=dict)
-
-
-def meet(world, a: Being, b: Being) -> None:
-    for x, y in ((a, b), (b, a)):
-        x.who.regard(y.id).last_seen_at = world.at
+    #: Who went over their day and wrote their page again.
+    settled: List[str] = field(default_factory=list)
 
 
 #: Ceiling on model calls per exchange; most end earlier when someone has
@@ -93,16 +79,17 @@ TURNS = 4
 
 
 def say(world, speaker: Being, listener: Being, configuration,
-         transcript: Optional[Transcript] = None) -> Optional[Said]:
-    utterance, associated_memory = agents.speak(world, speaker, listener,
-                                                configuration, transcript)
+         transcript: Optional[Transcript] = None) -> Optional[Turn]:
+    utterance = agents.speak(world, speaker, listener, configuration, transcript)
     if utterance is None:
         return None
 
-    here = [p.id for p in world.beings_at(speaker.where.place)]
-    viewpoints = {pid: (f"face to face with {speaker.name}" if pid == listener.id
-                     else f"nearby, within earshot of {speaker.name} and {listener.name}")
-               for pid in here if pid != speaker.id}
+    here = [being.id for being in world.beings_at(speaker.where.place)]
+    viewpoints = {being_id: (f"face to face with {speaker.name}" if being_id == listener.id
+                             else f"nearby, within earshot of {speaker.name} and {listener.name}")
+                  for being_id in here if being_id != speaker.id}
+    # Everyone here is informed, the speaker too, so the next turn is a reply
+    # to what was said.
     event = world.record(
         CONVERSATION,
         f'{speaker.name} said to {listener.name}: "{utterance}"',
@@ -110,136 +97,111 @@ def say(world, speaker: Being, listener: Being, configuration,
         involved=[speaker.id, listener.id],
         informed=here,
         data={"speaker": speaker.id, "listener": listener.id, "utterance": utterance,
-              "drawn_on": associated_memory.id if associated_memory else None,
               "viewpoints": viewpoints},
     )
-
-    reshaped = None
-    if associated_memory is not None:
-        before = associated_memory.account
-        if agents.recall(world, speaker, associated_memory, configuration, transcript):
-            reshaped = (before, associated_memory.account)
-
-    # The listener perceives the utterance too, so the next turn replies to it.
-    kept = []
-    for pid in here:
-        if pid == speaker.id:
-            continue
-        memory = agents.perceive(world, world.beings[pid], event, configuration, transcript)
-        if memory is not None:
-            kept.append(memory)
-    return Said(speaker.id, listener.id, utterance, event.id, kept, reshaped)
+    return Turn(speaker.id, listener.id, utterance, event.id)
 
 
-def converse(world, a: Being, b: Being, configuration,
+def converse(world, initiator: Being, respondent: Being, configuration,
              transcript: Optional[Transcript] = None) -> Optional[Talk]:
-    meet(world, a, b)
-    talk = Talk(between=(a.id, b.id))
-    speaker, listener = a, b
+    talk = Talk(between=(initiator.id, respondent.id))
+    speaker, listener = initiator, respondent
     for _ in range(TURNS):
-        said = say(world, speaker, listener, configuration, transcript)
-        if said is None:
+        turn = say(world, speaker, listener, configuration, transcript)
+        if turn is None:
             break
-        talk.turns.append(said)
+        talk.turns.append(turn)
         speaker, listener = listener, speaker
         if not speaker.present or speaker.where.place != listener.where.place:
             break
 
     if not talk.turns:
-        a.where.now(f"sat with {b.name}, saying little")
-        b.where.now(f"sat with {a.name}")
+        initiator.where.log(f"sat with {respondent.name}, saying little")
+        respondent.where.log(f"sat with {initiator.name}")
         return None
-    a.where.now(f"talked with {b.name}")
-    b.where.now(f"talked with {a.name}")
+    initiator.where.log(f"talked with {respondent.name}")
+    respondent.where.log(f"talked with {initiator.name}")
     return talk
 
 
 def tick(world, configuration, transcript: Optional[Transcript] = None) -> TickReport:
-    was = world.at
-    moved = schedule.advance_to_next_due(world)
-    if moved is None:
+    before = world.at
+    after = schedule.advance_to_next_due(world)
+    if after is None:
         return TickReport(label=world.label(), idle=True)
-    report = TickReport(label=world.label(), hours=world.at - was)
+    report = TickReport(label=world.label(), hours=after - before)
 
     # 0. Town and road first, so people can respond in the same step.
     if agents.may_stir(world):
         event = agents.stir(world, configuration, transcript)
         if event is not None:
             schedule.rouse(world, event.informed, about=event.involved)
-            kept = agents.perceive_all(world, event, configuration, transcript)
-            report.occurrence = Occurrence(event.id, event.account, kept)
+            report.occurrence = Occurrence(event.id, event.account)
     if agents.may_arrive(world):
         event = agents.arrive(world, configuration, transcript)
         if event is not None:
             schedule.rouse(world, event.informed, about=event.involved)
-            kept = agents.perceive_all(world, event, configuration, transcript)
-            report.arrival = Arrival(event.involved[0], event.id, event.account, kept)
+            report.arrival = Arrival(event.involved[0], event.id, event.account)
 
     # 1. Whoever is due decides, before anyone moves.
-    minds = schedule.due(world)
-    for being in minds:
+    due = schedule.due(world)
+    for being in due:
         decision = agents.act(world, being, configuration, transcript)
         report.decisions[being.id] = decision
         if not decision.answered:
-            report.silent += 1
+            report.unanswered += 1
 
     # 2. Movement. Departures happen before conversations, so anyone looking
     #    for the leaver finds them gone.
-    for being in minds:
-        d = report.decisions[being.id]
-        if d.action == Action.LEAVE:
-            event = agents.leave(world, being, d.because)
-            schedule.rouse(world, [p for p in event.informed if p != being.id],
+    for being in due:
+        decision = report.decisions[being.id]
+        if decision.action == Action.LEAVE:
+            event = agents.leave(world, being, decision.because)
+            schedule.rouse(world, [being_id for being_id in event.informed if being_id != being.id],
                            about=event.informed)
-            # Perceive before marking her gone, so she is still `present` for
-            # her own last look at the town.
-            kept = agents.perceive_all(world, event, configuration, transcript)
             being.when.left_at = world.at
-            being.where.now("took the road out of town")
-            report.departures.append(Departure(being.id, event.id, d.because, kept))
-        elif d.action == Action.MOVE and d.target is not None and d.target in world.places:
-            before = being.where.place
-            being.where.place = d.target
-            being.where.now(f"went to {world.places[d.target].name}")
-            report.moves.append((being.id, before, d.target))
-        elif d.action != Action.TALK:
-            being.where.now(d.doing or "stayed where they were")
+            being.where.log("took the road out of town")
+            report.departures.append(Departure(being.id, event.id, decision.because))
+        elif (decision.action == Action.MOVE and decision.target is not None
+              and decision.target in world.places):
+            origin = being.where.place
+            being.where.place = decision.target
+            being.where.log(f"went to {world.places[decision.target].name}")
+            report.moves.append((being.id, origin, decision.target))
+        elif decision.action != Action.TALK:
+            being.where.log(decision.doing or "stayed where they were")
 
     # 3. Conversations, among people still in the same place.
-    minds = [p for p in minds if p.present]
+    due = [being for being in due if being.present]
     engaged = set()
-    for being in minds:
-        d = report.decisions[being.id]
-        if d.action != Action.TALK or being.id in engaged:
+    for being in due:
+        decision = report.decisions[being.id]
+        if decision.action != Action.TALK or being.id in engaged:
             continue
-        other = world.beings.get(d.target or "")
-        if other is None:
+        addressee = world.beings.get(decision.target or "")
+        if addressee is None:
             continue
-        if not other.present or other.where.place != being.where.place:
-            being.where.now(f"went looking for {other.name}, who had gone")
-            report.missed.append((being.id, other.id))
+        if not addressee.present or addressee.where.place != being.where.place:
+            being.where.log(f"went looking for {addressee.name}, who had gone")
+            report.missed.append((being.id, addressee.id))
             continue
-        if other.id in engaged:
-            being.where.now(f"waited to speak with {other.name}")
+        if addressee.id in engaged:
+            being.where.log(f"waited to speak with {addressee.name}")
             continue
-        talk = converse(world, being, other, configuration, transcript)
-        engaged |= {being.id, other.id}
+        talk = converse(world, being, addressee, configuration, transcript)
+        engaged |= {being.id, addressee.id}
         if talk is not None:
             report.talks.append(talk)
-            # Only the listener is roused through `absorbed`.
-            schedule.rouse(world, [k.owner for k in talk.kept] + [other.id],
-                           about=[other.id])
+            # Only the one spoken to is roused; whoever overheard it has it
+            # in front of them the next time they look up anyway.
+            schedule.rouse(world, [addressee.id], about=[addressee.id])
 
-    # 4. Whoever is settling reflects on their day.
-    for being in minds:
-        if not being.present:
+    # 4. Whoever is stopping for the day goes over it.
+    for being in due:
+        if not being.present or not report.decisions[being.id].settling:
             continue
-        settling = being.id in report.decisions and report.decisions[being.id].settling
-        if not agents.may_reflect(world, being, settling):
-            continue
-        answer = agents.reflect(world, being, configuration, transcript)
-        if answer is not None:
-            report.reflections[being.id] = answer
+        if agents.settle(world, being, configuration, transcript):
+            report.settled.append(being.id)
 
     return report
 
@@ -251,7 +213,7 @@ def owed_hours(last_tick_at: Optional[float], now: float) -> float:
     return max(0.0, (now - last_tick_at) / 3600.0)
 
 
-def settle_clock(last_tick_at: Optional[float], now: float,
+def reconcile(last_tick_at: Optional[float], now: float,
                  lived: float, owed: float) -> float:
     """A capped backlog is dropped rather than carried forward."""
     if last_tick_at is None or lived < owed:

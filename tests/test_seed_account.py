@@ -1,8 +1,5 @@
-"""What `seed.build` says about the four events, as each one is taken in."""
+"""What `seed.build` leaves: a town, a past nobody has looked at yet, and a page each."""
 
-import contextlib
-import io
-import itertools
 import sys
 import tempfile
 import unittest
@@ -10,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import backends, seed
+from elsewhere import agents, backends, seed, tick
 from elsewhere.backends import Settings, register
 from elsewhere.backends.stub import StubBackend
 from elsewhere.schemas import CallName
@@ -19,59 +16,53 @@ from elsewhere.schemas import CallName
 class MakingAWorldTest(unittest.TestCase):
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name) / "world"
-        # Distinct memories per person, so "3 of 3" counts people, not copies.
-        counted = itertools.count()
-        register(StubBackend({
-            CallName.PERCEIVE: lambda call: {
-                "stuck": True, "feeling": "fear", "means": "",
-                "account": f"what {call.about} made of it ({next(counted)})"},
-        }))
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name) / "world"
+        self.stub = StubBackend()
+        register(self.stub)
 
     def tearDown(self):
-        self.tmp.cleanup()
+        self.temporary.cleanup()
         backends.bootstrap()          # the dial tone back, for whoever is next
 
     def configuration(self):
         settings = Settings(backend="stub", model="stub")
-        return {name: settings for name in CallName}
+        return {name: settings for name in (*CallName, "embed")}
 
-    def test_a_world_built_in_silence_says_nothing(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            seed.build(self.root, configuration=self.configuration())
-        self.assertEqual(out.getvalue(), "")
+    def test_making_a_world_asks_no_mind_anything(self):
+        seed.build(self.root)
+        self.assertEqual(self.stub.calls, [])
 
-    def test_each_event_is_accounted_for_as_it_is_taken_in(self):
-        said = []
-        seed.build(self.root, configuration=self.configuration(), say=said.append)
-        self.assertEqual(len(said), 4)
-        for line, category in zip(said, ("descent", "churning", "flood", "lifting")):
-            self.assertIn(category, line)
-            self.assertIn("3 of 3 kept", line)
+    def test_each_of_them_starts_with_the_page_they_were_written_with(self):
+        world = seed.build(self.root)
+        for being in world.beings.values():
+            self.assertTrue(being.who.notebook)
+            self.assertEqual([page.notebook for page in world.pages(being.id).all()],
+                             [being.who.notebook], "and it is the first page they have")
+            self.assertEqual(world.notes(being.id).all(), [], "and nothing noted yet")
 
-    def test_with_no_mind_there_is_nothing_to_account_for(self):
-        said = []
-        seed.build(self.root, configuration=None, say=said.append)
-        self.assertEqual(said, [])
+    def test_the_past_has_reached_them_and_they_have_not_looked_at_it(self):
+        world = seed.build(self.root)
+        for being in world.beings.values():
+            seen = agents.unseen(world, being)
+            self.assertEqual([event.id for event, _ in seen],
+                             [event.id for event in world.chronicle.all()])
+            for event, stood in seen:
+                self.assertEqual(stood, event.data["viewpoints"][being.id])
 
-    def test_what_stuck_is_what_comes_back(self):
-        world = seed.build(self.root, configuration=self.configuration())
-        event = world.chronicle.all()[0]
-        kept = seed.remember(world, event, self.configuration())
-        self.assertEqual(len(kept), len(event.informed))
-        self.assertEqual(sorted(memory.owner for memory in kept),
-                         sorted(event.informed))
-
-    def test_a_mind_that_keeps_nothing_is_not_counted_as_having_kept(self):
-        register(StubBackend({CallName.PERCEIVE: {"stuck": False}}))
-        said = []
-        world = seed.build(self.root, configuration=self.configuration(),
-                           say=said.append)
-        self.assertIn("0 of 3 kept", said[0])
-        self.assertEqual(seed.remember(world, world.chronicle.all()[0],
-                                       self.configuration()), [])
+    def test_the_first_morning_is_when_they_look_back_on_it(self):
+        world = seed.build(self.root)
+        self.stub.set(CallName.ACT, {"noted": "the rope, and the horn in front of me",
+                                     "action": "", "again_in_hours": 6.0})
+        tick.tick(world, self.configuration())
+        havvah = next(call for call in self.stub.calls
+                      if call.name == CallName.ACT and call.about == "p_havvah")
+        for event in world.chronicle.all():
+            self.assertIn(event.account, havvah.user)
+            self.assertIn(event.data["viewpoints"]["p_havvah"], havvah.user)
+        notes = world.notes("p_havvah").all()
+        self.assertEqual(len(notes), 1, "one thing kept of all of it, in her words")
+        self.assertEqual(notes[0].event_ids, [event.id for event in world.chronicle.all()])
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ class GeminiBackend(OpenAICompatibleBackend):
     """The /v1 backend with Gemini's address and Gemini's key filled in."""
 
     name = "gemini"
-    base = "https://generativelanguage.googleapis.com/v1beta/openai"
+    endpoint = "https://generativelanguage.googleapis.com/v1beta/openai"
 
     def _key(self) -> str:
         key = os.environ.get("GEMINI_API_KEY")

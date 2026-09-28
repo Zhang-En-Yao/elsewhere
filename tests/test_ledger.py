@@ -6,34 +6,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import prompts, retrieval, schemas, seed
+from elsewhere import prompts, schemas, seed
 from elsewhere.schemas import CallName
 from elsewhere.backends import Call, Settings, Transcript, ask, extract_json
 from elsewhere.backends.stub import StubBackend
 from elsewhere.world import store
-from elsewhere.world.entities import Being, Where, Who
-from elsewhere.world.memories import Memory
-
-
-def memory(**kw):
-    base = dict(id="m1", owner="p", at=100 * 24, account="the water rose over the fields",
-                means="I was frightened", feeling="fear",
-                occasions=[100 * 24])
-    base.update(kw)
-    return Memory(**base)
+from elsewhere.world.entities import Being, Who
 
 
 class TestWorldStore(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name) / "world"
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name) / "world"
 
     def tearDown(self):
-        self.tmp.cleanup()
+        self.temporary.cleanup()
 
     def test_a_world_survives_being_written_and_read(self):
         world = seed.build(self.root)
-        world.memories("p_havvah").add(memory(owner="p_havvah", at=world.at))
+        world.beings["p_havvah"].who.notebook = "the water, again"
+        world.beings["p_havvah"].when.seen_through = 3
+        world.beings["p_havvah"].when.settled_through = 2
         store.save(world)
 
         back = store.load(self.root)
@@ -42,18 +35,20 @@ class TestWorldStore(unittest.TestCase):
         self.assertEqual(len(back.beings), len(world.beings))
         self.assertEqual(back.beings["p_havvah"].who.card,
                          world.beings["p_havvah"].who.card)
-        self.assertEqual(len(back.memories("p_havvah")), 1)
+        self.assertEqual(back.beings["p_havvah"].who.notebook, "the water, again")
+        self.assertEqual(back.beings["p_havvah"].when.seen_through, 3)
+        self.assertEqual(back.beings["p_havvah"].when.settled_through, 2)
         self.assertEqual(len(back.chronicle), len(world.chronicle))
 
     def test_a_being_round_trips_through_its_three_parts(self):
         world = seed.build(self.root)
         havvah = world.beings["p_havvah"]
-        havvah.who.thought = "the water again"
-        havvah.where.now("standing at the edge of it")
+        havvah.who.notebook = "the water again"
+        havvah.where.log("standing at the edge of it")
         havvah.when.wake_at = world.at + 3.0
         store.save(world)
         back = store.load(self.root).beings["p_havvah"]
-        self.assertEqual(back.who.thought, "the water again")
+        self.assertEqual(back.who.notebook, "the water again")
         self.assertEqual(back.who.card, havvah.who.card)
         self.assertEqual(back.where.doing, "standing at the edge of it")
         self.assertEqual(back.when.wake_at, world.at + 3.0)
@@ -100,84 +95,12 @@ class TestWorldStore(unittest.TestCase):
 
     def test_two_ticks_cannot_run_at_once(self):
         self.root.mkdir(parents=True)
-        with store.tick_lock(self.root):
+        with store.TickLock(self.root):
             with self.assertRaises(store.Locked):
-                with store.tick_lock(self.root):
+                with store.TickLock(self.root):
                     pass
-        with store.tick_lock(self.root):      # released, so it can be taken again
+        with store.TickLock(self.root):      # released, so it can be taken again
             pass
-
-
-class TestRetrieval(unittest.TestCase):
-    def test_what_is_brought_up_stays_and_what_is_not_falls_behind(self):
-        never = memory(id="a")
-        told = memory(id="b", occasions=[100 * 24, 101 * 24, 300 * 24, 600 * 24])
-        at = (100 + 900) * 24
-        self.assertGreater(retrieval.activation(told, at),
-                           retrieval.activation(never, at))
-        self.assertEqual(
-            retrieval.recallable([never, told], at, limit=1)[0].id, "b")
-
-    def test_when_it_was_told_matters_and_not_only_how_often(self):
-        week = memory(occasions=[100 * 24, 101 * 24, 103 * 24, 106 * 24])
-        spread = memory(occasions=[100 * 24, 465 * 24, 830 * 24])
-        self.assertEqual(week.recalls, 3)
-        self.assertNotEqual(retrieval.activation(week, 1200 * 24),
-                            retrieval.activation(spread, 1200 * 24))
-
-    def test_a_memory_gets_further_away_the_longer_nobody_touches_it(self):
-        t = memory()
-        self.assertGreater(retrieval.activation(t, 110 * 24),
-                           retrieval.activation(t, 220 * 24))
-        self.assertGreater(retrieval.activation(t, 110 * 24),
-                           retrieval.activation(t, 110 * 24 + 6))
-
-    def test_only_a_handful_can_be_brought_to_mind(self):
-        memories = [memory(id=f"m{i}", at=100 * 24 - i, occasions=[100 * 24 - i])
-                  for i in range(20)]
-        got = retrieval.recallable(memories, 100 * 24, limit=6)
-        self.assertEqual(len(got), 6)
-        self.assertEqual(got[0].id, "m0")          # freshest first, all else equal
-        self.assertTrue(retrieval.out_of_reach(memories[-1], memories, 100 * 24))
-
-    def test_what_the_moment_is_about_pulls_its_own_subject_forward(self):
-        here, elsewhere_ = [1.0, 0.0], [0.0, 1.0]
-        plain = memory(id="a", at=99 * 24, occasions=[99 * 24], embedding=elsewhere_)
-        cued = memory(id="b", at=90 * 24, occasions=[90 * 24], embedding=here)
-        self.assertEqual(
-            retrieval.recallable([plain, cued], 110 * 24, here, limit=2)[0].id, "b")
-        # with no cue, the fresher memory wins
-        self.assertEqual(
-            retrieval.recallable([plain, cued], 110 * 24, limit=2)[0].id, "a")
-
-    def test_a_memory_with_no_vector_is_ranked_not_dropped(self):
-        no_vector = memory(id="a")
-        placed = memory(id="b", embedding=[1.0, 0.0])
-        got = retrieval.recallable([no_vector, placed], 101 * 24, [1.0, 0.0])
-        self.assertEqual({t.id for t in got}, {"a", "b"})
-
-    def test_nearness_survives_a_change_of_embedder(self):
-        self.assertEqual(retrieval.nearness([1.0, 0.0], [1.0, 0.0, 0.0]), 0.0)
-        self.assertEqual(retrieval.nearness([], [1.0]), 0.0)
-        self.assertAlmostEqual(retrieval.nearness([1.0, 0.0], [1.0, 0.0]), 1.0)
-
-    def test_something_out_of_reach_can_still_be_pointed_at(self):
-        old = memory(id="old", at=100 * 24, occasions=[100 * 24], embedding=[1.0, 0.0])
-        recent = [memory(id=f"n{i}", at=(800 + i) * 24, occasions=[(800 + i) * 24],
-                        embedding=[0.0, 1.0]) for i in range(6)]
-        at = 1000 * 24
-        self.assertTrue(retrieval.out_of_reach(old, [old] + recent, at))
-        self.assertFalse(retrieval.out_of_reach(old, [old] + recent, at,
-                                                cue=[1.0, 0.0]))
-
-    def test_rewriting_keeps_the_older_wording(self):
-        t = memory()
-        t.rewrite("something about a flood", at=200 * 24, feeling="fear")
-        self.assertEqual(t.account, "something about a flood")
-        self.assertEqual(t.history, ["the water rose over the fields"])
-        self.assertEqual(t.recalls, 1)
-        self.assertEqual(t.occasions[-1], 200 * 24,
-                         "the occasion is the record; there is no second copy of it")
 
 
 class TestAnswers(unittest.TestCase):
@@ -196,42 +119,42 @@ class TestAnswers(unittest.TestCase):
 
         def answer(call):
             attempts.append(call.user)
-            return ({"stuck": "a great deal"} if len(attempts) == 1
-                    else {"stuck": True})
+            return ({"notebook": 5} if len(attempts) == 1
+                    else {"notebook": "the water"})
 
-        backend = StubBackend({CallName.PERCEIVE: answer})
-        got = ask(backend, Call(CallName.PERCEIVE, "s", "u", schemas.PERCEIVE, "p_havvah"),
+        backend = StubBackend({CallName.SETTLE: answer})
+        got = ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "p_havvah"),
                   Settings(backend="stub", model="stub"))
-        self.assertEqual(got, {"stuck": True})
+        self.assertEqual(got, {"notebook": "the water"})
         self.assertEqual(len(attempts), 2)
         self.assertIn("not usable", attempts[1])
 
     def test_a_mind_that_never_makes_sense_is_simply_silent(self):
-        backend = StubBackend({CallName.PERCEIVE: "I am not going to answer that"})
-        got = ask(backend, Call(CallName.PERCEIVE, "s", "u", schemas.PERCEIVE, "p"),
+        backend = StubBackend({CallName.SETTLE: "I am not going to answer that"})
+        got = ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "p"),
                   Settings(backend="stub", model="stub"))
         self.assertIsNone(got)
 
     def test_every_exchange_is_written_to_the_tape(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            tape = Path(tmp) / "t.jsonl"
-            backend = StubBackend({CallName.PERCEIVE: {"stuck": True}})
-            ask(backend, Call(CallName.PERCEIVE, "s", "u", schemas.PERCEIVE, "p_havvah"),
+        with tempfile.TemporaryDirectory() as temporary:
+            tape = Path(temporary) / "t.jsonl"
+            backend = StubBackend({CallName.SETTLE: {"notebook": "the water"}})
+            ask(backend, Call(CallName.SETTLE, "s", "u", schemas.SETTLE, "p_havvah"),
                 Settings(backend="stub", model="stub"), Transcript(tape))
-            rows = [json.loads(l) for l in tape.read_text().splitlines()]
+            rows = [json.loads(line) for line in tape.read_text().splitlines()]
             self.assertEqual(len(rows), 1)
             self.assertTrue(rows[0]["ok"])
             self.assertEqual(rows[0]["about"], "p_havvah")
 
-    def test_a_feeling_is_not_chosen_from_a_list(self):
-        for name in (CallName.PERCEIVE, CallName.RECALL):
-            self.assertNotIn("enum", schemas.SCHEMA_BY_CALL_NAME[name]["properties"]["feeling"],
-                             f"{name} is telling people what they may feel")
-        clean, complaint = schemas.validate(
-            CallName.PERCEIVE, {"account": "the sound of it", "stuck": True,
-                         "feeling": "something close to relief, but not quite"})
+    def test_a_page_is_as_long_as_the_schema_says_and_no_longer(self):
+        most = schemas.NOTEBOOK_CHARACTERS
+        clean, complaint = schemas.validate(CallName.SETTLE, {"notebook": "x" * most})
         self.assertIsNone(complaint)
-        self.assertEqual(clean["feeling"], "something close to relief, but not quite")
+        clean, complaint = schemas.validate(CallName.SETTLE, {"notebook": "x" * (most + 1)})
+        self.assertIsNone(clean)
+        self.assertIn(f"at most {most}", complaint)
+        self.assertEqual(schemas.grammar(CallName.SETTLE)["properties"]["notebook"]["maxLength"],
+                         most, "the grammar carries the same limit to the decoder")
 
     def test_every_call_has_a_schema_and_a_grammar(self):
         for name in CallName:
@@ -246,64 +169,16 @@ class TestAnswers(unittest.TestCase):
 
     def test_a_misspelled_call_is_refused_when_it_is_made(self):
         with self.assertRaises(ValueError):
-            Call("perceeve", "s", "u", {})
+            Call("setle", "s", "u", {})
 
-    def test_a_memory_carries_nothing_nobody_reads(self):
-        t = memory()
-        self.assertEqual(
-            set(t.to_dict()) | {"means", "feeling", "embedding", "event_id",
-                                "history"},
-            {"id", "owner", "at", "account", "means", "feeling", "embedding",
-             "event_id", "occasions", "history"})
-        for gone in ("source", "touched_at", "heard", "about", "place",
-                     "salience"):
-            self.assertFalse(hasattr(t, gone), f"{gone} is back, and unread")
-
-    def test_what_a_memory_used_to_be_is_shown_to_somebody(self):
-        t = memory()
-        t.rewrite("water, and not being able to look away", at=200 * 24)
-        self.assertEqual(t.history, ["the water rose over the fields"])
-
-    def test_a_memory_carries_no_number_for_how_much_it_mattered(self):
-        self.assertNotIn("weight", schemas.PERCEIVE["properties"])
-        self.assertFalse(hasattr(schemas, "weight_to_salience"))
-        self.assertFalse(hasattr(Memory(id="m", owner="p", at=0.0, account="x"),
-                                 "salience"))
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class TestTheAnswerIsNotInTheQuestion(unittest.TestCase):
-
-    def being(self):
-        return Being(id="p_bezalel", name="Bezalel", who=Who(
-            card="You build what holds.",
-            thought="The roof is not finished and the rains are not waiting",
-            wants=["finish the roof"]))
-
-    def test_perceive_is_not_shown_the_one_sentence_shaped_like_its_answer(self):
-        being = self.being()
-        asked = prompts.perceive_user(
-            being=being, what_happened="Beth El came down in the night.",
-            where="Beth El", when="02:00 on Chaitra 3 waxing, in spring", at=200 * 24,
-            others=[], memories=[], part_of_it=True)
-        self.assertNotIn(being.who.thought, asked)
-        self.assertIn("You build what holds.", asked)     # who they are stays
-
-    def test_every_other_call_still_is(self):
-        being = self.being()
-        self.assertIn(being.who.thought, prompts.being_block(being))
-        self.assertIn(being.who.thought, prompts.reflect_user(being, [], []))
 
 
 class TestMannerIsAFactNotASpecification(unittest.TestCase):
 
     def test_the_seed_says_what_they_do_not_what_the_output_should_look_like(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        world = seed.build(Path(tmp.name) / "world")
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        world = seed.build(Path(temporary.name) / "world")
         spec = ("sentence", "short", "terse", "brief", "plain and", "words,")
         for being in world.beings.values():
             self.assertTrue(being.who.manner, f"{being.name} has no manner")
@@ -321,16 +196,5 @@ class TestMannerIsAFactNotASpecification(unittest.TestCase):
         self.assertIn("\nHow you talk: You say as little as will do.", block)
 
 
-class TestAnOccasionThatHasNotHappened(unittest.TestCase):
-    def test_a_later_telling_does_not_reach_back_and_hold_it_up(self):
-        later = memory(occasions=[100 * 24, 1100 * 24])
-        alone = memory(occasions=[100 * 24])
-        self.assertEqual(retrieval.activation(later, 110 * 24),
-                         retrieval.activation(alone, 110 * 24))
-        self.assertGreater(retrieval.activation(later, 1200 * 24),
-                           retrieval.activation(alone, 1200 * 24))
-
-    def test_nothing_has_happened_yet_at_all(self):
-        never = memory(occasions=[500 * 24])
-        self.assertEqual(retrieval.chance(retrieval.activation(never, 100 * 24)), 0.0)
-        self.assertEqual(retrieval.recallable([never], 100 * 24), [])
+if __name__ == "__main__":
+    unittest.main()

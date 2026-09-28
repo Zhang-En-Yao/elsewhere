@@ -8,11 +8,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 class CallName(str, Enum):
-    PERCEIVE = "perceive"
     ACT = "act"
     SPEAK = "speak"
-    RECALL = "recall"
-    REFLECT = "reflect"
+    SETTLE = "settle"
     STIR = "stir"
     ARRIVE = "arrive"
     PROBE = "probe"    # health check, not a person's call
@@ -33,33 +31,26 @@ class Action(str, Enum):
 
 # Nothing to resolve is the empty string, as it is for `target`.
 NO_ACTION = ""
-ACTIONS = [Action.MOVE, Action.TALK]
+#: Offered every time; `Action.LEAVE` only where the road goes out.
+ALWAYS_OFFERED = [Action.MOVE, Action.TALK]
 
 # Under a grammar keys are generated in declaration order, so every schema puts
 # reasoning first and the decision last.
-PERCEIVE = {
-    "type": "object",
-    "properties": {
-        "account": {"type": "string"},
-        "means": {"type": "string"},
-        "feeling": {"type": "string"},
-        "stuck": {"type": "boolean"},
-    },
-    "required": [],
-}
-
 ACT = {
     "type": "object",
     "properties": {
+        # What they keep of what just reached them, in their own words; "" for
+        # nothing. The only thing that writes a `Note`, with SPEAK's.
+        "noted": {"type": "string"},
         "because": {"type": "string"},
         "doing": {"type": "string"},
-        "action": {"type": "string", "enum": [NO_ACTION] + ACTIONS + [Action.LEAVE]},
+        "action": {"type": "string", "enum": [NO_ACTION] + ALWAYS_OFFERED + [Action.LEAVE]},
         "target": {"type": "string"},
         # The only thing that schedules a person's next turn; see `schedule`.
-        "for_hours": {"type": "number"},
-        # Ending the day; the only trigger for `reflect`.
+        "again_in_hours": {"type": "number"},
+        # Ending the day; the only trigger for `settle`.
         "settling": {"type": "boolean"},
-        # Ignore ambient events until `for_hours` is up; events aimed at them
+        # Ignore ambient events until `again_in_hours` is up; events aimed at them
         # still get through.
         "absorbed": {"type": "boolean"},
     },
@@ -69,38 +60,23 @@ ACT = {
 SPEAK = {
     "type": "object",
     "properties": {
-        "memory_reference": {"type": "string"},
+        "noted": {"type": "string"},
         "utterance": {"type": "string"},
     },
     "required": ["utterance"],
 }
 
-RECALL = {
-    "type": "object",
-    "properties": {
-        "account": {"type": "string"},
-        "means": {"type": "string"},
-        "feeling": {"type": "string"},
-    },
-    "required": ["account"],
-}
+#: The one number the world has about memory: how much of a life one person
+#: can carry from one day to the next. What goes when it is full is theirs.
+NOTEBOOK_CHARACTERS = 1500
 
-# Flat on purpose: small models cannot reliably fill nested lists under a grammar.
-REFLECT = {
+SETTLE = {
     "type": "object",
     "properties": {
-        "thought": {"type": "string"},
-        "belief": {"type": "string"},
-        "origin_reference": {"type": "string"},
-        # Index of an existing belief this restates; asked of the model because
-        # sameness of meaning cannot be decided by word overlap.
-        "restated_reference": {"type": "string"},
-        "want": {"type": "string"},
-        # The only thing that rewrites a `Regard` (one side of it).
-        "about_someone": {"type": "string"},
-        "now_say": {"type": "string"},
+        # The whole page, rewritten; the only thing that writes `Who.notebook`.
+        "notebook": {"type": "string", "maxLength": NOTEBOOK_CHARACTERS},
     },
-    "required": [],
+    "required": ["notebook"],
 }
 
 REACH = ["the people there", "the whole town"]
@@ -115,7 +91,7 @@ STIR = {
         "reach": {"type": "string", "enum": REACH},
         "happens": {"type": "boolean"},
         # The only thing that paces how often the town is asked.
-        "ask_again_in_hours": {"type": "number"},
+        "again_in_hours": {"type": "number"},
     },
     "required": ["happens"],
 }
@@ -128,11 +104,11 @@ ARRIVE = {
         "from_where": {"type": "string"},
         "card": {"type": "string"},
         "manner": {"type": "string"},
-        "comes": {"type": "boolean"},
+        "happens": {"type": "boolean"},
         # The only thing that paces arrivals.
-        "ask_again_in_hours": {"type": "number"},
+        "again_in_hours": {"type": "number"},
     },
-    "required": ["comes"],
+    "required": ["happens"],
 }
 
 PROBE = {
@@ -142,9 +118,8 @@ PROBE = {
 }
 
 SCHEMA_BY_CALL_NAME: Dict[CallName, dict] = {
-    CallName.PERCEIVE: PERCEIVE, CallName.ACT: ACT, CallName.SPEAK: SPEAK,
-    CallName.RECALL: RECALL, CallName.REFLECT: REFLECT, CallName.STIR: STIR,
-    CallName.ARRIVE: ARRIVE, CallName.PROBE: PROBE,
+    CallName.ACT: ACT, CallName.SPEAK: SPEAK, CallName.SETTLE: SETTLE,
+    CallName.STIR: STIR, CallName.ARRIVE: ARRIVE, CallName.PROBE: PROBE,
 }
 
 
@@ -162,8 +137,8 @@ def validate(name: CallName, data: Any) -> Tuple[Optional[dict], Optional[str]]:
         return None, "the answer must be a single JSON object"
 
     clean: Dict[str, Any] = {}
-    props = schema.get("properties", {})
-    for key, rule in props.items():
+    properties = schema.get("properties", {})
+    for key, rule in properties.items():
         if key not in data:
             continue
         value = data[key]
@@ -182,6 +157,10 @@ def validate(name: CallName, data: Any) -> Tuple[Optional[dict], Optional[str]]:
             if allowed and value not in allowed:
                 return None, (f"{key!r} must be one of {', '.join(allowed)}; "
                               f"{value!r} is not")
+            maximum = rule.get("maxLength")
+            if maximum is not None and len(value) > maximum:
+                return None, (f"{key!r} is {len(value)} characters and can hold "
+                              f"at most {maximum}; let go of what matters least")
         elif kind == "array":
             if not isinstance(value, list):
                 return None, f"{key!r} must be a list, not {value!r}"
@@ -213,14 +192,8 @@ def act_grammar(places: List[str], beings: List[str],
     options = [""] + sorted(set(places) | set(beings))
     schema["properties"]["target"] = {"type": "string", "enum": options}
     schema["properties"]["action"] = {
-        "type": "string", "enum": [NO_ACTION] + ACTIONS + ([Action.LEAVE] if may_leave else [])}
-    return schema
-
-
-def speak_grammar(topics: int) -> dict:
-    schema = grammar(CallName.SPEAK)
-    choices = ["nothing in particular"] + [str(i) for i in range(1, topics + 1)]
-    schema["properties"]["memory_reference"] = {"type": "string", "enum": choices}
+        "type": "string",
+        "enum": [NO_ACTION] + ALWAYS_OFFERED + ([Action.LEAVE] if may_leave else [])}
     return schema
 
 
@@ -230,14 +203,3 @@ def stir_grammar(places: List[str], beings: List[str]) -> dict:
     schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(beings)}
     return schema
 
-
-def reflect_grammar(sources: int, held: int = 0,
-                    known: Optional[List[str]] = None) -> dict:
-    schema = grammar(CallName.REFLECT)
-    schema["properties"]["origin_reference"] = {
-        "type": "string", "enum": [""] + [str(i) for i in range(1, sources + 1)]}
-    schema["properties"]["restated_reference"] = {
-        "type": "string", "enum": [""] + [str(i) for i in range(1, held + 1)]}
-    schema["properties"]["about_someone"] = {
-        "type": "string", "enum": [""] + sorted(known or [])}
-    return schema

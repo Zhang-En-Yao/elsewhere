@@ -1,4 +1,4 @@
-# Elsewhere - v2
+# Elsewhere
 
 PY ?= python3
 

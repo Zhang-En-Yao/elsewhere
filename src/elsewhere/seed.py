@@ -1,7 +1,10 @@
 """The starting world: three people, one town, and four past events.
 
-The history is authored; what it meant to each person is not - opening
-memories come from running each event through `perceive`, like any later event.
+The history is authored, and so is the page each person starts with; what the
+history left in them is not. The backstory has reached everyone and nobody has
+looked at it yet, so the first thing each of them does on the first morning is
+see it, note what they keep of it, and go over that the first evening - like
+any later day.
 
 Events are canonical Hindu myths (Ganga's descent, the churning, Matsya's
 deluge, Govardhan lifted), each dated on its own festival in the Hindu calendar.
@@ -18,17 +21,16 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from . import agents
-from .configuration import load_configuration, write_default_configuration
-from . import HOURS_PER_DAY
+from . import HOURS_PER_DAY, configuration
 from .world.chronicle import Chronicle
 from .world.entities import (Being, Place, Where, Who,
                              ways_from_neighbours)
+from .world.pages import Page
 from .world.store import (DAYS_PER_MONTH, DAYS_PER_YEAR, TITHIS_PER_PAKSHA,
                           World, save)
 
 
-def on(year: int, month: int, tithi: int, paksha: str, hour: float) -> float:
+def moment(year: int, month: int, tithi: int, paksha: str, hour: float) -> float:
     """`tithi` is 1-15 within the `paksha` ("waxing" first, amanta months)."""
     if paksha not in ("waxing", "waning"):
         raise ValueError(f"a fortnight waxes or wanes: {paksha!r}")
@@ -39,81 +41,46 @@ def on(year: int, month: int, tithi: int, paksha: str, hour: float) -> float:
     return (day - 1) * HOURS_PER_DAY + hour
 
 
-DESCENT = on(1, 3, 10, "waxing", 11.0)     # Jyeshtha 10 waxing: Ganga Dussehra
-CHURNING = on(1, 12, 14, "waning", 2.0)    # Phalguna 14 waning: Maha Shivaratri
-DELUGE = on(2, 1, 3, "waxing", 4.0)        # Chaitra 3 waxing: Matsya Jayanti
-LIFTING = on(2, 8, 1, "waxing", 14.0)      # Kartika 1 waxing: Govardhan Puja
+DESCENT = moment(1, 3, 10, "waxing", 11.0)     # Jyeshtha 10 waxing: Ganga Dussehra
+CHURNING = moment(1, 12, 14, "waning", 2.0)    # Phalguna 14 waning: Maha Shivaratri
+DELUGE = moment(2, 1, 3, "waxing", 4.0)        # Chaitra 3 waxing: Matsya Jayanti
+LIFTING = moment(2, 8, 1, "waxing", 14.0)      # Kartika 1 waxing: Govardhan Puja
 
 #: Chaitra 1 waxing: new year's morning, two years of past behind it.
-START_AT = on(3, 1, 1, "waxing", 8.0)
+START_AT = moment(3, 1, 1, "waxing", 8.0)
 START_DAY = int(START_AT // HOURS_PER_DAY) + 1
 
 
-def add_place(world: World, neighbours: dict, pid: str, name: str,
-               description: str, adjacent, road: bool = False):
-    world.places[pid] = Place(id=pid, name=name, description=description)
-    neighbours[pid] = list(adjacent)
+def add_place(world: World, neighbours: dict, place_id: str, name: str,
+              description: str, adjacent, road: bool = False):
+    world.places[place_id] = Place(id=place_id, name=name, description=description)
+    neighbours[place_id] = list(adjacent)
     if road:
-        world.map.road = pid
+        world.map.road = place_id
 
 
-def add_being(world: World, bid: str, name: str, card: str, manner: str,
-               thought: str, wants, place: str, home: str) -> None:
-    world.beings[bid] = Being(
-        id=bid, name=name,
-        who=Who(card=card, manner=manner, thought=thought, wants=wants),
+def add_being(world: World, being_id: str, name: str, card: str, manner: str,
+              notebook: str, place: str, home: str) -> None:
+    world.beings[being_id] = Being(
+        id=being_id, name=name,
+        who=Who(card=card, manner=manner, notebook=notebook),
         where=Where(place=place, home=home),
     )
 
 
-def add_regard(world: World, holder: str, subject: str, account: str,
-               days_ago: float) -> None:
-    regard = world.beings[holder].who.regard(subject)
-    regard.account = account
-    regard.last_seen_at = START_AT - days_ago * HOURS_PER_DAY
-
-
-def clear_world(root: Path) -> None:
+def clear(root: Path) -> None:
     """Needed because the chronicle is append-only. Transcripts are kept."""
     import shutil
 
     (root / "chronicle.jsonl").unlink(missing_ok=True)
     (root / "world.json").unlink(missing_ok=True)
-    for sub in ("beings", "memories"):
-        shutil.rmtree(root / sub, ignore_errors=True)
+    for directory in ("beings", "notes", "pages"):
+        shutil.rmtree(root / directory, ignore_errors=True)
 
 
-def remember(world: World, event, configuration, transcript=None) -> list:
-    """Call right after `world.record`, while the clock is at the event.
-    Every informed being must have a viewpoint."""
-    if configuration is None:
-        return []
-    stood = event.data.get("viewpoints") or {}
-    missing = [pid for pid in event.informed if pid not in stood]
-    if missing:
-        raise ValueError(f"{event.category}: no viewpoint for {missing}")
-    kept = []
-    for pid in event.informed:
-        memory = agents.perceive(world, world.beings[pid], event, configuration,
-                                 transcript)
-        if memory is not None:
-            kept.append(memory)
-    return kept
-
-
-def past(world: World, event, configuration, transcript, say) -> None:
-    started = time.time()
-    kept = remember(world, event, configuration, transcript)
-    if configuration is None:
-        return
-    say(f"  {event.category:<9} {len(kept)} of {len(event.informed)} kept "
-        f"something of it  ({time.time() - started:.0f}s)")
-
-
-def build(root, name: str = "Nod", configuration=None, transcript=None,
-          say=lambda line: None) -> World:
+def build(root, name: str = "Nod") -> World:
     root = Path(root)
-    clear_world(root)
+    clear(root)
     world = World(root=root, name=name, at=0.0)
     world.chronicle = Chronicle(root / "chronicle.jsonl")
     neighbours: dict = {}
@@ -167,8 +134,13 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
               "it than about the fish."),
         manner="You answer the question that was asked, and not the "
                "one behind it.",
-        thought="The seams over the stern end are opening and the rains are not waiting",
-        wants=["get the seams over Beth El closed before the rains come back"],
+        notebook=("The seams over the stern end are opening, and the rains are "
+                  "not waiting. I want them closed over Beth El before the rains "
+                  "come back.\n"
+                  "Havvah: seven days under the hill and she never once asked "
+                  "how. She is easy to be quiet with. Saw her yesterday.\n"
+                  "Lilith: restless. Not unkind. Not seen her since the week "
+                  "before last."),
         place="yard", home="bethel",
     )
     add_being(
@@ -184,9 +156,11 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
               "let them see."),
         manner="You say as little as will do, and you leave the "
                "important part unsaid.",
-        thought="Somebody was at the garden's edge again and I did not look up",
-        wants=["get the new seedbed through one more season",
-               "not be asked about the water"],
+        notebook=("Somebody was at the garden's edge again and I did not look "
+                  "up. I want the new seedbed through one more season, and not "
+                  "to be asked about the water.\n"
+                  "Bezalel: he works too late. Good hands. Yesterday.\n"
+                  "Lilith: young. Always about to go somewhere. Six days since."),
         place="garden", home="garden",
     )
     add_being(
@@ -199,22 +173,19 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
               "and grounded at your feet, and that is when you "
               "understood that the valley has an outside."),
         manner="You are quick, and sharper than you mean to be.",
-        thought="The road past Mizpah goes somewhere and nobody here has asked where",
-        wants=["walk the road past Mizpah as far as it goes, one day"],
+        notebook=("The road past Mizpah goes somewhere and nobody here has "
+                  "asked where. One day I will walk it as far as it goes.\n"
+                  "Havvah: she is kind and she will never leave this place. Six "
+                  "days since I saw her.\n"
+                  "Bezalel: he would rebuild this whole place plank by plank "
+                  "and never ask why. Not since the week before last."),
         place="mizpah", home="sinai",
     )
 
-    add_regard(world, "p_bezalel", "p_havvah", "Seven days under the hill and she never once asked how. She is easy to be quiet with.", 1)
-    add_regard(world, "p_havvah", "p_bezalel", "He works too late. Good hands.", 1)
-    add_regard(world, "p_havvah", "p_lilith", "Young. Always about to go somewhere.", 6)
-    add_regard(world, "p_lilith", "p_havvah", "She is kind and she will never leave this place.", 6)
-    add_regard(world, "p_bezalel", "p_lilith", "Restless. Not unkind.", 11)
-    add_regard(world, "p_lilith", "p_bezalel", "He would rebuild this whole place plank by plank and never ask why.", 11)
-
     # Viewpoints are bare positions: descriptive phrasing gets copied verbatim
-    # into the memories.
+    # into what people write.
     world.at = DESCENT
-    event = world.record("descent",
+    world.record("descent",
                          "The river came down. It came out of the sky onto the "
                          "ledge under Mizpah and it would have opened the ground, "
                          "except that it came down onto a man's head first and out "
@@ -230,9 +201,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                              "p_havvah": "further down the valley, watching the dust go dark all at once",
                              "p_lilith": "up on Mizpah, nearest to where it came down, wet through",
                          }})
-    past(world, event, configuration, transcript, say)
     world.at = CHURNING
-    event = world.record("churning",
+    world.record("churning",
                          "Marah was pulled one way and then the other all night, "
                          "around Sinai, which had been stood up in the middle of it "
                          "for them to pull against, by two crowds with a hold on "
@@ -249,9 +219,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                              "p_havvah": "well back from the water, on the high side, out of the way of both crowds",
                              "p_lilith": "down at the edge of it, as close as she was let, watching the near side's feet",
                          }})
-    past(world, event, configuration, transcript, say)
     world.at = DELUGE
-    event = world.record("flood",
+    world.record("flood",
                          "The fish Havvah had kept since it was small - out of the "
                          "jar, out of the trough, out of the tank, and into Marah "
                          "when there was nowhere left to put it - came back and said "
@@ -267,9 +236,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                              "p_havvah": "in the stern of the boat, with the seed she had been told to bring",
                              "p_lilith": "on Mizpah, above all of it, watching the valley go under and then the boat come up to her",
                          }})
-    past(world, event, configuration, transcript, say)
     world.at = LIFTING
-    event = world.record("lifting",
+    world.record("lifting",
                          "It rained for seven days without stopping, hard enough to "
                          "take the first of the new planting apart, and for those "
                          "seven days Sinai stood up off its own ground with the three "
@@ -286,9 +254,11 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                              "p_lilith": "at the edge of it, out in the rain, looking up at the underside of the hill",
                              "p_havvah": "underneath it, with what she had got out of the beds in her skirt",
                          }})
-    past(world, event, configuration, transcript, say)
 
     world.at = START_AT
+    # The page they were written with is the first page they wrote.
+    for being in world.beings.values():
+        world.pages(being.id).append(Page(at=world.at, notebook=being.who.notebook))
     # Everything starts due; from here on every timer is set by its owner.
     world.town_wake_at = START_AT
     world.road_wake_at = START_AT
@@ -297,11 +267,10 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
     return world
 
 
-def create(root, name: str = "Nod", transcript=None, say=lambda line: None) -> World:
-    write_default_configuration(root)
-    world = build(root, name=name, configuration=load_configuration(root),
-                  transcript=transcript, say=say)
-    world.news_seen = len(world.chronicle)     # the backstory is not news
+def create(root, name: str = "Nod") -> World:
+    configuration.write_default(root)
+    world = build(root, name=name)
+    world.read_through = len(world.chronicle)     # the backstory is not news
     world.last_tick_at = time.time()           # nothing is owed from before it began
     save(world)
     return world
