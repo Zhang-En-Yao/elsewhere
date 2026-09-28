@@ -64,7 +64,7 @@ class Road(unittest.TestCase):
 
 class TestWhetherAnyoneCanGoAtAll(Road):
     def test_only_from_where_the_road_goes_out(self):
-        self.assertEqual(agents.leaving_place(self.world).id, "mizpah")
+        self.assertEqual(self.world.places.get(self.world.map.road).id, "mizpah")
         self.assertTrue(agents.may_leave(self.world, self.lilith))
         self.lilith.where.place = "yard"
         self.assertFalse(agents.may_leave(self.world, self.lilith),
@@ -126,7 +126,7 @@ class TestGoing(Road):
         report = self.send_lilith_away()
         event = self.world.chronicle.get(report.departures[0].event_id)
         self.assertEqual(event.category, chronicle.DEPARTURE)
-        self.assertEqual(sorted(event.reached), sorted(self.world.beings))
+        self.assertEqual(sorted(event.informed), sorted(self.world.beings))
         havvah = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_havvah")
         self.assertIn("word of it reached you", havvah.user)
 
@@ -302,18 +302,25 @@ class TestComing(Road):
         self.after_a_gap()
         self.assertEqual(len(self.present()), before + 1)
 
-    def test_a_name_the_town_already_uses_is_refused(self):
+    def test_a_name_the_town_already_uses_is_not_refused(self):
+        """Two people can share a name; the road doesn't judge meaning,
+        only whether someone can be reached - arrival time tells them apart."""
         self.send_lilith_away()
         self.stub.set(CallName.ARRIVE, {**SOMEBODY, "name": "Havvah"})
         report = self.after_a_gap()
-        self.assertIsNone(report.arrival)
-        self.assertEqual(len(self.present()), 2)
+        self.assertIsNotNone(report.arrival)
+        self.assertEqual(len(self.present()), 3)
+        havvahs = [p for p in self.world.beings.values()
+                  if p.present and p.name == "Havvah"]
+        self.assertEqual(len(havvahs), 2)
+        self.assertNotEqual(havvahs[0].when.arrived_at, havvahs[1].when.arrived_at)
 
     def test_so_is_coming_back_under_the_same_name(self):
         self.send_lilith_away()
         self.stub.set(CallName.ARRIVE, {**SOMEBODY, "name": "Lilith"})
         report = self.after_a_gap()
-        self.assertIsNone(report.arrival, "Lilith is gone, and her name went with her")
+        self.assertIsNotNone(report.arrival, "the name is free to use again - the person is not the same")
+        self.assertEqual(len(self.present()), 3)
 
 
 class TestReading(Road):

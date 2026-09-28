@@ -86,7 +86,7 @@ class TestStir(Town):
                                  "reach": "the whole town",                                  "happens": True})
         report = tick_mod.tick(self.world, configuration())
         event = self.world.chronicle.get(report.occurrence.event_id)
-        self.assertEqual(sorted(event.reached), sorted(self.world.beings))
+        self.assertEqual(sorted(event.informed), sorted(self.world.beings))
         perceived = sorted(c.about for c in self.calls(CallName.PERCEIVE))
         self.assertEqual(perceived, sorted(self.world.beings))
         lilith = next(c for c in self.calls(CallName.PERCEIVE) if c.about == "p_lilith")

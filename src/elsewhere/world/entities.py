@@ -198,8 +198,8 @@ class Map:
     """Adjacency is stored once per unordered pair, so ways are always two-way."""
 
     ways: List[List[str]] = field(default_factory=list)
-    #: Where the road out of the world leaves; "" if there is none.
-    road_out: str = ""
+    #: Where the one road to and from the world touches down; "" if there is none.
+    road: str = ""
 
     def beside(self, place_id: str) -> List[str]:
         neighbours = set()
@@ -214,12 +214,12 @@ class Map:
         return other_id in self.beside(place_id)
 
     def to_dict(self) -> dict:
-        return {"ways": [list(way) for way in self.ways], "road_out": self.road_out}
+        return {"ways": [list(way) for way in self.ways], "road": self.road}
 
     @classmethod
     def from_dict(cls, data: dict) -> "Map":
         return cls(ways=[list(way) for way in data.get("ways", [])],
-                   road_out=data.get("road_out", ""))
+                   road=data.get("road", ""))
 
 
 def ways_from_neighbours(neighbours: Dict[str, List[str]]) -> List[List[str]]:

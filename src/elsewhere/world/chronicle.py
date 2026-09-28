@@ -28,12 +28,12 @@ class Event:
     account: str
     place: Optional[str] = None
 
-    #: `involved`: who it happened to. `reached`: everyone it got to, who are
+    #: `involved`: who it happened to. `informed`: everyone it got to, who are
     #: then asked to perceive it.
     involved: List[str] = field(default_factory=list)
-    reached: List[str] = field(default_factory=list)
+    informed: List[str] = field(default_factory=list)
 
-    #: Category-specific extras, e.g. speaker or per-person vantage.
+    #: Category-specific extras, e.g. speaker or per-person viewpoints.
     data: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -44,7 +44,7 @@ class Event:
         return cls(id=d["id"], at=float(d["at"]), category=d["category"],
                    account=d["account"], place=d.get("place"),
                    involved=list(d.get("involved", [])),
-                   reached=list(d.get("reached", [])),
+                   informed=list(d.get("informed", [])),
                    data=dict(d.get("data", {})))
 
 

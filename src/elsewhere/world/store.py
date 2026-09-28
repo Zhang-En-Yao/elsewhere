@@ -164,11 +164,11 @@ class World:
 
     def record(self, category: str, account: str, *, place: Optional[str] = None,
                involved: Optional[List[str]] = None,
-               reached: Optional[List[str]] = None,
+               informed: Optional[List[str]] = None,
                data: Optional[dict] = None) -> Event:
         event = Event(id=self.next_id("ev"), at=self.at,
                       category=category, account=account, place=place,
-                      involved=list(involved or []), reached=list(reached or []),
+                      involved=list(involved or []), informed=list(informed or []),
                       data=dict(data or {}))
         return self.chronicle.append(event)
 

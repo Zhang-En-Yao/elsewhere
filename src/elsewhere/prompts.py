@@ -144,7 +144,7 @@ PERCEIVE_EXAMPLE_MEMORIES = (
 
 def perceive_user(being: Being, what_happened: str, where: str, when: str,
                   at: float, others: Sequence[Being], memories: Sequence[Memory],
-                  part_of_it: bool, vantage: str = "") -> str:
+                  part_of_it: bool, viewpoint: str = "") -> str:
     """Scene first, person last: small models weight the end of the prompt
     most, so a card at the top gets drowned by the scene.
 
@@ -155,8 +155,8 @@ def perceive_user(being: Being, what_happened: str, where: str, when: str,
         f"It was {when}, at {where}.",
         ("What happened to you: " if part_of_it else "What happened: ")
         + what_happened,
-        (f"You were {vantage}. That is where you stood, not what you noticed - "
-         f"do not reuse its words.") if vantage else "",
+        (f"You were {viewpoint}. That is where you stood, not what you noticed - "
+         f"do not reuse its words.") if viewpoint else "",
         regards_block(being, others, at).replace("Who is here:", "Who else was there:"),
         memories_block(memories),
         being_block(being, with_thought=False),

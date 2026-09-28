@@ -279,7 +279,7 @@ Leaving and arriving go through the same engine-decides/mind-decides split as
 everything else, but the facts checked are about the map, not about wants:
 
 - `agents.may_leave(world, person)` — does the road go out from where they are
-  standing (`world.map.road_out`). Only if it does does `leave` enter the
+  standing (`world.map.road`). Only if it does does `leave` enter the
   grammar `act` is asked under. Whether to take it, and at what hour, is theirs.
 - `agents.may_arrive(world)` — has the road's own timer come round. `short_of_somebody` is a fact shown *to*
   the road rather than the engine's reason for asking it.
@@ -323,7 +323,7 @@ Two consequences worth naming:
 
 `Place` is prose and nothing else — an id, a name, a description. Which places
 touch which is a fact about the town, not about a place, and lives in
-`World.map` as one entry per way. A one-way path is not writable. `road_out`
+`World.map` as one entry per way. A one-way path is not writable. `road`
 lives there too: there is one edge to this world, and it belongs to the world
 rather than to whichever place sits on it.
 

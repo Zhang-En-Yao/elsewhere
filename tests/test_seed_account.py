@@ -60,9 +60,9 @@ class MakingAWorldTest(unittest.TestCase):
         world = seed.build(self.root, configuration=self.configuration())
         event = world.chronicle.all()[0]
         kept = seed.remember(world, event, self.configuration())
-        self.assertEqual(len(kept), len(event.reached))
+        self.assertEqual(len(kept), len(event.informed))
         self.assertEqual(sorted(memory.owner for memory in kept),
-                         sorted(event.reached))
+                         sorted(event.informed))
 
     def test_a_mind_that_keeps_nothing_is_not_counted_as_having_kept(self):
         register(StubBackend({CallName.PERCEIVE: {"stuck": False}}))

@@ -50,11 +50,11 @@ START_DAY = int(START_AT // HOURS_PER_DAY) + 1
 
 
 def add_place(world: World, neighbours: dict, pid: str, name: str,
-               description: str, adjacent, road_out: bool = False):
+               description: str, adjacent, road: bool = False):
     world.places[pid] = Place(id=pid, name=name, description=description)
     neighbours[pid] = list(adjacent)
-    if road_out:
-        world.map.road_out = pid
+    if road:
+        world.map.road = pid
 
 
 def add_being(world: World, bid: str, name: str, card: str, manner: str,
@@ -85,15 +85,15 @@ def clear_world(root: Path) -> None:
 
 def remember(world: World, event, configuration, transcript=None) -> list:
     """Call right after `world.record`, while the clock is at the event.
-    Every reached being must have a vantage."""
+    Every informed being must have a viewpoint."""
     if configuration is None:
         return []
-    stood = event.data.get("vantage") or {}
-    missing = [pid for pid in event.reached if pid not in stood]
+    stood = event.data.get("viewpoints") or {}
+    missing = [pid for pid in event.informed if pid not in stood]
     if missing:
-        raise ValueError(f"{event.category}: no vantage for {missing}")
+        raise ValueError(f"{event.category}: no viewpoint for {missing}")
     kept = []
-    for pid in event.reached:
+    for pid in event.informed:
         memory = agents.perceive(world, world.beings[pid], event, configuration,
                                  transcript)
         if memory is not None:
@@ -110,7 +110,7 @@ def past(world: World, event, configuration, transcript, say) -> None:
     kept = remember(world, event, configuration, transcript)
     if configuration is None:
         return
-    say(f"  {event.category:<9} {len(kept)} of {len(event.reached)} kept "
+    say(f"  {event.category:<9} {len(kept)} of {len(event.informed)} kept "
         f"something of it  ({time.time() - started:.0f}s)")
 
 
@@ -141,7 +141,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
            "The high ground, where the boat came aground when the water was "
            "over everything else, and where the road goes out. You can see "
            "the whole valley, and whoever is leaving it.",
-           ["penuel", "sinai"], road_out=True)
+           ["penuel", "sinai"], road=True)
     add_place(world, neighbours, "bethel", "Beth El",
            "The house: the boat, turned over and set on posts, on the one "
            "patch of ground here that has never been rained on. There is a "
@@ -215,7 +215,7 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
     add_regard(world, "p_bezalel", "p_lilith", "Restless. Not unkind.", 11)
     add_regard(world, "p_lilith", "p_bezalel", "He would rebuild this whole place plank by plank and never ask why.", 11)
 
-    # Vantages are bare positions: descriptive phrasing gets copied verbatim
+    # Viewpoints are bare positions: descriptive phrasing gets copied verbatim
     # into the memories.
     world.at = DESCENT
     event = world.record("descent",
@@ -228,8 +228,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                          "owing to them. It has run here ever since, and it is what "
                          "filled Marah.",
                          place="penuel", involved=[],
-                         reached=["p_bezalel", "p_havvah", "p_lilith"],
-                         data={"vantage": {
+                         informed=["p_bezalel", "p_havvah", "p_lilith"],
+                         data={"viewpoints": {
                              "p_bezalel": "down in the dry channel it came into, walking his cut stone out of it",
                              "p_havvah": "further down the valley, watching the dust go dark all at once",
                              "p_lilith": "up on Mizpah, nearest to where it came down, wet through",
@@ -247,8 +247,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                          "it, and it is the near reach that the town drinks from "
                          "now. Nobody in the valley slept.",
                          place="marah", involved=[],
-                         reached=["p_bezalel", "p_havvah", "p_lilith"],
-                         data={"vantage": {
+                         informed=["p_bezalel", "p_havvah", "p_lilith"],
+                         data={"viewpoints": {
                              "p_bezalel": "on the bank, taking a turn on the snake when the near side was short-handed",
                              "p_havvah": "well back from the water, on the high side, out of the way of both crowds",
                              "p_lilith": "down at the edge of it, as close as she was let, watching the near side's feet",
@@ -265,8 +265,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                          "went aground on Mizpah, and the water did not go down for "
                          "three days.",
                          place="marah", involved=["p_havvah", "p_bezalel"],
-                         reached=["p_bezalel", "p_havvah", "p_lilith"],
-                         data={"vantage": {
+                         informed=["p_bezalel", "p_havvah", "p_lilith"],
+                         data={"viewpoints": {
                              "p_bezalel": "in the boat he had built, at the rope, with the horn in front of him",
                              "p_havvah": "in the stern of the boat, with the seed she had been told to bring",
                              "p_lilith": "on Mizpah, above all of it, watching the valley go under and then the boat come up to her",
@@ -284,8 +284,8 @@ def build(root, name: str = "Nod", configuration=None, transcript=None,
                          "The boat came down off Mizpah onto that dry ground after "
                          "the rain, and was turned over, and it is the house.",
                          place="bethel", involved=[],
-                         reached=["p_bezalel", "p_lilith", "p_havvah"],
-                         data={"vantage": {
+                         informed=["p_bezalel", "p_lilith", "p_havvah"],
+                         data={"viewpoints": {
                              "p_bezalel": "underneath it, one hand on a post he had driven that morning and did not need",
                              "p_lilith": "at the edge of it, out in the rain, looking up at the underside of the hill",
                              "p_havvah": "underneath it, with what she had got out of the beds in her skirt",

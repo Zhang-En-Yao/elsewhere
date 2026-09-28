@@ -77,7 +77,7 @@ class TestWorldStore(unittest.TestCase):
         world = seed.build(self.root)
         garden = world.places["garden"]
         self.assertEqual(set(garden.to_dict()), {"id", "name", "description"})
-        self.assertEqual(world.map.road_out, "mizpah")
+        self.assertEqual(world.map.road, "mizpah")
         self.assertIn("yard", world.map.beside("garden"))
 
     def test_starting_over_does_not_leave_the_old_town_on_disk(self):

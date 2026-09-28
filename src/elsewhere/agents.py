@@ -64,8 +64,8 @@ def next_wake_at(world, answer: Optional[dict]) -> Optional[float]:
     return world.at + hours if hours is not None else None
 
 
-def vantage(world, being: Being, event: Event) -> str:
-    told = (event.data.get("vantage") or {}).get(being.id)
+def viewpoint(world, being: Being, event: Event) -> str:
+    told = (event.data.get("viewpoints") or {}).get(being.id)
     if told:
         return told
     if being.id in event.involved:
@@ -91,7 +91,7 @@ def may_stir(world) -> bool:
 
 
 def may_leave(world, being: Being) -> bool:
-    return bool(world.map.road_out) and being.where.place == world.map.road_out
+    return bool(world.map.road) and being.where.place == world.map.road
 
 
 def may_arrive(world) -> bool:
@@ -113,10 +113,6 @@ def short_of_somebody(world) -> bool:
     return lost > taken
 
 
-def leaving_place(world):
-    return world.places.get(world.map.road_out)
-
-
 def free_being_id(world, name: str) -> str:
     slug = "".join(ch for ch in name.lower() if ch.isalnum()) or "someone"
     candidate, n = f"p_{slug}", 2
@@ -129,40 +125,12 @@ def perceive_all(world, event: Event, configuration,
                  transcript: Optional[Transcript] = None) -> List[Memory]:
     out = []
     for being in world.beings.values():
-        if not being.present or being.id not in event.reached:
+        if not being.present or being.id not in event.informed:
             continue
         memory = perceive(world, being, event, configuration, transcript)
         if memory is not None:
             out.append(memory)
     return out
-
-
-def leave(world, being: Being, because: str, configuration,
-           transcript: Optional[Transcript] = None):
-    """Returns (event, memories it left in people)."""
-    place = world.places.get(being.where.place)
-    where = place.name if place else "the road"
-    reached = [p.id for p in world.beings.values() if p.present]
-    vantage = {}
-    for pid in reached:
-        if pid == being.id:
-            vantage[pid] = f"on the road out of {world.name}, looking back"
-        elif world.beings[pid].where.place == being.where.place:
-            vantage[pid] = f"right there, at {where}"
-        else:
-            other = world.places.get(world.beings[pid].where.place)
-            vantage[pid] = (f"at {other.name}, and word of it reached you there"
-                            if other else "and word of it reached you")
-    event = world.record(
-        DEPARTURE,
-        f"{being.name} took the road out of {world.name} and did not come back.",
-        place=being.where.place, involved=[being.id], reached=reached,
-        data={"because": because, "person": being.id, "vantage": vantage},
-    )
-    kept = perceive_all(world, event, configuration, transcript)
-    being.when.left_at = world.at
-    being.where.now("took the road out of town")
-    return event, kept
 
 
 # Call sites.
@@ -184,8 +152,8 @@ def perceive(world, being: Being, event: Event, configuration,
             where=place.name if place else "nowhere in particular",
             when=f"{clock_at(event.at)} on {date_at(event.at)}, in {season_at(event.at)}",
             at=world.at,
-            vantage=vantage(world, being, event),
-            others=[world.beings[pid] for pid in event.reached
+            viewpoint=viewpoint(world, being, event),
+            others=[world.beings[pid] for pid in event.informed
                     if pid != being.id and pid in world.beings],
             memories=context,
             part_of_it=being.id in event.involved,
@@ -320,12 +288,12 @@ def stir(world, configuration,
     settings = call_settings(configuration, CallName.STIR)
     recent = world.chronicle.all()[-TOWN_RECENT_EVENTS:]
     places = {p.name: p for p in world.places.values()}
-    beings = {p.name: p for p in world.beings.values() if p.present}
+    beings = [p for p in world.beings.values() if p.present]
     call = Call(
         name=CallName.STIR,
         system=prompts.STIR_SYSTEM,
         user=prompts.stir_user(world, recent),
-        schema=schemas.stir_grammar(list(places), list(beings)),
+        schema=schemas.stir_grammar(list(places), sorted({p.name for p in beings})),
         about="town",
     )
     answer = ask(get_backend(settings.backend), call, settings, transcript)
@@ -337,27 +305,27 @@ def stir(world, configuration,
     if not what:
         return None
 
-    who = beings.get(answer.get("who") or "")
+    who = next((p for p in beings if p.name == (answer.get("who") or "")), None)
     place = places.get(answer.get("where") or "")
     if who is not None:
         place = world.places.get(who.where.place, place)
     if place is None:
         return None
 
-    reached = ([p.id for p in world.beings.values() if p.present]
+    informed = ([p.id for p in world.beings.values() if p.present]
                if answer.get("reach") == "the whole town"
                else [p.id for p in world.beings_at(place.id)])
-    vantage = {pid: (f"right there, at {place.name}"
+    viewpoints = {pid: (f"right there, at {place.name}"
                      if world.beings[pid].where.place == place.id
                      else f"at {world.places[world.beings[pid].where.place].name}, "
                           f"and word of it reached you there")
-               for pid in reached}
+               for pid in informed}
     return world.record(
         OCCURRENCE, what, place=place.id,
         involved=[who.id] if who is not None else [],
-        reached=reached,
+        informed=informed,
         data={"why_now": (answer.get("why_now") or "").strip(),
-              "reach": answer.get("reach"), "vantage": vantage},
+              "reach": answer.get("reach"), "viewpoints": viewpoints},
     )
 
 
@@ -378,11 +346,9 @@ def arrive(world, configuration,
         return None
 
     name = (answer.get("name") or "").strip()
-    if not name or any(p.name.lower() == name.lower() for p in world.beings.values()):
+    if not name:
         return None
-    place = leaving_place(world) or next(iter(world.places.values()), None)
-    if place is None:
-        return None
+    place = world.places[world.map.road]
 
     came_from = (answer.get("from_where") or "").strip()
     being = Being(
@@ -400,22 +366,50 @@ def arrive(world, configuration,
         said += f", from {came_from},"
     said += f" came up the road into {world.name}."
 
-    reached = [p.id for p in world.beings.values() if p.present]
-    vantage = {}
-    for pid in reached:
+    informed = [p.id for p in world.beings.values() if p.present]
+    viewpoints = {}
+    for pid in informed:
         if pid == being.id:
-            vantage[pid] = f"at the top of the road, seeing {world.name} for the first time"
+            viewpoints[pid] = f"at the top of the road, seeing {world.name} for the first time"
         elif world.beings[pid].where.place == place.id:
-            vantage[pid] = f"right there, at {place.name}"
+            viewpoints[pid] = f"right there, at {place.name}"
         else:
             other = world.places.get(world.beings[pid].where.place)
-            vantage[pid] = (f"at {other.name}, and word of it reached you there"
+            viewpoints[pid] = (f"at {other.name}, and word of it reached you there"
                             if other else "and word of it reached you")
     return world.record(
-        ARRIVAL, said, place=place.id, involved=[being.id], reached=reached,
+        ARRIVAL, said, place=place.id, involved=[being.id], informed=informed,
         data={"why_now": (answer.get("why_now") or "").strip(),
-              "from_where": came_from, "person": being.id, "vantage": vantage},
+              "from_where": came_from, "person": being.id, "viewpoints": viewpoints},
     )
+
+
+def leave(world, being: Being, because: str, configuration,
+           transcript: Optional[Transcript] = None):
+    """Returns (event, memories it left in people)."""
+    place = world.places.get(being.where.place)
+    where = place.name if place else "the road"
+    informed = [p.id for p in world.beings.values() if p.present]
+    viewpoints = {}
+    for pid in informed:
+        if pid == being.id:
+            viewpoints[pid] = f"on the road out of {world.name}, looking back"
+        elif world.beings[pid].where.place == being.where.place:
+            viewpoints[pid] = f"right there, at {where}"
+        else:
+            other = world.places.get(world.beings[pid].where.place)
+            viewpoints[pid] = (f"at {other.name}, and word of it reached you there"
+                            if other else "and word of it reached you")
+    event = world.record(
+        DEPARTURE,
+        f"{being.name} took the road out of {world.name} and did not come back.",
+        place=being.where.place, involved=[being.id], informed=informed,
+        data={"because": because, "person": being.id, "viewpoints": viewpoints},
+    )
+    kept = perceive_all(world, event, configuration, transcript)
+    being.when.left_at = world.at
+    being.where.now("took the road out of town")
+    return event, kept
 
 
 def reflect(world, being: Being, configuration,
