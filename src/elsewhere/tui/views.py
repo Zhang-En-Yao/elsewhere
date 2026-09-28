@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import plistlib
+import re
 import time
 import unicodedata
 from dataclasses import dataclass
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from pathlib import Path
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from .. import agents, schedule
 from . import cartography
@@ -133,6 +136,113 @@ def span(hours: float) -> str:
     return "%.1f days" % (hours / 24.0)
 
 
+#: The launchd job `scripts/schedule.sh install` writes; only ever read here.
+AGENT = Path.home() / "Library" / "LaunchAgents" / "com.elsewhere.continue.plist"
+
+#: How each run of `elsewhere continue` starts its lines in the job's log.
+LOGGED = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d)\]")
+
+
+@dataclass(frozen=True)
+class Agent:
+    """The launchd job that runs `elsewhere continue` on this world."""
+    every: float                   # seconds between runs
+    log: Optional[Path]
+
+
+def agent(world: World) -> Optional[Agent]:
+    """None unless the job is installed, and for this world."""
+    try:
+        job = plistlib.loads(AGENT.read_bytes())
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        return None
+    arguments = [str(argument) for argument in job.get("ProgramArguments", [])]
+    if "--world" not in arguments[:-1]:
+        return None
+    target = Path(arguments[arguments.index("--world") + 1])
+    if target.resolve() != Path(world.root).resolve():
+        return None
+    log = job.get("StandardOutPath")
+    return Agent(every=float(job.get("StartInterval", 0)), log=Path(log) if log else None)
+
+
+def last_run(job: Agent) -> str:
+    """When the job last wrote to its log, as it wrote it; "" if never."""
+    if job.log is None:
+        return ""
+    try:
+        tail = job.log.read_bytes()[-8192:].decode("utf-8", "replace").splitlines()
+    except OSError:
+        return ""
+    for line in reversed(tail):
+        found = LOGGED.match(line)
+        if found:
+            return found.group(1)
+    return ""
+
+
+def upcoming(world: World) -> List[Tuple[float, List[str]]]:
+    """Every timer set, grouped by the hour it falls due, soonest first."""
+    timers: Dict[float, List[str]] = {}
+    for being in sorted(world.beings.values(), key=lambda being: being.name):
+        if being.present and being.when.wake_at is not None:
+            timers.setdefault(being.when.wake_at, []).append(being.name)
+    for label, timer in (("the town", world.town_wake_at), ("the road", world.road_wake_at)):
+        if timer is not None:
+            timers.setdefault(timer, []).append(label)
+    return sorted(timers.items())
+
+
+def by_clock(world: World, at: float) -> Optional[float]:
+    """The wall-clock moment `continue` may first live `at`: one world hour
+    is owed per real hour, counted from the last step lived."""
+    if world.last_tick_at is None:
+        return None
+    return world.last_tick_at + max(0.0, at - world.at) * 3600.0
+
+
+def wall(moment: Optional[float], now: float) -> str:
+    if moment is None:
+        return NOTHING
+    if moment <= now:
+        return "now"
+    days = (time.localtime(moment).tm_yday - time.localtime(now).tm_yday) % 366
+    if days == 0:
+        return time.strftime("%H:%M", time.localtime(moment))
+    if days == 1:
+        return time.strftime("tomorrow %H:%M", time.localtime(moment))
+    return time.strftime("%b %d %H:%M", time.localtime(moment))
+
+
+def next_lines(world: World, indent: str, shown: int = 3) -> List[Line]:
+    """What falls due next, by the world's clock and the wall's, and whether
+    anything is running `continue` to live it."""
+    now = time.time()
+    groups = upcoming(world)
+    if not groups:
+        return [Line(indent + "nothing: no timer is set anywhere, and the engine "
+                     "will not pick one for them", "warn", under=len(indent))]
+    lines = []
+    for at, names in groups[:shown]:
+        when = "now" if at <= world.at else wall(by_clock(world, at), now)
+        lines.append(Line(indent + pad(when, 16) + pad(timestamp(at), 16) + ", ".join(names),
+                          under=len(indent) + 32))
+    if len(groups) > shown:
+        lines.append(Line(indent + "and %d more after that" % (len(groups) - shown), "dim"))
+    job = agent(world)
+    last = last_run(job) if job else ""
+    if job is None:
+        lines.append(Line(indent + "not scheduled, so none of it happens: `make schedule`",
+                          "warn", under=len(indent)))
+    elif not last:
+        lines.append(Line(indent + "scheduled every " + span(job.every / 3600.0)
+                          + ", never ran: `make schedule-status`", "warn", under=len(indent)))
+    else:
+        lines.append(Line(indent + "`continue` every " + span(job.every / 3600.0)
+                          + ", last ran " + last, "dim", under=len(indent)))
+    return lines
+
+
 def looks_up(world: World, being) -> Line:
     absorbed = ("; deep enough in it that what happens nearby is not their "
                 "business" if being.when.absorbed else "")
@@ -182,21 +292,7 @@ def overview_detail(world: World) -> List[Line]:
             Line("    %d events on record" % len(world.chronicle)),
             Line()]
     lines.append(Line("  what is next due", "bold"))
-    due = schedule.next_at(world)
-    if due is None:
-        lines.append(Line("    nothing. Every mind declined to say when it wanted "
-                        "asking again, and the engine is not going to decide "
-                        "that for them.", "warn", under=4))
-    else:
-        lines.append(Line("    the world moves next in "
-                        + span(max(0.0, due - world.at)) + " of its own time"))
-    for label, timer in (("the town", world.town_wake_at),
-                         ("the road", world.road_wake_at)):
-        if timer is None:
-            lines.append(Line("    " + pad(label, 10) + "no timer set", "dim"))
-        else:
-            lines.append(Line("    " + pad(label, 10) + "asked again in "
-                            + span(max(0.0, timer - world.at)), "dim"))
+    lines += next_lines(world, "    ", shown=6)
     if world.last_tick_at is not None:
         lines += [Line(),
                 Line("  out here", "bold"),
@@ -422,6 +518,9 @@ def map_detail(world: World, key: str, columns: int) -> List[Line]:
     else:
         beings = world.beings_at(place.id)
         events = [event for event in world.chronicle.all() if event.place == place.id]
+    if place is None:
+        lines += [Line(), Line("Next", "bold")]
+        lines += [Line(clip(line.text, columns), line.tone) for line in next_lines(world, "  ")]
     lines += [Line(), Line(place.name if place else "Beings", "bold")]
     for being in beings:
         where = world.places.get(being.where.place)

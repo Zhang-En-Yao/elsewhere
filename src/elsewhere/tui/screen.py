@@ -153,7 +153,9 @@ class App:
 
     def shown(self, columns: int) -> List[Line]:
         """Wrapped detail pane, cached per change."""
-        key = (self.tab, self.selected(), columns, self.stamp, self.helping)
+        # The minute, too: what is due "now" moves with the wall clock.
+        key = (self.tab, self.selected(), columns, self.stamp, self.helping,
+               int(time.time() // 60))
         if key == self._shown:
             return self._lines
         if self.helping:
@@ -195,6 +197,12 @@ class App:
             left += "   (ended)"
         unseen = len(world.chronicle) - world.read_through
         right = str(unseen) + " new" if unseen > 0 else "all read"
+        groups = views.upcoming(world)
+        if groups and not world.closed:
+            soonest = groups[0][0]
+            right = ("next " + ("now" if soonest <= world.at else
+                                views.wall(views.by_clock(world, soonest), time.time()))
+                     + ("" if views.agent(world) else ", not scheduled") + "   " + right)
         if not self.follow:
             right += "   not following"
         # On a narrow terminal the clock is dropped before the status.
