@@ -80,20 +80,23 @@ class Archive:
 
     def episodes(self, being_id: str) -> Annals[Episode]:
         if being_id not in self._episodes:
-            self._episodes[being_id] = Annals(self.root / "episodes" / f"{being_id}.jsonl",
-                                             Episode.from_dict)
+            self._episodes[being_id] = Annals(
+                self.root / "episodes" / f"{being_id}.jsonl", Episode.from_dict
+            )
         return self._episodes[being_id]
 
     def engrams(self, being_id: str) -> Annals[Engram]:
         if being_id not in self._engrams:
-            self._engrams[being_id] = Annals(self.root / "engrams" / f"{being_id}.jsonl",
-                                            Engram.from_dict)
+            self._engrams[being_id] = Annals(
+                self.root / "engrams" / f"{being_id}.jsonl", Engram.from_dict
+            )
         return self._engrams[being_id]
 
     def self_schemas(self, being_id: str) -> Annals[SelfSchema]:
         if being_id not in self._self_schemas:
             self._self_schemas[being_id] = Annals(
-                self.root / "self_schemas" / f"{being_id}.jsonl", SelfSchema.from_dict)
+                self.root / "self_schemas" / f"{being_id}.jsonl", SelfSchema.from_dict
+            )
         return self._self_schemas[being_id]
 
 
@@ -122,14 +125,19 @@ def atomic_write(path: Path, payload: dict) -> None:
 
 def save(world: World) -> None:
     directory = root(world)
-    atomic_write(directory / "world.json", {
-        "schema": SCHEMA_VERSION, "name": world.name, "current": world.current,
-        "closed": world.closed,
-        "last_tick_at": world.last_tick_at,
-        "due_at": world.due_at,
-        "places": {place_id: place.to_dict() for place_id, place in world.places.items()},
-        "map": world.map.to_dict(),
-    })
+    atomic_write(
+        directory / "world.json",
+        {
+            "schema": SCHEMA_VERSION,
+            "name": world.name,
+            "current": world.current,
+            "closed": world.closed,
+            "last_tick_at": world.last_tick_at,
+            "due_at": world.due_at,
+            "places": {place_id: place.to_dict() for place_id, place in world.places.items()},
+            "map": world.map.to_dict(),
+        },
+    )
     for being in world.beings.values():
         atomic_write(directory / "beings" / f"{being.id}.json", being.to_dict())
 
@@ -148,15 +156,19 @@ def load(root) -> World:
         # differently, and converting would invent history.
         raise ValueError(
             f"{root} was written by Elsewhere schema {schema}, which was a "
-            f"differently made world. This one cannot read it.")
+            f"differently made world. This one cannot read it."
+        )
     world = World(
-        records=Archive(root), name=metadata.get("name", "Elsewhere"),
+        records=Archive(root),
+        name=metadata.get("name", "Elsewhere"),
         current=float(metadata["current"]),
         closed=bool(metadata.get("closed", False)),
         last_tick_at=metadata.get("last_tick_at"),
         due_at=metadata.get("due_at"),
-        places={place_id: Place.from_dict(place)
-                for place_id, place in metadata.get("places", {}).items()},
+        places={
+            place_id: Place.from_dict(place)
+            for place_id, place in metadata.get("places", {}).items()
+        },
         map=Map.from_dict(metadata.get("map", {})),
     )
     for file in sorted((root / "beings").glob("*.json")):
@@ -167,7 +179,6 @@ def load(root) -> World:
 
 def exists(root) -> bool:
     return (Path(root) / "world.json").exists()
-
 
 
 class Locked(RuntimeError):

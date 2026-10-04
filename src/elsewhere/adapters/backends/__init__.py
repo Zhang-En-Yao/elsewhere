@@ -15,14 +15,13 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
 
-
 @dataclass
 class Call:
-    name: str                       # the call site, `harness.schemas.CallName`
+    name: str  # the call site, `harness.schemas.CallName`
     system: str
     user: str
-    schema: dict                    # the decoding grammar
-    mind: str = ""                  # the being or world the call is put to, for the transcript
+    schema: dict  # the decoding grammar
+    mind: str = ""  # the being or world the call is put to, for the transcript
 
 
 @dataclass
@@ -31,16 +30,19 @@ class Settings:
     model: str = "stub"
     temperature: float = 0.8
     options: Dict = field(default_factory=dict)
-    endpoint: str = ""                  # "" for the backend's own default
-    timeout: float = 180.0          # seconds
+    endpoint: str = ""  # "" for the backend's own default
+    timeout: float = 180.0  # seconds
 
     @classmethod
     def from_dict(cls, data: dict) -> "Settings":
-        return cls(backend=data.get("backend", "stub"), model=data.get("model", "stub"),
-                   temperature=float(data.get("temperature", 0.8)),
-                   options=dict(data.get("options", {})),
-                   endpoint=str(data.get("endpoint", "")),
-                   timeout=float(data.get("timeout", 180.0)))
+        return cls(
+            backend=data.get("backend", "stub"),
+            model=data.get("model", "stub"),
+            temperature=float(data.get("temperature", 0.8)),
+            options=dict(data.get("options", {})),
+            endpoint=str(data.get("endpoint", "")),
+            timeout=float(data.get("timeout", 180.0)),
+        )
 
 
 class Backend(Protocol):
@@ -49,7 +51,6 @@ class Backend(Protocol):
     def complete(self, call: Call, settings: "Settings") -> str:
         """Must not raise on model nonsense."""
         ...
-
 
 
 REGISTRY: Dict[str, Backend] = {}
@@ -71,9 +72,9 @@ def bootstrap() -> None:
     from .mlx import MLXBackend
     from .openai_compatible import OpenAICompatibleBackend
     from .stub import StubBackend
+
     for backend in (StubBackend(script_from_env=True), MLXBackend(), OpenAICompatibleBackend()):
         register(backend)
-
 
 
 class Transcript:
@@ -89,8 +90,10 @@ class Transcript:
             file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-REPAIR = ("That was not usable: {complaint}. "
-          "Answer again with the same JSON object, corrected. Nothing else.")
+REPAIR = (
+    "That was not usable: {complaint}. "
+    "Answer again with the same JSON object, corrected. Nothing else."
+)
 
 
 #: `(clean, None)` or `(None, complaint)`; the complaint is sent back to the
@@ -115,9 +118,14 @@ def extract_json(text: str) -> Optional[dict]:
     return None
 
 
-def ask(backend: Backend, call: Call, settings: Settings,
-        transcript: Optional[Transcript] = None, check: Check = anything,
-        attempts: int = 2) -> Optional[dict]:
+def ask(
+    backend: Backend,
+    call: Call,
+    settings: Settings,
+    transcript: Optional[Transcript] = None,
+    check: Check = anything,
+    attempts: int = 2,
+) -> Optional[dict]:
     """Retries once with a repair instruction. ``None`` means no usable answer,
     which callers treat as the person having nothing, not as an error."""
     user = call.user
@@ -125,32 +133,40 @@ def ask(backend: Backend, call: Call, settings: Settings,
     for attempt in range(attempts):
         started = time.time()
         try:
-            raw = backend.complete(Call(call.name, call.system, user, call.schema,
-                                        call.mind), settings)
+            raw = backend.complete(
+                Call(call.name, call.system, user, call.schema, call.mind), settings
+            )
             error = None
         except Exception as exception:
             raw, error = "", f"{type(exception).__name__}: {exception}"
         elapsed = time.time() - started
 
         parsed = extract_json(raw) if raw else None
-        clean, complaint = (None, "nothing came back") if parsed is None \
-            else check(parsed)
+        clean, complaint = (None, "nothing came back") if parsed is None else check(parsed)
 
         if transcript is not None:
-            transcript.write({
-                "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "call": str(call.name),
-                "mind": call.mind, "backend": settings.backend,
-                "model": settings.model, "attempt": attempt + 1,
-                "seconds": round(elapsed, 2), "system": call.system, "user": user,
-                "raw": raw, "ok": clean is not None,
-                "complaint": complaint, "error": error,
-            })
+            transcript.write(
+                {
+                    "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "call": str(call.name),
+                    "mind": call.mind,
+                    "backend": settings.backend,
+                    "model": settings.model,
+                    "attempt": attempt + 1,
+                    "seconds": round(elapsed, 2),
+                    "system": call.system,
+                    "user": user,
+                    "raw": raw,
+                    "ok": clean is not None,
+                    "complaint": complaint,
+                    "error": error,
+                }
+            )
 
         if clean is not None:
             return clean
         user = f"{call.user}\n\n{REPAIR.format(complaint=complaint or error)}"
     return None
-
 
 
 def embed(texts: List[str], settings: Settings) -> List[List[float]]:
@@ -168,7 +184,6 @@ def embed(texts: List[str], settings: Settings) -> List[List[float]]:
     return vectors if len(vectors) == len(texts) else []
 
 
-
 PROBE = {
     "type": "object",
     "properties": {"ok": {"type": "boolean"}},
@@ -178,12 +193,16 @@ PROBE = {
 
 def probe(settings: Settings) -> tuple:
     """Returns (ok, message). Never raises."""
-    call = Call(name="probe", system="Answer only with JSON.",
-                user='Reply exactly {"ok": true}.', schema=PROBE, mind="probe")
+    call = Call(
+        name="probe",
+        system="Answer only with JSON.",
+        user='Reply exactly {"ok": true}.',
+        schema=PROBE,
+        mind="probe",
+    )
     started = time.time()
     try:
-        raw = get(settings.backend).complete(
-            call, replace(settings, temperature=0.0))
+        raw = get(settings.backend).complete(call, replace(settings, temperature=0.0))
     except Exception as exception:
         return False, f"unreachable: {type(exception).__name__}: {exception}"
     if extract_json(raw) is None:

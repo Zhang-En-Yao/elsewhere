@@ -27,7 +27,7 @@ def layers_imported(path: Path):
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.ImportFrom):
             if node.level:
-                base = package[:len(package) - node.level + 1]
+                base = package[: len(package) - node.level + 1]
                 module = base + (node.module.split(".") if node.module else [])
             else:
                 module = (node.module or "").split(".")
@@ -57,10 +57,9 @@ class TestTheDependencyRule(unittest.TestCase):
             for path in (PACKAGE / layer).rglob("*.py"):
                 for imported in layers_imported(path):
                     if imported == layer or imported not in ALLOWED:
-                        continue          # itself, or the package's constants
+                        continue  # itself, or the package's constants
                     with self.subTest(module=str(path.relative_to(PACKAGE))):
-                        self.assertIn(imported, allowed,
-                                      f"{layer} may not import {imported}")
+                        self.assertIn(imported, allowed, f"{layer} may not import {imported}")
 
     def test_the_rule_is_actually_read(self):
         imported = set(layers_imported(PACKAGE / "harness" / "tick.py"))

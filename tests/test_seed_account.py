@@ -25,7 +25,7 @@ class MakingAWorldTest(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
-        backends.bootstrap()          # the dial tone back, for whoever is next
+        backends.bootstrap()  # the dial tone back, for whoever is next
 
     def configuration(self):
         settings = Settings(backend="stub", model="stub")
@@ -39,8 +39,11 @@ class MakingAWorldTest(unittest.TestCase):
         world = seed.build(self.root)
         for being in world.beings.values():
             self.assertFalse(being.identity.self_schema.empty)
-            self.assertEqual(world.self_schemas(being.id).all(), [being.identity.self_schema],
-                             "and it is the first one they hold")
+            self.assertEqual(
+                world.self_schemas(being.id).all(),
+                [being.identity.self_schema],
+                "and it is the first one they hold",
+            )
             self.assertEqual(world.episodes(being.id).all(), [], "and nothing encoded yet")
             self.assertEqual(world.engrams(being.id).all(), [], "and nothing laid down")
 
@@ -48,18 +51,22 @@ class MakingAWorldTest(unittest.TestCase):
         world = seed.build(self.root)
         for being in world.beings.values():
             seen = memory.percepts(world, being)
-            self.assertEqual([event.id for event, _ in seen],
-                             [event.id for event in world.chronicle.all()])
+            self.assertEqual(
+                [event.id for event, _ in seen], [event.id for event in world.chronicle.all()]
+            )
             for event, stood in seen:
                 self.assertEqual(stood, event.data["perspectives"][being.id])
 
     def test_the_first_morning_is_when_they_look_back_on_it(self):
         world = seed.build(self.root)
-        self.stub.set(CallName.ACT, {"encoded": "the rope, and the horn in front of me",
-                                     "action": "", "duration": 21600})
+        self.stub.set(
+            CallName.ACT,
+            {"encoded": "the rope, and the horn in front of me", "action": "", "duration": 21600},
+        )
         tick.tick(world, self.configuration())
-        havvah = next(call for call in self.stub.calls
-                      if call.name == CallName.ACT and call.mind == "havvah")
+        havvah = next(
+            call for call in self.stub.calls if call.name == CallName.ACT and call.mind == "havvah"
+        )
         for event in world.chronicle.all():
             self.assertIn(event.account, havvah.user)
             self.assertIn(event.data["perspectives"]["havvah"], havvah.user)

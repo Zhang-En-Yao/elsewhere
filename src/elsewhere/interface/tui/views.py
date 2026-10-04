@@ -53,6 +53,7 @@ class Line:
 @dataclass(frozen=True)
 class Row:
     """An empty `key` cannot be selected."""
+
     key: str
     text: str = ""
     tone: str = "plain"
@@ -89,8 +90,11 @@ def clip(text: str, columns: int) -> str:
         return text
     kept, used = [], 0
     for character in text:
-        step = 0 if unicodedata.combining(character) else (
-            2 if unicodedata.east_asian_width(character) in "WF" else 1)
+        step = (
+            0
+            if unicodedata.combining(character)
+            else (2 if unicodedata.east_asian_width(character) in "WF" else 1)
+        )
         if used + step > columns - 1:
             break
         kept.append(character)
@@ -102,8 +106,11 @@ def fit(text: str, columns: int) -> int:
     """How many characters of `text` fit in `columns`."""
     used = 0
     for index, character in enumerate(text):
-        step = 0 if unicodedata.combining(character) else (
-            2 if unicodedata.east_asian_width(character) in "WF" else 1)
+        step = (
+            0
+            if unicodedata.combining(character)
+            else (2 if unicodedata.east_asian_width(character) in "WF" else 1)
+        )
         if used + step > columns:
             return index
         used += step
@@ -128,7 +135,7 @@ def wrap(line: Line, columns: int) -> List[Line]:
             rest = hang + rest[space:].lstrip(" ")
         else:
             wrapped.append(Line(rest[:space], line.tone))
-            rest = hang + rest[space + 1:].lstrip(" ")
+            rest = hang + rest[space + 1 :].lstrip(" ")
         floor = len(hang) + 1
     wrapped.append(Line(rest, line.tone))
     return wrapped
@@ -160,7 +167,8 @@ LOGGED = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d)\]")
 @dataclass(frozen=True)
 class Agent:
     """The launchd job that runs `elsewhere continue` on this world."""
-    every: float                   # seconds between runs
+
+    every: float  # seconds between runs
     log: Optional[Path]
 
 
@@ -233,34 +241,67 @@ def next_lines(world: World, indent: str, shown: int = 3) -> List[Line]:
     now = time.time()
     groups = upcoming(world)
     if not groups:
-        return [Line(indent + "nothing: no timer is set anywhere, and the engine "
-                     "will not pick one for them", "warn", under=len(indent))]
+        return [
+            Line(
+                indent + "nothing: no timer is set anywhere, and the engine "
+                "will not pick one for them",
+                "warn",
+                under=len(indent),
+            )
+        ]
     lines = []
     for at, names in groups[:shown]:
         when = "now" if at <= world.current else wall(by_clock(world, at), now)
-        lines.append(Line(indent + pad(when, 16) + pad(timestamp(at), 16) + ", ".join(names),
-                          under=len(indent) + 32))
+        lines.append(
+            Line(
+                indent + pad(when, 16) + pad(timestamp(at), 16) + ", ".join(names),
+                under=len(indent) + 32,
+            )
+        )
     if len(groups) > shown:
         lines.append(Line(indent + "and %d more after that" % (len(groups) - shown), "dim"))
     job = agent(world)
     last = last_run(job) if job else ""
     if job is None:
-        lines.append(Line(indent + "not scheduled, so none of it happens: `make schedule`",
-                          "warn", under=len(indent)))
+        lines.append(
+            Line(
+                indent + "not scheduled, so none of it happens: `make schedule`",
+                "warn",
+                under=len(indent),
+            )
+        )
     elif not last:
-        lines.append(Line(indent + "scheduled every " + span(job.every / REAL_TIME_PER_VIRTUAL_TIME)
-                          + ", never ran: `make status`", "warn", under=len(indent)))
+        lines.append(
+            Line(
+                indent
+                + "scheduled every "
+                + span(job.every / REAL_TIME_PER_VIRTUAL_TIME)
+                + ", never ran: `make status`",
+                "warn",
+                under=len(indent),
+            )
+        )
     else:
-        lines.append(Line(indent + "`continue` every " + span(job.every / REAL_TIME_PER_VIRTUAL_TIME)
-                          + ", last ran " + last, "dim", under=len(indent)))
+        lines.append(
+            Line(
+                indent
+                + "`continue` every "
+                + span(job.every / REAL_TIME_PER_VIRTUAL_TIME)
+                + ", last ran "
+                + last,
+                "dim",
+                under=len(indent),
+            )
+        )
     return lines
 
 
 def looks_up(world: World, being) -> Line:
     due_at = being.clock.due_at
     if due_at is None:
-        return Line("  looks up    whenever the world next stirs; they did not say",
-                    "dim", under=14)
+        return Line(
+            "  looks up    whenever the world next stirs; they did not say", "dim", under=14
+        )
     away = due_at - world.current
     if away <= 0:
         return Line("  looks up    now", under=14)
@@ -308,62 +349,100 @@ def world_rows(world: World) -> List[Row]:
     for place in world.places.values():
         here = world.beings_at(place.id)
         who = ", ".join(being.name for being in here) if here else NOTHING
-        rows.append(Row(place.id, pad(clip(place.name, 20), 21) + who,
-                        "plain" if here else "dim"))
+        rows.append(Row(place.id, pad(clip(place.name, 20), 21) + who, "plain" if here else "dim"))
     gone = [being for being in world.beings.values() if not being.present]
     if gone:
-        rows += [Row(""),
-                 Row(GONE_KEY, "%d who are no longer here" % len(gone), "dim")]
+        rows += [Row(""), Row(GONE_KEY, "%d who are no longer here" % len(gone), "dim")]
     return rows
 
 
 def overview_detail(world: World) -> List[Line]:
-    lines = [Line(world.name, "bold"),
-           Line("  " + world.label()),
-           Line("  the sun %s   (up at %02.0f:00, down at %02.0f:00)"
-                % ("is up" if world.daylight else "is down", DAWN, DUSK), "dim"),
-           Line()]
+    lines = [
+        Line(world.name, "bold"),
+        Line("  " + world.label()),
+        Line(
+            "  the sun %s   (up at %02.0f:00, down at %02.0f:00)"
+            % ("is up" if world.daylight else "is down", DAWN, DUSK),
+            "dim",
+        ),
+        Line(),
+    ]
     if world.closed:
-        lines += [Line("  This world has ended. Nothing more happens in it, and "
-                     "all that did stays readable.", "warn", under=2), Line()]
+        lines += [
+            Line(
+                "  This world has ended. Nothing more happens in it, and "
+                "all that did stays readable.",
+                "warn",
+                under=2,
+            ),
+            Line(),
+        ]
     present = [being for being in world.beings.values() if being.present]
-    lines += [Line("  what there is", "bold"),
-            Line("    %d here, %d gone"
-                 % (len(present), len(world.beings) - len(present))),
-            Line("    %d places, %d ways between them"
-                 % (len(world.places), len(world.map.ways))),
-            Line("    %d events on record" % len(world.chronicle)),
-            Line()]
+    lines += [
+        Line("  what there is", "bold"),
+        Line("    %d here, %d gone" % (len(present), len(world.beings) - len(present))),
+        Line("    %d places, %d ways between them" % (len(world.places), len(world.map.ways))),
+        Line("    %d events on record" % len(world.chronicle)),
+        Line(),
+    ]
     lines.append(Line("  what is next due", "bold"))
     lines += next_lines(world, "    ", shown=6)
     if world.last_tick_at is not None:
-        lines += [Line(),
-                Line("  out here", "bold"),
-                Line("    a step was last lived "
-                     + span((time.time() - world.last_tick_at) / REAL_TIME_PER_VIRTUAL_TIME)
-                     + " ago by the wall clock", "dim", under=4)]
+        lines += [
+            Line(),
+            Line("  out here", "bold"),
+            Line(
+                "    a step was last lived "
+                + span((time.time() - world.last_tick_at) / REAL_TIME_PER_VIRTUAL_TIME)
+                + " ago by the wall clock",
+                "dim",
+                under=4,
+            ),
+        ]
     unread = len(world.chronicle) - bookmark.load(world)
-    lines += [Line(),
-            Line("  %d events since you last looked" % unread if unread
-                 else "  you have read everything that has happened", "dim")]
+    lines += [
+        Line(),
+        Line(
+            (
+                "  %d events since you last looked" % unread
+                if unread
+                else "  you have read everything that has happened"
+            ),
+            "dim",
+        ),
+    ]
     return lines
 
 
 def gone_detail(world: World) -> List[Line]:
     """Beings who left, as they were when they went."""
-    gone = sorted((being for being in world.beings.values() if not being.present),
-                  key=lambda being: being.clock.left_at or 0.0)
-    lines = [Line("No longer here", "bold"),
-           Line("  Nothing has touched what they hold since they went. The "
-                "world has no idea what has become of them and will not "
-                "pretend to.", "dim", under=2),
-           Line()]
+    gone = sorted(
+        (being for being in world.beings.values() if not being.present),
+        key=lambda being: being.clock.left_at or 0.0,
+    )
+    lines = [
+        Line("No longer here", "bold"),
+        Line(
+            "  Nothing has touched what they hold since they went. The "
+            "world has no idea what has become of them and will not "
+            "pretend to.",
+            "dim",
+            under=2,
+        ),
+        Line(),
+    ]
     for being in gone:
         left = being.clock.left_at
-        lines.append(Line("  " + pad(being.name, 9)
-                        + (timestamp(left) if left else "gone at some point")))
-        lines.append(Line("           a self-schema of %d characters, as it was then"
-                        % being.identity.self_schema.characters, "dim"))
+        lines.append(
+            Line("  " + pad(being.name, 9) + (timestamp(left) if left else "gone at some point"))
+        )
+        lines.append(
+            Line(
+                "           a self-schema of %d characters, as it was then"
+                % being.identity.self_schema.characters,
+                "dim",
+            )
+        )
     return lines
 
 
@@ -379,44 +458,58 @@ def world_detail(world: World, key: str) -> List[Line]:
     if place.description:
         lines.append(Line("  " + place.description, under=2))
     lines.append(Line())
-    beside = [world.places[other].name for other in world.map.beside(place.id)
-              if other in world.places]
-    lines.append(Line("  ways out    " + (", ".join(beside) if beside else "none"),
-                    "dim", under=14))
+    beside = [
+        world.places[other].name for other in world.map.beside(place.id) if other in world.places
+    ]
+    lines.append(
+        Line("  ways out    " + (", ".join(beside) if beside else "none"), "dim", under=14)
+    )
     if world.map.road == place.id:
-        lines.append(Line("  the road out of the world leaves from here, and comes "
-                        "back in at it", "accent", under=2))
+        lines.append(
+            Line(
+                "  the road out of the world leaves from here, and comes " "back in at it",
+                "accent",
+                under=2,
+            )
+        )
     lines.append(Line())
     here = world.beings_at(place.id)
     lines.append(Line("  who is here" if here else "  nobody is here", "bold"))
     for being in here:
-        lines.append(Line("    " + pad(being.name, 9)
-                        + (being.activity.doing or "just here"), under=13))
+        lines.append(
+            Line("    " + pad(being.name, 9) + (being.activity.doing or "just here"), under=13)
+        )
     events = [event for event in world.chronicle.all() if event.place == place.id]
     if events:
         lines += [Line(), Line("  what happened here", "bold")]
         for event in events[-6:]:
-            lines.append(Line("    " + pad(timestamp(event.at), 16) + event.account,
-                            under=4))
+            lines.append(Line("    " + pad(timestamp(event.at), 16) + event.account, under=4))
     return lines
 
 
 def being_rows(world: World) -> List[Row]:
-    present = sorted((being for being in world.beings.values() if being.present),
-                     key=lambda being: being.name)
-    gone = sorted((being for being in world.beings.values() if not being.present),
-                  key=lambda being: being.clock.left_at or 0.0)
+    present = sorted(
+        (being for being in world.beings.values() if being.present), key=lambda being: being.name
+    )
+    gone = sorted(
+        (being for being in world.beings.values() if not being.present),
+        key=lambda being: being.clock.left_at or 0.0,
+    )
     rows: List[Row] = []
     for being in present:
         place = world.places.get(being.location.place)
-        rows.append(Row(being.id, pad(being.name, 9)
-                        + (place.name if place else NOTHING)))
+        rows.append(Row(being.id, pad(being.name, 9) + (place.name if place else NOTHING)))
     if gone:
         rows.append(Row(""))
         for being in gone:
             left = being.clock.left_at
-            rows.append(Row(being.id, pad(being.name, 9) + "left "
-                            + (timestamp(left) if left else "at some point"), "dim"))
+            rows.append(
+                Row(
+                    being.id,
+                    pad(being.name, 9) + "left " + (timestamp(left) if left else "at some point"),
+                    "dim",
+                )
+            )
     return rows
 
 
@@ -434,61 +527,116 @@ def being_detail(world: World, key: str) -> List[Line]:
     lines.append(Line())
     if not being.present:
         # Nothing reaches somebody who left, so this is how they stood then.
-        lines += [Line("  left on     " + timestamp(being.clock.left_at or world.current),
-                     "warn", under=14),
-                Line("  What follows is how they stood then.", "dim", under=2)]
+        lines += [
+            Line(
+                "  left on     " + timestamp(being.clock.left_at or world.current), "warn", under=14
+            ),
+            Line("  What follows is how they stood then.", "dim", under=2),
+        ]
     else:
         place = world.places.get(being.location.place)
         home = world.places.get(being.location.home)
-        lines.append(Line("  at          " + (place.name if place else NOTHING),
-                        under=14))
-        lines.append(Line("  sleeps      " + (home.name if home else "nowhere yet"),
-                        "dim", under=14))
+        lines.append(Line("  at          " + (place.name if place else NOTHING), under=14))
+        lines.append(
+            Line("  sleeps      " + (home.name if home else "nowhere yet"), "dim", under=14)
+        )
         if being.activity.doing:
             lines.append(Line("  doing       " + being.activity.doing, under=14))
         lines.append(looks_up(world, being))
     if being.clock.arrived_at:
-        lines.append(Line("  came up the road on " + timestamp(being.clock.arrived_at),
-                        "dim", under=2))
+        lines.append(
+            Line("  came up the road on " + timestamp(being.clock.arrived_at), "dim", under=2)
+        )
     earlier = being.activity.doings[:-1]
     if earlier:
         lines += [Line(), Line("  what they had been doing before that", "bold")]
         for what in reversed(earlier):
             lines.append(Line("    " + what, "dim", under=4))
     self_schema = being.identity.self_schema
-    lines += [Line(), Line("  who they take themselves to be, %d of %d characters"
-                         % (self_schema.characters, SELF_SCHEMA_CHARACTERS), "bold")]
-    labelled = ([("trait", trait) for trait in self_schema.traits]
-                + [("concern", concern) for concern in self_schema.concerns]
-                + [("assumption", assumption) for assumption in self_schema.assumptions]
-                + [("impression", impression.being + ": " + impression.impression)
-                   for impression in self_schema.impressions])
+    lines += [
+        Line(),
+        Line(
+            "  who they take themselves to be, %d of %d characters"
+            % (self_schema.characters, SELF_SCHEMA_CHARACTERS),
+            "bold",
+        ),
+    ]
+    labelled = (
+        [("trait", trait) for trait in self_schema.traits]
+        + [("concern", concern) for concern in self_schema.concerns]
+        + [("assumption", assumption) for assumption in self_schema.assumptions]
+        + [
+            ("impression", impression.being + ": " + impression.impression)
+            for impression in self_schema.impressions
+        ]
+    )
     for label, line in labelled:
         lines.append(Line("    " + pad(label, 12) + line, under=16))
     if not labelled:
         lines.append(Line("    nothing yet", under=4))
-    lines.append(Line("    the newest of %d self-schemas they have held; every one is kept"
-                    % len(world.self_schemas(being.id)), "dim", under=4))
+    lines.append(
+        Line(
+            "    the newest of %d self-schemas they have held; every one is kept"
+            % len(world.self_schemas(being.id)),
+            "dim",
+            under=4,
+        )
+    )
     today = memory.short_term(world, being)
-    lines += [Line(), Line("  what they have encoded today, not slept on yet" if today
-                         else "  nothing encoded since they last slept", "bold")]
+    lines += [
+        Line(),
+        Line(
+            (
+                "  what they have encoded today, not slept on yet"
+                if today
+                else "  nothing encoded since they last slept"
+            ),
+            "bold",
+        ),
+    ]
     for episode in today:
         lines.append(Line("    " + pad(timestamp(episode.at), 16) + episode.account, under=4))
     engrams = world.engrams(being.id).all()
     lines += [Line(), Line("  what sleep has laid down", "bold")]
     for engram in reversed(engrams[-8:]):
-        lines.append(Line("    " + pad(timestamp(engram.at), 16)
-                        + " ... ".join(gist.proposition for gist in engram.gists), under=4))
+        lines.append(
+            Line(
+                "    "
+                + pad(timestamp(engram.at), 16)
+                + " ... ".join(gist.proposition for gist in engram.gists),
+                under=4,
+            )
+        )
         for episode in episodes_of_engram(world.episodes(being.id).all(), engram):
-            lines.append(Line("      " + pad("", 16) + "from " + timestamp(episode.at) + ": "
-                            + episode.account, "dim", under=26))
-    lines.append(Line("    %d episodes and %d engrams in all; every one is kept"
-                    % (len(world.episodes(being.id)), len(engrams)), "dim", under=4))
+            lines.append(
+                Line(
+                    "      "
+                    + pad("", 16)
+                    + "from "
+                    + timestamp(episode.at)
+                    + ": "
+                    + episode.account,
+                    "dim",
+                    under=26,
+                )
+            )
+    lines.append(
+        Line(
+            "    %d episodes and %d engrams in all; every one is kept"
+            % (len(world.episodes(being.id)), len(engrams)),
+            "dim",
+            under=4,
+        )
+    )
     return lines
 
 
-MARKS: Dict[str, str] = {Category.OCCURRENCE: "*", Category.ARRIVAL: "+",
-         Category.DEPARTURE: "-", Category.CONVERSATION: "\""}
+MARKS: Dict[str, str] = {
+    Category.OCCURRENCE: "*",
+    Category.ARRIVAL: "+",
+    Category.DEPARTURE: "-",
+    Category.CONVERSATION: '"',
+}
 
 UNREAD = DASH + " since you last looked " + DASH
 
@@ -501,8 +649,12 @@ def chronicle_rows(world: World) -> List[Row]:
     for index, event in enumerate(events):
         if index == read:
             rows.append(Row("", UNREAD, "accent"))
-        rows.append(Row(event.id, MARKS.get(event.category, " ") + " "
-                        + pad(timestamp(event.at), 16) + event.account))
+        rows.append(
+            Row(
+                event.id,
+                MARKS.get(event.category, " ") + " " + pad(timestamp(event.at), 16) + event.account,
+            )
+        )
     if not events:
         rows.append(Row("", "nothing has happened yet", "dim"))
     return rows
@@ -513,29 +665,39 @@ def event_detail(world: World, key: str) -> List[Line]:
     if event is None:
         return [Line("No such event.", "dim")]
     place = world.places.get(event.place or "")
-    lines = [Line("event " + event.id + "  " + timestamp(event.at) + "  " + event.category, "bold"),
-           Line("  at " + (place.name if place else "nowhere in particular"),
-                "dim"),
-           Line(),
-           Line("  History says: " + event.account, under=2)]
+    lines = [
+        Line("event " + event.id + "  " + timestamp(event.at) + "  " + event.category, "bold"),
+        Line("  at " + (place.name if place else "nowhere in particular"), "dim"),
+        Line(),
+        Line("  History says: " + event.account, under=2),
+    ]
     why = event.data.get("why_now")
     if why:
         lines.append(Line("  why then: " + str(why), "dim", under=2))
     lines += [Line(), Line("  What it left in the beings it reached", "bold")]
     position = world.chronicle.all().index(event)
-    reached = [world.beings[being_id] for being_id in event.informed
-               if being_id in world.beings]
+    reached = [world.beings[being_id] for being_id in event.informed if being_id in world.beings]
     for being in reached:
         episodes = episodes_of_event(world.episodes(being.id).all(), event.id)
         for episode in episodes:
-            lines.append(Line("    " + pad(being.name, 9) + "\"" + episode.account + "\"",
-                            under=13))
+            lines.append(Line("    " + pad(being.name, 9) + '"' + episode.account + '"', under=13))
         if not episodes:
-            lines.append(Line("    " + pad(being.name, 9)
-                            + ("nothing stayed." if being.clock.perceived_through > position
-                               else "has not looked up since."), "dim", under=13))
-        lines.append(Line("             they were " + perspective.of(world, being, event),
-                        "dim", under=13))
+            lines.append(
+                Line(
+                    "    "
+                    + pad(being.name, 9)
+                    + (
+                        "nothing stayed."
+                        if being.clock.perceived_through > position
+                        else "has not looked up since."
+                    ),
+                    "dim",
+                    under=13,
+                )
+            )
+        lines.append(
+            Line("             they were " + perspective.of(world, being, event), "dim", under=13)
+        )
     if not reached:
         lines.append(Line("    nobody was reached by it.", "dim"))
     return lines
@@ -550,8 +712,7 @@ def place_rows(world: World) -> List[Row]:
     for place in world.places.values():
         here = world.beings_at(place.id)
         who = ", ".join(being.name for being in here) if here else NOTHING
-        rows.append(Row(place.id, pad(clip(place.name, 16), 17) + who,
-                        "plain" if here else "dim"))
+        rows.append(Row(place.id, pad(clip(place.name, 16), 17) + who, "plain" if here else "dim"))
     return rows
 
 
@@ -572,8 +733,10 @@ def view_detail(world: World, key: str, columns: int) -> List[Line]:
         lines[row] = Line(lines[row].text, spans=((column, labels[key], "bold"),))
     place = world.places.get(key)
     if place is None:
-        beings = sorted((being for being in world.beings.values() if being.present),
-                        key=lambda being: being.name)
+        beings = sorted(
+            (being for being in world.beings.values() if being.present),
+            key=lambda being: being.name,
+        )
         events = world.chronicle.all()
     else:
         beings = world.beings_at(place.id)
@@ -599,8 +762,7 @@ def view_detail(world: World, key: str, columns: int) -> List[Line]:
             where = world.places.get(event.place or "")
             text += pad(clip(where.name if where else NOTHING, 12), 13)
         unread = order[event.id] >= read
-        lines.append(Line(clip(text + event.account, columns),
-                          "plain" if unread else "dim"))
+        lines.append(Line(clip(text + event.account, columns), "plain" if unread else "dim"))
     if not events:
         lines.append(Line("  nothing yet", "dim"))
     return lines
@@ -637,11 +799,26 @@ def view_link(world: World, key: str) -> Optional[Tuple[str, str]]:
 
 
 VIEWS = (
-    View("world", "World", world_rows,
-         lambda world, key, columns: world_detail(world, key), world_link),
-    View("beings", "Beings", being_rows,
-         lambda world, key, columns: being_detail(world, key), being_link),
-    View("history", "History", chronicle_rows,
-         lambda world, key, columns: event_detail(world, key), event_link),
+    View(
+        "world",
+        "World",
+        world_rows,
+        lambda world, key, columns: world_detail(world, key),
+        world_link,
+    ),
+    View(
+        "beings",
+        "Beings",
+        being_rows,
+        lambda world, key, columns: being_detail(world, key),
+        being_link,
+    ),
+    View(
+        "history",
+        "History",
+        chronicle_rows,
+        lambda world, key, columns: event_detail(world, key),
+        event_link,
+    ),
     View("view", "View", place_rows, view_detail, view_link),
 )

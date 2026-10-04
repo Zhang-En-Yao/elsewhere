@@ -56,6 +56,7 @@ def load_vector_extension(connection: sqlite.Connection) -> bool:
     """Load sqlite-vec into this connection; False if it cannot be."""
     try:
         import sqlite_vec
+
         connection.enable_load_extension(True)
         sqlite_vec.load(connection)
         connection.enable_load_extension(False)
@@ -64,38 +65,48 @@ def load_vector_extension(connection: sqlite.Connection) -> bool:
         return False
 
 
-def lexical_ranking(connection: sqlite.Connection, documents: Sequence[str],
-                    cue: str) -> List[int]:
+def lexical_ranking(connection: sqlite.Connection, documents: Sequence[str], cue: str) -> List[int]:
     # Each word quoted, so the cue is only ever words and never FTS5 syntax.
     words = sorted(set(re.findall(r"\w+", cue)))
     if not words:
         return []
-    connection.execute("CREATE VIRTUAL TABLE lexical USING "
-                       "fts5(document, tokenize='porter unicode61')")
-    connection.executemany("INSERT INTO lexical(rowid, document) VALUES (?, ?)",
-                           [(index + 1, document) for index, document in enumerate(documents)])
+    connection.execute(
+        "CREATE VIRTUAL TABLE lexical USING " "fts5(document, tokenize='porter unicode61')"
+    )
+    connection.executemany(
+        "INSERT INTO lexical(rowid, document) VALUES (?, ?)",
+        [(index + 1, document) for index, document in enumerate(documents)],
+    )
     rows = connection.execute(
         "SELECT rowid FROM lexical WHERE lexical MATCH ? ORDER BY bm25(lexical)",
-        (" OR ".join(f'"{word}"' for word in words),)).fetchall()
+        (" OR ".join(f'"{word}"' for word in words),),
+    ).fetchall()
     return [row[0] - 1 for row in rows]
 
 
-def dense_ranking(connection: sqlite.Connection, engrams: Sequence[Engram],
-                  cue_vector: Sequence[float], embedder: str) -> List[int]:
+def dense_ranking(
+    connection: sqlite.Connection,
+    engrams: Sequence[Engram],
+    cue_vector: Sequence[float],
+    embedder: str,
+) -> List[int]:
     if not cue_vector or not embedder or not load_vector_extension(connection):
         return []
     import sqlite_vec
 
-    vectors = [(index, sqlite_vec.serialize_float32(list(engram.embedding)))
-              for index, engram in enumerate(engrams)
-              if engram.embedded_by == embedder and len(engram.embedding) == len(cue_vector)]
+    vectors = [
+        (index, sqlite_vec.serialize_float32(list(engram.embedding)))
+        for index, engram in enumerate(engrams)
+        if engram.embedded_by == embedder and len(engram.embedding) == len(cue_vector)
+    ]
     if not vectors:
         return []
     connection.execute("CREATE TABLE dense(position INTEGER PRIMARY KEY, embedding BLOB)")
     connection.executemany("INSERT INTO dense VALUES (?, ?)", vectors)
     rows = connection.execute(
         "SELECT position FROM dense ORDER BY vec_distance_cosine(embedding, ?)",
-        (sqlite_vec.serialize_float32(list(cue_vector)),)).fetchall()
+        (sqlite_vec.serialize_float32(list(cue_vector)),),
+    ).fetchall()
     return [row[0] for row in rows]
 
 
@@ -107,14 +118,17 @@ def fuse(rankings: Sequence[Sequence[int]]) -> Dict[int, float]:
     return scores
 
 
-def search(engrams: Sequence[Engram], cue: str,
-           cue_vector: Sequence[float] = (), embedder: str = "") -> Optional[Engram]:
+def search(
+    engrams: Sequence[Engram], cue: str, cue_vector: Sequence[float] = (), embedder: str = ""
+) -> Optional[Engram]:
     """The one engram the cue points at most, or None when nothing is shared."""
     if not engrams:
         return None
     with closing(connect()) as connection:
-        rankings = [lexical_ranking(connection, [engram.text for engram in engrams], cue),
-                    dense_ranking(connection, engrams, cue_vector, embedder)]
+        rankings = [
+            lexical_ranking(connection, [engram.text for engram in engrams], cue),
+            dense_ranking(connection, engrams, cue_vector, embedder),
+        ]
     scores = fuse(rankings)
     if not scores:
         return None
@@ -132,6 +146,7 @@ def fragment(engram: Engram, days: float) -> Engram:
     if not engram.gists:
         return engram
     surviving = math.ceil(len(engram.gists) * retention(days))
-    heaviest = sorted(range(len(engram.gists)),
-                      key=lambda position: -engram.gists[position].weight)[:surviving]
+    heaviest = sorted(
+        range(len(engram.gists)), key=lambda position: -engram.gists[position].weight
+    )[:surviving]
     return replace(engram, gists=[engram.gists[position] for position in sorted(heaviest)])

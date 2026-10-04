@@ -11,7 +11,7 @@ from elsewhere.adapters import storage
 from elsewhere.interface import bookmark, cli, seed
 from elsewhere.interface.tui import cartography, views
 
-WIDE = "去年的雨"           # four columns' worth of two characters each
+WIDE = "去年的雨"  # four columns' worth of two characters each
 
 
 def text(lines):
@@ -41,8 +41,7 @@ class TestMeasuring(unittest.TestCase):
     def test_clipping_never_overruns_the_room_it_was_given(self):
         for columns in range(1, 12):
             self.assertLessEqual(views.width(views.clip(WIDE * 3, columns)), columns)
-            self.assertLessEqual(views.width(views.clip("a word or two", columns)),
-                                 columns)
+            self.assertLessEqual(views.width(views.clip("a word or two", columns)), columns)
 
     def test_what_fits_is_left_exactly_as_it_was(self):
         self.assertEqual(views.clip("Havvah", 20), "Havvah")
@@ -51,23 +50,22 @@ class TestMeasuring(unittest.TestCase):
 class TestWrapping(unittest.TestCase):
 
     def test_nothing_comes_back_wider_than_asked_for(self):
-        line = views.Line("    Havvah   " + "a sentence that will not fit " * 4,
-                          under=13)
+        line = views.Line("    Havvah   " + "a sentence that will not fit " * 4, under=13)
         for columns in (20, 34, 55, 80):
             for one in views.wrap(line, columns):
                 self.assertLessEqual(views.width(one.text), columns)
 
     def test_the_indent_and_the_columns_inside_it_survive(self):
-        line = views.Line("    Havvah   He works too late, and he knows it too well.",
-                          under=13)
+        line = views.Line("    Havvah   He works too late, and he knows it too well.", under=13)
         first = views.wrap(line, 40)[0]
-        self.assertTrue(first.text.startswith("    Havvah   He"),
-                        "a wrapper that normalises whitespace takes every "
-                        "aligned column apart: " + repr(first.text))
+        self.assertTrue(
+            first.text.startswith("    Havvah   He"),
+            "a wrapper that normalises whitespace takes every "
+            "aligned column apart: " + repr(first.text),
+        )
 
     def test_the_remainder_goes_on_under_what_it_is_a_remainder_of(self):
-        line = views.Line("  doing       something that will have to be wrapped",
-                          under=14)
+        line = views.Line("  doing       something that will have to be wrapped", under=14)
         rest = views.wrap(line, 30)[1:]
         self.assertTrue(rest)
         for one in rest:
@@ -107,19 +105,24 @@ class TestView(Window):
         self.assertEqual([(text, tone) for _, text, tone in spans], [("Marah", "bold")])
         line = next(line for line in lines if line.spans)
         column = line.spans[0][0]
-        self.assertEqual(line.text[column:column + len("Marah")], "Marah",
-                         "the bold name has to land exactly on the name under it")
+        self.assertEqual(
+            line.text[column : column + len("Marah")],
+            "Marah",
+            "the bold name has to land exactly on the name under it",
+        )
         self.assertNotIn("[", self.drawn("marah"))
 
     def test_the_whole_world_puts_no_place_in_bold(self):
-        self.assertFalse([line for line in views.view_detail(self.world, views.WORLD_KEY, 60)
-                          if line.spans])
+        self.assertFalse(
+            [line for line in views.view_detail(self.world, views.WORLD_KEY, 60) if line.spans]
+        )
 
     def test_it_is_never_wider_than_the_pane(self):
         for columns in (30, 45, 60, 90):
             labels = {place.id: place.name for place in self.world.places.values()}
-            drawing, _ = cartography.draw(labels, self.world.map.positions,
-                                          self.world.map.ways, columns, 12)
+            drawing, _ = cartography.draw(
+                labels, self.world.map.positions, self.world.map.ways, columns, 12
+            )
             self.assertLessEqual(len(drawing), 12)
             for row in drawing:
                 # The screen wraps every line; a drawing has to come through whole.
@@ -148,7 +151,7 @@ class TestOverview(Window):
         drawn = text(views.view_detail(self.world, "mizpah", 80))
         self.assertIn("Lilith", drawn)
         self.assertNotIn("Havvah", drawn)
-        self.assertIn("nothing yet", drawn)              # the backstory was elsewhere
+        self.assertIn("nothing yet", drawn)  # the backstory was elsewhere
 
     def test_every_line_fits_on_one_line(self):
         for key in (views.WORLD_KEY, *self.world.places):
@@ -170,12 +173,19 @@ class TestNext(Window):
 
     def install(self, world_root, log_lines=None):
         import plistlib
+
         log = Path(self.temporary.name) / "continue.log"
         if log_lines is not None:
             log.write_text("".join(line + "\n" for line in log_lines))
-        views.AGENT.write_bytes(plistlib.dumps({
-            "ProgramArguments": ["elsewhere", "--world", str(world_root), "continue"],
-            "StartInterval": 1800, "StandardOutPath": str(log)}))
+        views.AGENT.write_bytes(
+            plistlib.dumps(
+                {
+                    "ProgramArguments": ["elsewhere", "--world", str(world_root), "continue"],
+                    "StartInterval": 1800,
+                    "StandardOutPath": str(log),
+                }
+            )
+        )
 
     def said(self):
         return text(views.next_lines(self.world, "  "))
@@ -204,8 +214,13 @@ class TestNext(Window):
         self.assertIn("never ran", self.said())
 
     def test_the_last_run_is_read_off_its_log(self):
-        self.install(storage.root(self.world), ["[2026-09-28 18:30] checked; nothing is due for 2.0h",
-                                       "  Havvah  stayed where they were"])
+        self.install(
+            storage.root(self.world),
+            [
+                "[2026-09-28 18:30] checked; nothing is due for 2.0h",
+                "  Havvah  stayed where they were",
+            ],
+        )
         said = self.said()
         self.assertIn("every 30min", said)
         self.assertIn("last ran 2026-09-28 18:30", said)
@@ -221,23 +236,28 @@ class TestGeography(Window):
         import math
         from itertools import combinations
         from elsewhere.domain import geography
+
         apart = geography.steps(list(self.world.places), self.world.map.ways)
         drawn: dict = {}
         for one, other in combinations(self.world.places, 2):
             drawn.setdefault(apart[one][other], []).append(
-                math.dist(self.world.map.positions[one], self.world.map.positions[other]))
+                math.dist(self.world.map.positions[one], self.world.map.positions[other])
+            )
         means = [sum(distances) / len(distances) for _, distances in sorted(drawn.items())]
         self.assertEqual(means, sorted(means))
 
     def test_the_same_town_lies_the_same_way(self):
         from elsewhere.domain import geography
-        self.assertEqual(geography.layout(list(self.world.places), self.world.map.ways),
-                         self.world.map.positions)
+
+        self.assertEqual(
+            geography.layout(list(self.world.places), self.world.map.ways), self.world.map.positions
+        )
 
     def test_positions_survive_a_save(self):
         storage.save(self.world)
-        self.assertEqual(storage.load(storage.root(self.world)).map.positions,
-                         self.world.map.positions)
+        self.assertEqual(
+            storage.load(storage.root(self.world)).map.positions, self.world.map.positions
+        )
 
     def test_a_world_made_before_positions_still_has_a_map(self):
         self.world.map.positions = {}
@@ -251,7 +271,7 @@ class TestEveryViewAnswers(Window):
         for view in views.VIEWS:
             for row in view.rows(self.world):
                 if not row.key:
-                    continue          # a divider; the cursor cannot land on it
+                    continue  # a divider; the cursor cannot land on it
                 lines = view.detail(self.world, row.key, 60)
                 self.assertTrue(lines, f"{view.name} says nothing about {row.key}")
                 for line in lines:
@@ -268,11 +288,9 @@ class TestEveryViewAnswers(Window):
             self.assertIn(place_id, keys)
 
     def test_nobody_gone_means_nothing_about_who_is_gone(self):
-        self.assertNotIn(views.GONE_KEY,
-                         [row.key for row in views.world_rows(self.world)])
+        self.assertNotIn(views.GONE_KEY, [row.key for row in views.world_rows(self.world)])
         self.world.beings["lilith"].clock.left_at = self.world.current
-        self.assertIn(views.GONE_KEY,
-                      [row.key for row in views.world_rows(self.world)])
+        self.assertIn(views.GONE_KEY, [row.key for row in views.world_rows(self.world)])
 
 
 class TestWhereYouStoppedReading(Window):
@@ -286,8 +304,7 @@ class TestWhereYouStoppedReading(Window):
 
     def test_having_read_it_all_leaves_no_line(self):
         bookmark.save(self.world, len(self.world.chronicle))
-        self.assertNotIn(views.UNREAD,
-                         [row.text for row in views.chronicle_rows(self.world)])
+        self.assertNotIn(views.UNREAD, [row.text for row in views.chronicle_rows(self.world)])
 
     def test_a_divider_is_not_something_the_cursor_can_land_on(self):
         bookmark.save(self.world, 1)
@@ -308,38 +325,48 @@ class TestItShowsWhatTheyCarry(Window):
 
     def test_it_says_how_many_self_schemas_came_before(self):
         from elsewhere.domain.memory import SelfSchema
+
         havvah = self.world.beings["havvah"]
         self.world.self_schemas(havvah.id).append(SelfSchema(concerns=["one"]))
         self.world.self_schemas(havvah.id).append(SelfSchema(concerns=["two"]))
         # The one seed wrote them with, then these two.
-        self.assertIn("newest of 3 self-schemas",
-                      text(views.being_detail(self.world, havvah.id)))
+        self.assertIn("newest of 3 self-schemas", text(views.being_detail(self.world, havvah.id)))
 
     def test_what_they_have_not_slept_on_is_shown_apart_from_it(self):
         from elsewhere.domain.memory import Engram, Episode, Gist
+
         havvah = self.world.beings["havvah"]
-        self.world.episodes(havvah.id).append(Episode(at=self.world.current,
-                                                      account="feathers on the path"))
+        self.world.episodes(havvah.id).append(
+            Episode(at=self.world.current, account="feathers on the path")
+        )
         body = text(views.being_detail(self.world, havvah.id))
         self.assertIn("not slept on yet", body)
         self.assertIn("feathers on the path", body)
         havvah.clock.consolidated_through = 1
-        self.world.engrams(havvah.id).append(Engram(at=self.world.current,
-                                                    gists=[Gist("feathers by the well", 0.9)]))
+        self.world.engrams(havvah.id).append(
+            Engram(at=self.world.current, gists=[Gist("feathers by the well", 0.9)])
+        )
         body = text(views.being_detail(self.world, havvah.id))
-        self.assertNotIn("feathers on the path", body,
-                         "once slept on, only what sleep laid down is left")
+        self.assertNotIn(
+            "feathers on the path", body, "once slept on, only what sleep laid down is left"
+        )
         self.assertIn("feathers by the well", body)
 
     def test_what_sleep_laid_down_shows_the_episodes_it_came_from(self):
         from elsewhere.domain.memory import Engram, Episode, Gist
+
         havvah = self.world.beings["havvah"]
-        self.world.episodes(havvah.id).append(Episode(at=self.world.current,
-                                                      account="feathers on the path"))
+        self.world.episodes(havvah.id).append(
+            Episode(at=self.world.current, account="feathers on the path")
+        )
         havvah.clock.consolidated_through = 1
-        self.world.engrams(havvah.id).append(Engram(
-            at=self.world.current, gists=[Gist("feathers by the well", 0.9)],
-            _episode_positions=[0]))
+        self.world.engrams(havvah.id).append(
+            Engram(
+                at=self.world.current,
+                gists=[Gist("feathers by the well", 0.9)],
+                _episode_positions=[0],
+            )
+        )
         body = text(views.being_detail(self.world, havvah.id))
         self.assertIn("feathers by the well", body)
         self.assertIn("feathers on the path", body, "under it, the episode it was made from")
@@ -355,8 +382,12 @@ class TestSomebodyWhoLeft(Window):
 
         # Frozen at the moment she left.
         self.world.current += 24 * 360
-        self.world.record("occurrence", "A storm broke over the town.",
-                          place="bethel", informed=["havvah", "bezalel"])
+        self.world.record(
+            "occurrence",
+            "A storm broke over the town.",
+            place="bethel",
+            informed=["havvah", "bezalel"],
+        )
         self.assertEqual(text(views.being_detail(self.world, lilith.id)), was)
 
 
@@ -398,8 +429,9 @@ class TestLogo(unittest.TestCase):
         for drawing in views.logo(200, 100):
             for line in drawing:
                 for character in line:
-                    self.assertTrue(character == " " or 0x2800 <= ord(character) <= 0x28FF,
-                                    repr(character))
+                    self.assertTrue(
+                        character == " " or 0x2800 <= ord(character) <= 0x28FF, repr(character)
+                    )
 
     def test_the_wings_move_and_nothing_else_resizes(self):
         frames = views.logo(200, 100)
@@ -445,20 +477,28 @@ class TestSplash(Window):
     def test_it_opens_until_a_key_and_closes_on_its_own(self):
         from unittest import mock
         from elsewhere.interface.tui import screen
+
         storage.save(self.world)
         closing = screen.CLOSING_MILLISECONDS // screen.FRAME_MILLISECONDS
         opening = [-1, -1, screen.curses.KEY_RESIZE, -1, ord("x")]
         keys = ScriptedScreen(opening + [ord("q")] + [-1] * closing)
         app = screen.App(storage.root(self.world), keys)
-        with mock.patch.multiple(screen.curses, curs_set=mock.DEFAULT,
-                                 set_escdelay=mock.DEFAULT, mousemask=mock.DEFAULT,
-                                 doupdate=mock.DEFAULT), \
-                mock.patch.object(app, "draw"):
+        with (
+            mock.patch.multiple(
+                screen.curses,
+                curs_set=mock.DEFAULT,
+                set_escdelay=mock.DEFAULT,
+                mousemask=mock.DEFAULT,
+                doupdate=mock.DEFAULT,
+            ),
+            mock.patch.object(app, "draw"),
+        ):
             app.loop()
         self.assertEqual(keys.keys, [], "closing stopped early")
         frame = screen.FRAME_MILLISECONDS
-        self.assertEqual(keys.waits, [frame] * len(opening) + [screen.PAUSE_MILLISECONDS]
-                         + [frame] * closing)
+        self.assertEqual(
+            keys.waits, [frame] * len(opening) + [screen.PAUSE_MILLISECONDS] + [frame] * closing
+        )
         self.assertIn("Elsewhere", keys.shown[0])
         self.assertNotEqual(keys.shown[0], keys.shown[1], "the wings did not move")
 
@@ -469,6 +509,7 @@ class TestGoing(Window):
     def setUp(self):
         super().setUp()
         from elsewhere.interface.tui import screen
+
         storage.save(self.world)
         self.screen = screen
         self.app = screen.App(storage.root(self.world), FakeScreen())
@@ -485,8 +526,11 @@ class TestGoing(Window):
                 name, key = target
                 self.assertIn(name, self.names())
                 landing = views.VIEWS[self.names().index(name)]
-                self.assertIn(key, [row.key for row in landing.rows(self.world)],
-                              f"{view.name}:{row.key} leads to {target}")
+                self.assertIn(
+                    key,
+                    [row.key for row in landing.rows(self.world)],
+                    f"{view.name}:{row.key} leads to {target}",
+                )
 
     def test_a_place_leads_to_the_map_and_back(self):
         app = self.app
@@ -520,7 +564,7 @@ class TestGoing(Window):
         app = self.app
         app.key(ord("4"))
         app.cursor[3] = [row.key for row in app.rows()].index("sinai")
-        app.go(0)                                   # as clicking the World tab does
+        app.go(0)  # as clicking the World tab does
         self.assertEqual(self.names()[app.tab], "world")
         app.key(27)
         self.assertEqual((self.names()[app.tab], app.selected()), ("view", "sinai"))
@@ -573,16 +617,21 @@ class TestTheWindowWritesNothing(Window):
         was = self.files()
         pressed = [ord(character) for character in "123456789jkhlgGb rfcmxyz?\t\n\r"]
         pressed += [127, 27, screen.curses.KEY_BACKSPACE, screen.curses.KEY_ENTER]
-        pressed += [screen.curses.KEY_DOWN, screen.curses.KEY_UP,
-                    screen.curses.KEY_NPAGE, screen.curses.KEY_PPAGE,
-                    screen.curses.KEY_RESIZE, screen.curses.KEY_LEFT,
-                    screen.curses.KEY_RIGHT, screen.curses.KEY_BTAB]
+        pressed += [
+            screen.curses.KEY_DOWN,
+            screen.curses.KEY_UP,
+            screen.curses.KEY_NPAGE,
+            screen.curses.KEY_PPAGE,
+            screen.curses.KEY_RESIZE,
+            screen.curses.KEY_LEFT,
+            screen.curses.KEY_RIGHT,
+            screen.curses.KEY_BTAB,
+        ]
         for _ in range(3):
             for key in pressed:
                 app.key(key)
-                app.shown(60)             # what a frame would ask it to work out
-        self.assertEqual(self.files(), was,
-                         "some key in the window wrote to the world")
+                app.shown(60)  # what a frame would ask it to work out
+        self.assertEqual(self.files(), was, "some key in the window wrote to the world")
 
     def test_it_holds_nothing_that_could_write(self):
         """Static guard: drive-the-keys only covers keys that exist today."""
@@ -591,11 +640,19 @@ class TestTheWindowWritesNothing(Window):
         self.assertTrue(paths, f"nothing to guard at {source}")
         for path in paths:
             body = path.read_text(encoding="utf-8")
-            for writer in ("storage.save", "storage.Lock", ".save(", "open(",
-                           "write_text", "bookmark.save"):
-                self.assertNotIn(writer, body,
-                                 f"{path.name} reaches for {writer!r}; the "
-                                 f"window is supposed to only read")
+            for writer in (
+                "storage.save",
+                "storage.Lock",
+                ".save(",
+                "open(",
+                "write_text",
+                "bookmark.save",
+            ):
+                self.assertNotIn(
+                    writer,
+                    body,
+                    f"{path.name} reaches for {writer!r}; the " f"window is supposed to only read",
+                )
 
 
 if __name__ == "__main__":

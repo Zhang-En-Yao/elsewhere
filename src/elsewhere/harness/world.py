@@ -30,8 +30,7 @@ from .schemas import CallName
 RECENT_EVENTS = 8
 
 
-def stir(world: World, configuration,
-         transcript: Optional[Transcript] = None) -> Decision:
+def stir(world: World, configuration, transcript: Optional[Transcript] = None) -> Decision:
     settings = configuration[CallName.STIR]
     recent = world.chronicle.all()[-RECENT_EVENTS:]
     places = {place.name: place for place in world.places.values()}
@@ -41,13 +40,18 @@ def stir(world: World, configuration,
         name=CallName.STIR,
         system=prompts.STIR_SYSTEM,
         user=prompts.stir_user(world, recent),
-        schema=schemas.stir_grammar(list(places),
-                                    sorted({resident.name for resident in residents}),
-                                    may_admit=can_admit),
+        schema=schemas.stir_grammar(
+            list(places), sorted({resident.name for resident in residents}), may_admit=can_admit
+        ),
         mind="world",
     )
-    answer = ask(get_backend(settings.backend), call, settings, transcript,
-                 lambda data: schemas.validate(CallName.STIR, data))
+    answer = ask(
+        get_backend(settings.backend),
+        call,
+        settings,
+        transcript,
+        lambda data: schemas.validate(CallName.STIR, data),
+    )
     if answer is None:
         return Decision(defaulted=True)
 
@@ -57,21 +61,28 @@ def stir(world: World, configuration,
     action = answer.get("action") or ""
     if action == Tool.OCCUR:
         what = (answer.get("what") or "").strip()
-        who = next((resident for resident in residents
-                    if resident.name == (answer.get("who") or "")), None)
+        who = next(
+            (resident for resident in residents if resident.name == (answer.get("who") or "")), None
+        )
         place = places.get(answer.get("where") or "")
         if what and (who is not None or place is not None):
             decision.tool = Tool.OCCUR
             decision.arguments = {
-                "what": what, "where": place.id if place is not None else "",
+                "what": what,
+                "where": place.id if place is not None else "",
                 "who": who.id if who is not None else "",
-                "reach": answer.get("reach") or str(Reach.THERE), "why_now": why_now}
+                "reach": answer.get("reach") or str(Reach.THERE),
+                "why_now": why_now,
+            }
     elif action == Tool.ADMIT and can_admit:
         name = (answer.get("name") or "").strip()
         if name:
             decision.tool = Tool.ADMIT
             decision.arguments = {
-                "name": name, "from_where": (answer.get("from_where") or "").strip(),
+                "name": name,
+                "from_where": (answer.get("from_where") or "").strip(),
                 "biography": (answer.get("biography") or "").strip(),
-                "idiolect": (answer.get("idiolect") or "").strip(), "why_now": why_now}
+                "idiolect": (answer.get("idiolect") or "").strip(),
+                "why_now": why_now,
+            }
     return decision

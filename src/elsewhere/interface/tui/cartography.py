@@ -54,9 +54,13 @@ def cells(text: str) -> List[str]:
     return placed
 
 
-def draw(labels: Dict[str, str], positions: Dict[str, List[float]],
-         ways: Sequence[Sequence[str]], columns: int,
-         rows: int) -> Tuple[List[str], Dict[str, Tuple[int, int]]]:
+def draw(
+    labels: Dict[str, str],
+    positions: Dict[str, List[float]],
+    ways: Sequence[Sequence[str]],
+    columns: int,
+    rows: int,
+) -> Tuple[List[str], Dict[str, Tuple[int, int]]]:
     """Names where `positions` puts them, and a dotted line for each way, in at
     most `columns` by `rows`; a place with no position is left off. Also gives
     the row and column each name starts at, for whatever is drawn over it."""
@@ -75,9 +79,13 @@ def draw(labels: Dict[str, str], positions: Dict[str, List[float]],
     scales += [room_y * CELL_ASPECT / spread_y] if spread_y else []
     scale = min(scales, default=0.0)
     left = margin + (room_x - round(spread_x * scale)) // 2
-    centre = {place: (left + round((positions[place][0] - least_x) * scale),
-                      round((positions[place][1] - least_y) * scale / CELL_ASPECT))
-              for place in places}
+    centre = {
+        place: (
+            left + round((positions[place][0] - least_x) * scale),
+            round((positions[place][1] - least_y) * scale / CELL_ASPECT),
+        )
+        for place in places
+    }
     height = max(y for _, y in centre.values()) + 1
     grid = [[" "] * columns for _ in range(height)]
     for one, other in ways:

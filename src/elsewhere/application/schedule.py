@@ -30,8 +30,13 @@ def interrupt(world: World, being_ids: Iterable[str]) -> None:
 
 def being_due(world: World, being_id: str) -> bool:
     being = world.beings.get(being_id)
-    return (being is not None and being.present and being.mind == "model"
-            and being.clock.due_at is not None and being.clock.due_at <= world.current)
+    return (
+        being is not None
+        and being.present
+        and being.mind == "model"
+        and being.clock.due_at is not None
+        and being.clock.due_at <= world.current
+    )
 
 
 def world_due(world: World) -> bool:
@@ -40,8 +45,11 @@ def world_due(world: World) -> bool:
 
 def timers(world: World) -> List[float]:
     found = [world.due_at] if world.due_at is not None else []
-    found += [being.clock.due_at for being in world.beings.values()
-              if being.present and being.clock.due_at is not None]
+    found += [
+        being.clock.due_at
+        for being in world.beings.values()
+        if being.present and being.clock.due_at is not None
+    ]
     return found
 
 

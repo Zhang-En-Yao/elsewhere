@@ -12,12 +12,26 @@ from . import Call, Settings
 
 #: Keyed by call site (`harness.schemas.CallName`, which is a string).
 DEFAULTS: Dict[str, dict] = {
-    "act": {"reason": "", "doing": "", "action": "", "target": "",
-            "duration": 21600, "sleep": False},
+    "act": {
+        "reason": "",
+        "doing": "",
+        "action": "",
+        "target": "",
+        "duration": 21600,
+        "sleep": False,
+    },
     "speak": {"utterance": "..."},
     # An empty self-schema is no answer, so by default nobody's changes.
-    "consolidate": {"engrams": [], "self_schema": {
-        "idiolect": "", "traits": [], "concerns": [], "assumptions": [], "impressions": []}},
+    "consolidate": {
+        "engrams": [],
+        "self_schema": {
+            "idiolect": "",
+            "traits": [],
+            "concerns": [],
+            "assumptions": [],
+            "impressions": [],
+        },
+    },
     "stir": {"action": "", "duration": 86400},
 }
 
@@ -29,6 +43,7 @@ class StubBackend:
     #: semantically near anything else.
     def embed(self, texts, settings: Optional[Settings] = None):
         import hashlib
+
         vectors = []
         for text in texts:
             digest = hashlib.sha256(text.encode("utf-8")).digest()
@@ -37,8 +52,7 @@ class StubBackend:
             vectors.append([component / norm for component in vector])
         return vectors
 
-    def __init__(self, answers: Optional[Dict[str, object]] = None,
-                 script_from_env: bool = False):
+    def __init__(self, answers: Optional[Dict[str, object]] = None, script_from_env: bool = False):
         #: keyed by "<call>|<person id>" or "<call>". Values: dict, raw string,
         #: callable taking the Call, or a list cycled in order.
         self.answers: Dict[str, object] = dict(answers or {})
@@ -55,8 +69,7 @@ class StubBackend:
     def complete(self, call: Call, settings: Settings) -> str:
         self.calls.append(call)
         key = f"{call.name}|{call.mind}"
-        answer = self.answers.get(key, self.answers.get(
-            call.name, DEFAULTS.get(call.name, {})))
+        answer = self.answers.get(key, self.answers.get(call.name, DEFAULTS.get(call.name, {})))
         if isinstance(answer, list):
             taken = self._taken[key]
             self._taken[key] += 1

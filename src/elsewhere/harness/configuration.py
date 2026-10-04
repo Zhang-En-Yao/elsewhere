@@ -20,11 +20,11 @@ LOCAL = {"backend": "mlx", "model": "mlx-community/gemma-4-E2B-it-qat-4bit"}  # 
 EMBED = {"backend": "mlx", "model": "mlx-community/embeddinggemma-300m-8bit"}  # ~330MB, 768 dims
 
 DEFAULTS: Dict[str, dict] = {
-    CallName.ACT:      {**LOCAL, "temperature": 0.9},
-    CallName.SPEAK:    {**LOCAL, "temperature": 1.0},
+    CallName.ACT: {**LOCAL, "temperature": 0.9},
+    CallName.SPEAK: {**LOCAL, "temperature": 1.0},
     CallName.CONSOLIDATE: {**LOCAL, "temperature": 0.8},
-    CallName.STIR:     {**LOCAL, "temperature": 1.0},
-    "embed":           dict(EMBED),
+    CallName.STIR: {**LOCAL, "temperature": 1.0},
+    "embed": dict(EMBED),
 }
 
 GUIDANCE = [
@@ -35,14 +35,13 @@ GUIDANCE = [
     "pip install -e '.[mlx]'",
     "endpoint: where the server is, for openai; http://localhost:8000/v1 if left "
     "out. timeout: seconds to wait for one answer, 180 if left out",
-    "anything with an OpenAI-compatible /v1 works through backend \"openai\" "
+    'anything with an OpenAI-compatible /v1 works through backend "openai" '
     "with its endpoint set: llama-server, LM Studio, vLLM on a GPU box. A hosted "
     "endpoint takes its key from ELSEWHERE_OPENAI_KEY, the only thing read "
     "from the environment",
-    "embed on backend \"openai\" asks the endpoint's /v1/embeddings, which not "
+    'embed on backend "openai" asks the endpoint\'s /v1/embeddings, which not '
     "every server has (mlx_lm.server does not); without it retrieval is BM25 alone",
-    "mlx: options go to the chat template, with enable_thinking false unless "
-    "it says otherwise",
+    "mlx: options go to the chat template, with enable_thinking false unless " "it says otherwise",
     "change a whole backend at once with `elsewhere configure`; "
     "run `elsewhere doctor` after any change here",
 ]
@@ -57,8 +56,10 @@ def locate(root) -> Path:
 
 
 def default() -> dict:
-    return {"notes": list(GUIDANCE),
-            "agents": {name: dict(settings) for name, settings in DEFAULTS.items()}}
+    return {
+        "notes": list(GUIDANCE),
+        "agents": {name: dict(settings) for name, settings in DEFAULTS.items()},
+    }
 
 
 def read(root) -> dict:
@@ -69,37 +70,36 @@ def read(root) -> dict:
         loaded = json.loads(path.read_text(encoding="utf-8"))
         for name, settings in loaded.get("agents", {}).items():
             if name not in data["agents"]:
-                continue                      # a call site there is no longer
+                continue  # a call site there is no longer
             merged = data["agents"][name]
             if settings.get("backend", merged.get("backend")) != merged.get("backend"):
-                merged.pop("options", None)   # the default's options are for its backend
+                merged.pop("options", None)  # the default's options are for its backend
             merged.update(settings)
     return data
 
 
 def load(root) -> Dict[str, Settings]:
-    return {name: Settings.from_dict(settings)
-            for name, settings in read(root)["agents"].items()}
+    return {name: Settings.from_dict(settings) for name, settings in read(root)["agents"].items()}
 
 
 def write(root, data: dict) -> Path:
     path = locate(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {**data, "notes": list(GUIDANCE)}
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
-                    encoding="utf-8")
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
 
-def configure(root, backend: str, model: str, endpoint: Optional[str] = None,
-              calls: Iterable[str] = MINDS) -> Path:
+def configure(
+    root, backend: str, model: str, endpoint: Optional[str] = None, calls: Iterable[str] = MINDS
+) -> Path:
     data = read(root)
     for name in calls:
         if name not in data["agents"]:
             raise KeyError(f"no call site named {name!r}; have {sorted(data['agents'])}")
         settings = data["agents"][name]
         if settings.get("backend") != backend:
-            settings.pop("options", None)     # what one backend takes, another refuses
+            settings.pop("options", None)  # what one backend takes, another refuses
         settings.update(backend=backend, model=model)
         if endpoint:
             settings["endpoint"] = endpoint

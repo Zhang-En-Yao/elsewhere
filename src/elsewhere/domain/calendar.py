@@ -75,4 +75,6 @@ def clock_of(virtual: float) -> str:
 def virtual_on(year: int, month: int, day: int, hour: float) -> float:
     """The inverse of the `*_of` readings: the virtual time of a Gregorian date
     and clock hour."""
-    return ((date(year, month, day) - EPOCH).days) * VIRTUAL_TIME_PER_DAY + virtual_of(hour * SECONDS_PER_HOUR)
+    return ((date(year, month, day) - EPOCH).days) * VIRTUAL_TIME_PER_DAY + virtual_of(
+        hour * SECONDS_PER_HOUR
+    )

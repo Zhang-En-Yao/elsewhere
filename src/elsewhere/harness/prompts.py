@@ -54,8 +54,10 @@ def self_schema_block(self_schema: SelfSchema) -> str:
         lines += [f"  - {assumption}" for assumption in self_schema.assumptions]
     if self_schema.impressions:
         lines.append("How you see the people you know:")
-        lines += [f"  - {impression.being}: {impression.impression}"
-                  for impression in self_schema.impressions]
+        lines += [
+            f"  - {impression.being}: {impression.impression}"
+            for impression in self_schema.impressions
+        ]
     return "\n".join(lines)
 
 
@@ -82,7 +84,8 @@ def short_term_block(today: Sequence[Episode]) -> str:
     if not today:
         return "What you have kept of today: nothing yet."
     return "What you have kept of today, in your own words:\n" + "\n".join(
-        f"  - {timestamp(episode.at)}: {episode.account}" for episode in today)
+        f"  - {timestamp(episode.at)}: {episode.account}" for episode in today
+    )
 
 
 def propositions(engram: Engram) -> str:
@@ -94,8 +97,10 @@ def retrieved_block(retrieved: Optional[Engram], current: float) -> str:
     theirs to make sense of."""
     if retrieved is None or not retrieved.gists:
         return ""
-    return (f"Something comes back from {ago(current - retrieved.at)}, not all of it:\n"
-            f"  {propositions(retrieved)}")
+    return (
+        f"Something comes back from {ago(current - retrieved.at)}, not all of it:\n"
+        f"  {propositions(retrieved)}"
+    )
 
 
 ACT_SYSTEM = """You are one person in a small town, deciding what to do with
@@ -194,10 +199,19 @@ Four people, another town, another day - the form, not the content:
      "action": "move", "target": "the well", "duration": 3600, "sleep": false}"""
 
 
-def act_user(being: Being, when: str, place, companions: Sequence[Being],
-             destinations: Sequence[str], percepts: Sequence[Tuple[Event, str]],
-             today: Sequence[Episode], retrieved: Optional[Engram] = None,
-             current: float = 0.0, home: str = "", may_leave: bool = False) -> str:
+def act_user(
+    being: Being,
+    when: str,
+    place,
+    companions: Sequence[Being],
+    destinations: Sequence[str],
+    percepts: Sequence[Tuple[Event, str]],
+    today: Sequence[Episode],
+    retrieved: Optional[Engram] = None,
+    current: float = 0.0,
+    home: str = "",
+    may_leave: bool = False,
+) -> str:
     company = ", ".join(companion.name for companion in companions) if companions else "nobody"
     if place and being.location.home == place.id:
         where = f"You are at home, {place.name}. {place.description}".strip()
@@ -210,8 +224,14 @@ def act_user(being: Being, when: str, place, companions: Sequence[Being],
         where,
         f"Here with you: {company}.",
         f"From here you can go to: {', '.join(destinations) if destinations else 'nowhere'}.",
-        ("From here the road also goes out of the town. You could take it "
-         "today and not come back.") if may_leave else "",
+        (
+            (
+                "From here the road also goes out of the town. You could take it "
+                "today and not come back."
+            )
+            if may_leave
+            else ""
+        ),
         percepts_block(percepts),
         short_term_block(today),
         retrieved_block(retrieved, current),
@@ -249,9 +269,16 @@ Three people, another town - the form, not the content:
     {"encoded": "", "utterance": "River's high. Mind your feet."}"""
 
 
-def speak_user(being: Being, listener: Being, when: str, place_name: str,
-               percepts: Sequence[Tuple[Event, str]], today: Sequence[Episode],
-               retrieved: Optional[Engram] = None, current: float = 0.0) -> str:
+def speak_user(
+    being: Being,
+    listener: Being,
+    when: str,
+    place_name: str,
+    percepts: Sequence[Tuple[Event, str]],
+    today: Sequence[Episode],
+    retrieved: Optional[Engram] = None,
+    current: float = 0.0,
+) -> str:
     parts = [
         f"It is {when}, at {place_name}.",
         f"You are talking to {listener.name}.",
@@ -361,30 +388,42 @@ Four mornings, another town - the form, not the content:
 def stir_user(world, recent) -> str:
     places = "Places: " + "; ".join(
         f"{place.name} ({place.description})" if place.description else place.name
-        for place in world.places.values())
+        for place in world.places.values()
+    )
     present = [being for being in world.beings.values() if being.present]
     absent = [being for being in world.beings.values() if not being.present]
     people = [f"People ({len(present)}):"]
     for being in sorted(present, key=lambda being: being.name):
         place = world.places.get(being.location.place)
-        doings = (" Lately doing: " + "; ".join(being.activity.doings) + "."
-                  if being.activity.doings else "")
-        people.append(f"  - {being.name}, at "
-                      f"{place.name if place else 'nowhere'}.{doings}")
+        doings = (
+            " Lately doing: " + "; ".join(being.activity.doings) + "."
+            if being.activity.doings
+            else ""
+        )
+        people.append(f"  - {being.name}, at " f"{place.name if place else 'nowhere'}.{doings}")
     if absent:
-        people.append("Who has gone: " + "; ".join(
-            being.name for being in sorted(absent, key=lambda being: being.name)) + ".")
+        people.append(
+            "Who has gone: "
+            + "; ".join(being.name for being in sorted(absent, key=lambda being: being.name))
+            + "."
+        )
     road = world.places.get(world.map.road)
     chronicle = ["Lately, in the record:"]
-    chronicle += [f"  - {timestamp(event.at)}: {event.account}" for event in recent] or ["  nothing."]
-    return "\n\n".join(part for part in [
-        f"{world.name}. {world.label()}.",
-        places,
-        f"The one road into the town comes in at {road.name}." if road else "",
-        "\n".join(people),
-        "\n".join(chronicle),
-        "Does anything happen to this town today, or does anybody come up the road?",
-    ] if part)
+    chronicle += [f"  - {timestamp(event.at)}: {event.account}" for event in recent] or [
+        "  nothing."
+    ]
+    return "\n\n".join(
+        part
+        for part in [
+            f"{world.name}. {world.label()}.",
+            places,
+            f"The one road into the town comes in at {road.name}." if road else "",
+            "\n".join(people),
+            "\n".join(chronicle),
+            "Does anything happen to this town today, or does anybody come up the road?",
+        ]
+        if part
+    )
 
 
 CONSOLIDATE_SYSTEM = """This person has stopped for the day - whatever hour of
@@ -476,28 +515,51 @@ Two people, another town, the same night - the form, not the content:
        "impressions": []}}"""
 
 
-def consolidate_user(being: Being, when: str, today: Sequence[Episode],
-                     doings: Sequence[str] = (),
-                     retrieved: Optional[Engram] = None, current: float = 0.0) -> str:
+def consolidate_user(
+    being: Being,
+    when: str,
+    today: Sequence[Episode],
+    doings: Sequence[str] = (),
+    retrieved: Optional[Engram] = None,
+    current: float = 0.0,
+) -> str:
     """Scene first, the person last. `when` is there so that how long ago
     something was is theirs to weigh."""
     self_schema = being.identity.self_schema
     stored = {key: value for key, value in self_schema.to_dict().items() if key != "at"}
-    reminder = (f"Something today brought back an old engram, from {ago(current - retrieved.at)}:\n"
-           f"  {propositions(retrieved)}") if retrieved is not None and retrieved.gists else ""
+    reminder = (
+        (
+            f"Something today brought back an old engram, from {ago(current - retrieved.at)}:\n"
+            f"  {propositions(retrieved)}"
+        )
+        if retrieved is not None and retrieved.gists
+        else ""
+    )
     parts = [
         f"It is {when}.",
-        ("What they have been doing:\n" + "\n".join(f"  - {doing}" for doing in doings))
-        if doings else "",
-        ("Their episodes today, in their own words:\n" + "\n".join(
-            f"  - {timestamp(episode.at)}: {episode.account}" for episode in today))
-        if today else "Their episodes today: none.",
+        (
+            ("What they have been doing:\n" + "\n".join(f"  - {doing}" for doing in doings))
+            if doings
+            else ""
+        ),
+        (
+            (
+                "Their episodes today, in their own words:\n"
+                + "\n".join(f"  - {timestamp(episode.at)}: {episode.account}" for episode in today)
+            )
+            if today
+            else "Their episodes today: none."
+        ),
         reminder,
         f"Who they are: {being.name}. {being.identity.biography}".strip(),
-        (f"Their self-schema as it stands, {self_schema.characters} of "
-         f"{SELF_SCHEMA_CHARACTERS} characters:\n"
-         f"{json.dumps(stored, ensure_ascii=False, indent=1)}"),
-        (f"{being.name} is asleep. Lay down the day, and write their self-schema "
-         f"as it stands now, in at most {SELF_SCHEMA_CHARACTERS} characters."),
+        (
+            f"Their self-schema as it stands, {self_schema.characters} of "
+            f"{SELF_SCHEMA_CHARACTERS} characters:\n"
+            f"{json.dumps(stored, ensure_ascii=False, indent=1)}"
+        ),
+        (
+            f"{being.name} is asleep. Lay down the day, and write their self-schema "
+            f"as it stands now, in at most {SELF_SCHEMA_CHARACTERS} characters."
+        ),
     ]
     return "\n\n".join(part for part in parts if part)

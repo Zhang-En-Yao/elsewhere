@@ -24,8 +24,9 @@ def steps(places: Sequence[str], ways: Sequence[Sequence[str]]) -> Dict[str, Dic
     """How many ways apart every pair is; unreachable pairs are left out."""
     graph = networkx.Graph()
     graph.add_nodes_from(places)
-    graph.add_edges_from((one, other) for one, other in ways
-                         if one in graph and other in graph and one != other)
+    graph.add_edges_from(
+        (one, other) for one, other in ways if one in graph and other in graph and one != other
+    )
     return dict(networkx.all_pairs_shortest_path_length(graph))
 
 
@@ -40,8 +41,9 @@ def layout(places: Sequence[str], ways: Sequence[Sequence[str]]) -> Dict[str, Li
     graph = networkx.Graph()
     graph.add_nodes_from(places)
     position = networkx.kamada_kawai_layout(
-        graph, dist={one: {other: apart[one].get(other, furthest) for other in places}
-                     for one in places})
+        graph,
+        dist={one: {other: apart[one].get(other, furthest) for other in places} for one in places},
+    )
     return level(position)
 
 
@@ -53,5 +55,6 @@ def level(position: Dict[str, Sequence[float]]) -> Dict[str, List[float]]:
     _, _, axes = numpy.linalg.svd(coordinates, full_matrices=False)
     turned = coordinates @ axes.T
     turned -= turned.min(axis=0)
-    return {place: [round(float(x), 3), round(float(y), 3)]
-            for place, (x, y) in zip(places, turned)}
+    return {
+        place: [round(float(x), 3), round(float(y), 3)] for place, (x, y) in zip(places, turned)
+    }

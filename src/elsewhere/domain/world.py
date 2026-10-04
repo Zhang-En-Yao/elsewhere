@@ -11,8 +11,17 @@ from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, Protocol, TypeVar
 
 from .. import VIRTUAL_TIME_PER_DAY
-from .calendar import (DAWN, SECONDS_PER_HOUR, DUSK, clock_of, date_of, day_of, real_of,
-                       season_of, year_of)
+from .calendar import (
+    DAWN,
+    SECONDS_PER_HOUR,
+    DUSK,
+    clock_of,
+    date_of,
+    day_of,
+    real_of,
+    season_of,
+    year_of,
+)
 from .chronicle import Event
 from .entities import Being, Map, Place
 from .memory import Engram, Episode, SelfSchema
@@ -47,13 +56,13 @@ class Records(Protocol):
 class World:
     records: Records
     name: str = "Elsewhere"
-    current: float = 0.0                  # virtual time since the world began
+    current: float = 0.0  # virtual time since the world began
     places: Dict[str, Place] = field(default_factory=dict)
 
     map: Map = field(default_factory=Map)
 
     beings: Dict[str, Being] = field(default_factory=dict)
-    closed: bool = False           # set by `elsewhere end`; `cli.open_live` reads it
+    closed: bool = False  # set by `elsewhere end`; `cli.open_live` reads it
     last_tick_at: Optional[float] = None  # wall clock of the last step lived, epoch s
     #: Set by the world agent's own answer, like `Clock.due_at` for a being.
     due_at: Optional[float] = None
@@ -109,8 +118,11 @@ class World:
         return None
 
     def beings_at(self, place_id: str) -> List[Being]:
-        return [being for being in self.beings.values()
-                if being.location.place == place_id and being.present]
+        return [
+            being
+            for being in self.beings.values()
+            if being.location.place == place_id and being.present
+        ]
 
     def being_by_name(self, name: str) -> Optional[Being]:
         wanted = name.strip().lower()
@@ -132,12 +144,24 @@ class World:
                 return place
         return None
 
-    def record(self, category: str, account: str, *, place: Optional[str] = None,
-               involved: Optional[List[str]] = None,
-               informed: Optional[List[str]] = None,
-               data: Optional[dict] = None) -> Event:
-        event = Event(id=str(len(self.chronicle) + 1), at=self.current,
-                      category=category, account=account, place=place,
-                      involved=list(involved or []), informed=list(informed or []),
-                      data=dict(data or {}))
+    def record(
+        self,
+        category: str,
+        account: str,
+        *,
+        place: Optional[str] = None,
+        involved: Optional[List[str]] = None,
+        informed: Optional[List[str]] = None,
+        data: Optional[dict] = None,
+    ) -> Event:
+        event = Event(
+            id=str(len(self.chronicle) + 1),
+            at=self.current,
+            category=category,
+            account=account,
+            place=place,
+            involved=list(involved or []),
+            informed=list(informed or []),
+            data=dict(data or {}),
+        )
         return self.chronicle.append(event)

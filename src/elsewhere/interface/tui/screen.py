@@ -81,8 +81,14 @@ def tones() -> Dict[str, int]:
         accent, warn = curses.color_pair(1), curses.color_pair(2)
     except curses.error:
         accent, warn = curses.A_BOLD, curses.A_BOLD
-    return {"plain": plain, "dim": curses.A_DIM, "bold": curses.A_BOLD,
-            "accent": accent, "warn": warn, "rule": curses.A_DIM}
+    return {
+        "plain": plain,
+        "dim": curses.A_DIM,
+        "bold": curses.A_BOLD,
+        "accent": accent,
+        "warn": warn,
+        "rule": curses.A_DIM,
+    }
 
 
 class App:
@@ -95,7 +101,7 @@ class App:
         self.tab = 0
         self.cursor: Dict[int, int] = {}
         self.top: Dict[int, int] = {}
-        self.down = 0                     # how far into what is being shown
+        self.down = 0  # how far into what is being shown
         self.on_detail = False
         self.follow = True
         self.helping = False
@@ -124,9 +130,15 @@ class App:
             except OSError:
                 times.append(0)
         try:
-            times.append(sum(path.stat().st_mtime_ns for path in
-                             [*(self.root / "beings").glob("*.json"),
-                              *(self.root / "episodes").glob("*.jsonl")]))
+            times.append(
+                sum(
+                    path.stat().st_mtime_ns
+                    for path in [
+                        *(self.root / "beings").glob("*.json"),
+                        *(self.root / "episodes").glob("*.jsonl"),
+                    ]
+                )
+            )
         except OSError:
             times.append(0)
         return tuple(times)
@@ -179,8 +191,7 @@ class App:
     def shown(self, columns: int) -> List[Line]:
         """Wrapped detail pane, cached per change."""
         # The minute, too: what is due "now" moves with the wall clock.
-        key = (self.tab, self.selected(), columns, self.stamp, self.helping,
-               int(time.time() // 60))
+        key = (self.tab, self.selected(), columns, self.stamp, self.helping, int(time.time() // 60))
         if key == self._shown:
             return self._lines
         if self.helping:
@@ -199,7 +210,7 @@ class App:
         try:
             self.screen.addstr(y, x, views.clip(text, columns), attribute)
         except curses.error:
-            pass                        # the last cell of the last line
+            pass  # the last cell of the last line
 
     def rule(self, y: int, width: int) -> None:
         try:
@@ -216,8 +227,13 @@ class App:
             curses.doupdate()
             return
         world = self.world
-        left = (world.name + "   " + world.label() + "   the sun "
-                + ("is up" if world.daylight else "is down"))
+        left = (
+            world.name
+            + "   "
+            + world.label()
+            + "   the sun "
+            + ("is up" if world.daylight else "is down")
+        )
         if world.closed:
             left += "   (ended)"
         unread = len(world.chronicle) - bookmark.load(world)
@@ -225,26 +241,42 @@ class App:
         groups = views.upcoming(world)
         if groups and not world.closed:
             soonest = groups[0][0]
-            right = ("next " + ("now" if soonest <= world.current else
-                                views.wall(views.by_clock(world, soonest), time.time()))
-                     + ("" if views.agent(world) else ", not scheduled") + "   " + right)
+            right = (
+                "next "
+                + (
+                    "now"
+                    if soonest <= world.current
+                    else views.wall(views.by_clock(world, soonest), time.time())
+                )
+                + ("" if views.agent(world) else ", not scheduled")
+                + "   "
+                + right
+            )
         if not self.follow:
             right += "   not following"
         # On a narrow terminal the clock is dropped before the status.
         room = max(0, width - views.width(right) - 2)
-        self.put(0, 0, views.pad(views.clip(left, room), width),
-                 curses.A_REVERSE, width)
-        self.put(0, max(0, width - views.width(right) - 1), right,
-                 curses.A_REVERSE | curses.A_BOLD, width)
+        self.put(0, 0, views.pad(views.clip(left, room), width), curses.A_REVERSE, width)
+        self.put(
+            0,
+            max(0, width - views.width(right) - 1),
+            right,
+            curses.A_REVERSE | curses.A_BOLD,
+            width,
+        )
         x = 1
         self.tab_spans = []
         for index, view in enumerate(VIEWS):
             label = view.title
             self.tab_spans.append((x, x + views.width(label)))
             here = index == self.tab
-            self.put(1, x, label,
-                     (self.tones["accent"] | curses.A_BOLD) if here
-                     else self.tones["dim"], max(0, width - x))
+            self.put(
+                1,
+                x,
+                label,
+                (self.tones["accent"] | curses.A_BOLD) if here else self.tones["dim"],
+                max(0, width - x),
+            )
             x += views.width(label) + 3
         self.rule(2, width)
         body, top = height - 5, FIXED_ROWS
@@ -263,8 +295,9 @@ class App:
             self.draw_shown(top, columns + 2, body, width - columns - 3)
         self.rule(height - 2, width)
         foot = self.message or KEYS
-        self.put(height - 1, 0, foot,
-                 self.tones["accent"] if self.message else self.tones["dim"], width)
+        self.put(
+            height - 1, 0, foot, self.tones["accent"] if self.message else self.tones["dim"], width
+        )
         self.screen.noutrefresh()
         curses.doupdate()
 
@@ -286,8 +319,9 @@ class App:
             attribute = self.tones.get(row.tone, curses.A_NORMAL)
             if position == index and row.key:
                 attribute = curses.A_REVERSE | (0 if self.on_detail else curses.A_BOLD)
-                self.put(top + offset, x, views.pad(" " + row.text, columns - 1),
-                         attribute, columns - 1)
+                self.put(
+                    top + offset, x, views.pad(" " + row.text, columns - 1), attribute, columns - 1
+                )
             else:
                 self.put(top + offset, x, " " + row.text, attribute, columns - 1)
 
@@ -299,14 +333,19 @@ class App:
             if position >= len(lines):
                 break
             line = lines[position]
-            self.put(top + offset, x, line.text,
-                     self.tones.get(line.tone, curses.A_NORMAL), columns)
+            self.put(
+                top + offset, x, line.text, self.tones.get(line.tone, curses.A_NORMAL), columns
+            )
             for column, text, tone in line.spans:
-                self.put(top + offset, x + column, text,
-                         self.tones.get(tone, curses.A_NORMAL), columns - column)
+                self.put(
+                    top + offset,
+                    x + column,
+                    text,
+                    self.tones.get(tone, curses.A_NORMAL),
+                    columns - column,
+                )
         if self.down + body < len(lines):
-            self.put(top + body - 1, x + max(0, columns - 6), " more ",
-                     self.tones["dim"], 6)
+            self.put(top + body - 1, x + max(0, columns - 6), " more ", self.tones["dim"], 6)
 
     def move(self, step: int) -> None:
         if self.helping or self.on_detail:
@@ -405,7 +444,7 @@ class App:
                 self.helping = False
                 return True
             return False
-        if pressed == 27:                   # Esc: out of the keys page, else back
+        if pressed == 27:  # Esc: out of the keys page, else back
             if self.helping:
                 self.helping = False
             else:
@@ -445,7 +484,7 @@ class App:
                 self.snap()
         elif pressed == ord("G"):
             if self.on_detail or self.helping:
-                self.down = 10 ** 9        # clamped against the room in draw_shown
+                self.down = 10**9  # clamped against the room in draw_shown
             else:
                 self.cursor[self.tab] = max(0, len(self.rows()) - 1)
                 self.snap()
@@ -453,8 +492,7 @@ class App:
             self.reload(announce=True)
         elif pressed == ord("f"):
             self.follow = not self.follow
-            self.message = ("following what lands" if self.follow
-                            else "not following; r reads again")
+            self.message = "following what lands" if self.follow else "not following; r reads again"
         return True
 
     def splash(self, milliseconds: int) -> None:
@@ -472,16 +510,19 @@ class App:
             drawing = frames[index % len(frames)]
             # Centred on the widest frame, so the drawing does not shift as it beats.
             widest = views.widest(width - 2, height - 3)
-            caption = [("Elsewhere", self.tones["bold"]),
-                       (self.world.name + "   " + self.world.label(), self.tones["dim"])]
+            caption = [
+                ("Elsewhere", self.tones["bold"]),
+                (self.world.name + "   " + self.world.label(), self.tones["dim"]),
+            ]
             self.screen.erase()
             top = max(0, (height - len(drawing) - 1 - len(caption)) // 2)
             left = max(0, (width - widest) // 2)
             for offset, line in enumerate(drawing):
                 self.put(top + offset, left, line, self.tones["plain"], width - left)
             for offset, (text, attribute) in enumerate(caption, start=len(drawing) + 1):
-                self.put(top + offset, max(0, (width - views.width(text)) // 2), text,
-                         attribute, width)
+                self.put(
+                    top + offset, max(0, (width - views.width(text)) // 2), text, attribute, width
+                )
             self.screen.noutrefresh()
             curses.doupdate()
             if self.screen.getch() not in (-1, curses.KEY_RESIZE):
@@ -492,8 +533,12 @@ class App:
         curses.curs_set(0)
         # Esc on its own, without waiting to see whether a sequence follows.
         curses.set_escdelay(25)
-        curses.mousemask(curses.BUTTON1_CLICKED | curses.BUTTON1_DOUBLE_CLICKED
-                         | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", 0))
+        curses.mousemask(
+            curses.BUTTON1_CLICKED
+            | curses.BUTTON1_DOUBLE_CLICKED
+            | curses.BUTTON4_PRESSED
+            | getattr(curses, "BUTTON5_PRESSED", 0)
+        )
         self.splash(-1)
         self.screen.timeout(PAUSE_MILLISECONDS)
         while True:

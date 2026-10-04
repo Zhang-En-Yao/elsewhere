@@ -36,14 +36,16 @@ class Identity:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Identity":
-        return cls(biography=data.get("biography", ""),
-                   self_schema=SelfSchema.from_dict(data.get("self_schema", {})))
+        return cls(
+            biography=data.get("biography", ""),
+            self_schema=SelfSchema.from_dict(data.get("self_schema", {})),
+        )
 
 
 @dataclass
 class Location:
-    place: str = ""                # place id
-    home: str = ""                 # "" for a newcomer
+    place: str = ""  # place id
+    home: str = ""  # "" for a newcomer
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,7 +81,8 @@ class Activity:
 @dataclass
 class Clock:
     """Time since the world began. Presence is derived from `left_at` (`Being.present`)."""
-    arrived_at: Optional[float] = None    # None: present from the start
+
+    arrived_at: Optional[float] = None  # None: present from the start
     left_at: Optional[float] = None
 
     #: How long the chronicle was the last time they looked up: what came
@@ -98,10 +101,13 @@ class Clock:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Clock":
-        return cls(arrived_at=data.get("arrived_at"), left_at=data.get("left_at"),
-                   perceived_through=int(data.get("perceived_through", 0)),
-                   consolidated_through=int(data.get("consolidated_through", 0)),
-                   due_at=data.get("due_at"))
+        return cls(
+            arrived_at=data.get("arrived_at"),
+            left_at=data.get("left_at"),
+            perceived_through=int(data.get("perceived_through", 0)),
+            consolidated_through=int(data.get("consolidated_through", 0)),
+            due_at=data.get("due_at"),
+        )
 
 
 @dataclass
@@ -109,7 +115,7 @@ class Being:
 
     id: str
     name: str
-    mind: str = "model"            # model | player
+    mind: str = "model"  # model | player
 
     identity: Identity = field(default_factory=Identity)
     location: Location = field(default_factory=Location)
@@ -121,18 +127,27 @@ class Being:
         return self.clock.left_at is None
 
     def to_dict(self) -> dict:
-        return {"id": self.id, "name": self.name, "mind": self.mind,
-                "identity": self.identity.to_dict(),
-                "location": self.location.to_dict(),
-                "activity": self.activity.to_dict(), "clock": self.clock.to_dict()}
+        return {
+            "id": self.id,
+            "name": self.name,
+            "mind": self.mind,
+            "identity": self.identity.to_dict(),
+            "location": self.location.to_dict(),
+            "activity": self.activity.to_dict(),
+            "clock": self.clock.to_dict(),
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Being":
-        return cls(id=data["id"], name=data["name"], mind=data.get("mind", "model"),
-                   identity=Identity.from_dict(data.get("identity", {})),
-                   location=Location.from_dict(data.get("location", {})),
-                   activity=Activity.from_dict(data.get("activity", {})),
-                   clock=Clock.from_dict(data.get("clock", {})))
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            mind=data.get("mind", "model"),
+            identity=Identity.from_dict(data.get("identity", {})),
+            location=Location.from_dict(data.get("location", {})),
+            activity=Activity.from_dict(data.get("activity", {})),
+            clock=Clock.from_dict(data.get("clock", {})),
+        )
 
 
 @dataclass
@@ -146,8 +161,7 @@ class Place:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Place":
-        return cls(id=data["id"], name=data["name"],
-                   description=data.get("description", ""))
+        return cls(id=data["id"], name=data["name"], description=data.get("description", ""))
 
 
 @dataclass
@@ -173,15 +187,22 @@ class Map:
         return other_id in self.beside(place_id)
 
     def to_dict(self) -> dict:
-        return {"ways": [list(way) for way in self.ways], "road": self.road,
-                "positions": {place: list(point) for place, point in self.positions.items()}}
+        return {
+            "ways": [list(way) for way in self.ways],
+            "road": self.road,
+            "positions": {place: list(point) for place, point in self.positions.items()},
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Map":
-        return cls(ways=[list(way) for way in data.get("ways", [])],
-                   road=data.get("road", ""),
-                   positions={place: [float(value) for value in point]
-                              for place, point in data.get("positions", {}).items()})
+        return cls(
+            ways=[list(way) for way in data.get("ways", [])],
+            road=data.get("road", ""),
+            positions={
+                place: [float(value) for value in point]
+                for place, point in data.get("positions", {}).items()
+            },
+        )
 
 
 def ways_from_neighbours(neighbours: Dict[str, List[str]]) -> List[List[str]]:

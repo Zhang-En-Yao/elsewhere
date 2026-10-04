@@ -47,18 +47,23 @@ class MLXBackend:
             from mlx_lm import load
 
             weights, tokenizer, *_ = load(model)
-            directory = Path(model) if Path(model).exists() \
+            directory = (
+                Path(model)
+                if Path(model).exists()
                 else Path(snapshot_download(model, local_files_only=True))
+            )
             # The model's own sampling defaults, except temperature.
             sampling: dict = {}
             path = directory / "generation_config.json"
             if path.exists():
                 generation = json.loads(path.read_text(encoding="utf-8"))
-                sampling = {key: generation[key] for key in ("top_p", "top_k")
-                            if key in generation}
-            self._minds[model] = (weights, tokenizer,
-                                  llguidance.hf.from_tokenizer(tokenizer._tokenizer),
-                                  sampling)
+                sampling = {key: generation[key] for key in ("top_p", "top_k") if key in generation}
+            self._minds[model] = (
+                weights,
+                tokenizer,
+                llguidance.hf.from_tokenizer(tokenizer._tokenizer),
+                sampling,
+            )
         return self._minds[model]
 
     def complete(self, call: Call, settings: Settings) -> str:
@@ -70,13 +75,16 @@ class MLXBackend:
         with self._lock:
             model, tokenizer, vocabulary, sampling = self._mind(settings.model)
             prompt = tokenizer.apply_chat_template(
-                [{"role": "system", "content": call.system},
-                 {"role": "user", "content": call.user}],
+                [
+                    {"role": "system", "content": call.system},
+                    {"role": "user", "content": call.user},
+                ],
                 add_generation_prompt=True,
-                **{"enable_thinking": False, **settings.options})
+                **{"enable_thinking": False, **settings.options},
+            )
             matcher = llguidance.LLMatcher(
-                vocabulary,
-                llguidance.LLMatcher.grammar_from_json_schema(closed(call.schema)))
+                vocabulary, llguidance.LLMatcher.grammar_from_json_schema(closed(call.schema))
+            )
             if matcher.is_error():
                 raise ValueError(f"schema did not compile: {matcher.get_error()}")
             mask = guidance.allocate_token_bitmask(1, vocabulary.vocab_size)
@@ -93,9 +101,14 @@ class MLXBackend:
             sampler = make_sampler(temp=settings.temperature, **sampling)
             deadline = time.time() + settings.timeout
             pieces: List[str] = []
-            for step in stream_generate(model, tokenizer, prompt,
-                                        max_tokens=MAX_TOKENS, sampler=sampler,
-                                        logits_processors=[constrain]):
+            for step in stream_generate(
+                model,
+                tokenizer,
+                prompt,
+                max_tokens=MAX_TOKENS,
+                sampler=sampler,
+                logits_processors=[constrain],
+            ):
                 pieces.append(step.text)
                 if matcher.is_error():
                     break
@@ -111,9 +124,10 @@ class MLXBackend:
             if settings.model not in self._embedders:
                 self._embedders[settings.model] = load(settings.model)
             model, tokenizer = self._embedders[settings.model]
-            batch = tokenizer(list(texts), padding=True, truncation=True,
-                              return_tensors="np")
-            output = model(mx.array(batch["input_ids"]),
-                           attention_mask=mx.array(batch["attention_mask"]))
-            return [[float(component) for component in vector]
-                    for vector in output.text_embeds.tolist()]
+            batch = tokenizer(list(texts), padding=True, truncation=True, return_tensors="np")
+            output = model(
+                mx.array(batch["input_ids"]), attention_mask=mx.array(batch["attention_mask"])
+            )
+            return [
+                [float(component) for component in vector] for vector in output.text_embeds.tolist()
+            ]

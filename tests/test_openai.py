@@ -22,11 +22,18 @@ class Embeddings(BaseHTTPRequestHandler):
     def do_POST(self):
         request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         Embeddings.requests.append((self.path, request))
-        data = [{"object": "embedding", "index": index, "embedding": [float(len(text)), 1.0]}
-                for index, text in enumerate(request["input"])]
-        body = json.dumps({"object": "list", "model": request["model"],
-                           "data": list(reversed(data)),
-                           "usage": {"prompt_tokens": 1, "total_tokens": 1}}).encode("utf-8")
+        data = [
+            {"object": "embedding", "index": index, "embedding": [float(len(text)), 1.0]}
+            for index, text in enumerate(request["input"])
+        ]
+        body = json.dumps(
+            {
+                "object": "list",
+                "model": request["model"],
+                "data": list(reversed(data)),
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            }
+        ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -42,9 +49,12 @@ class EmbedTest(unittest.TestCase):
         Embeddings.requests = []
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Embeddings)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        self.settings = Settings(backend="openai", model="some-embedder",
-                                 endpoint=f"http://127.0.0.1:{self.server.server_port}/v1",
-                                 timeout=5.0)
+        self.settings = Settings(
+            backend="openai",
+            model="some-embedder",
+            endpoint=f"http://127.0.0.1:{self.server.server_port}/v1",
+            timeout=5.0,
+        )
 
     def tearDown(self):
         self.server.shutdown()

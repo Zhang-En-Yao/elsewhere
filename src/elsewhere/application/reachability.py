@@ -14,8 +14,11 @@ def companions(world: World, being: Being) -> List[Being]:
 
 
 def destinations(world: World, being: Being) -> List[Place]:
-    return [world.places[neighbour] for neighbour in world.map.beside(being.location.place)
-            if neighbour in world.places]
+    return [
+        world.places[neighbour]
+        for neighbour in world.map.beside(being.location.place)
+        if neighbour in world.places
+    ]
 
 
 def may_leave(world: World, being: Being) -> bool:

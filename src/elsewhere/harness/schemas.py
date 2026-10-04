@@ -76,10 +76,14 @@ SELF_SCHEMA = {
         "traits": LINES,
         "concerns": LINES,
         "assumptions": LINES,
-        "impressions": {"type": "array", "items": {
-            "type": "object",
-            "properties": {"being": {"type": "string"}, "impression": {"type": "string"}},
-            "required": ["being", "impression"]}},
+        "impressions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"being": {"type": "string"}, "impression": {"type": "string"}},
+                "required": ["being", "impression"],
+            },
+        },
     },
     "required": ["idiolect", "traits", "concerns", "assumptions", "impressions"],
 }
@@ -87,11 +91,17 @@ SELF_SCHEMA = {
 ENGRAM = {
     "type": "object",
     "properties": {
-        "gists": {"type": "array", "items": {
-            "type": "object",
-            "properties": {"proposition": {"type": "string"},
-                           "weight": {"type": "number", "minimum": 0, "maximum": 1}},
-            "required": ["proposition", "weight"]}},
+        "gists": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "proposition": {"type": "string"},
+                    "weight": {"type": "number", "minimum": 0, "maximum": 1},
+                },
+                "required": ["proposition", "weight"],
+            },
+        },
     },
     "required": ["gists"],
 }
@@ -132,7 +142,9 @@ STIR = {
 }
 
 SCHEMA_BY_CALL_NAME: Dict[CallName, dict] = {
-    CallName.ACT: ACT, CallName.SPEAK: SPEAK, CallName.CONSOLIDATE: CONSOLIDATE,
+    CallName.ACT: ACT,
+    CallName.SPEAK: SPEAK,
+    CallName.CONSOLIDATE: CONSOLIDATE,
     CallName.STIR: STIR,
 }
 
@@ -174,12 +186,13 @@ def conform(key: str, value: Any, rule: dict) -> Tuple[Any, Optional[str]]:
             return None, f"{key!r} must be a string, not {value!r}"
         allowed = rule.get("enum")
         if allowed and value not in allowed:
-            return None, (f"{key!r} must be one of {', '.join(allowed)}; "
-                          f"{value!r} is not")
+            return None, (f"{key!r} must be one of {', '.join(allowed)}; " f"{value!r} is not")
         maximum = rule.get("maxLength")
         if maximum is not None and len(value) > maximum:
-            return None, (f"{key!r} is {len(value)} characters and can hold "
-                          f"at most {maximum}; let go of what matters least")
+            return None, (
+                f"{key!r} is {len(value)} characters and can hold "
+                f"at most {maximum}; let go of what matters least"
+            )
     elif kind == "array":
         if not isinstance(value, list):
             return None, f"{key!r} must be a list, not {value!r}"
@@ -212,16 +225,22 @@ def conform(key: str, value: Any, rule: dict) -> Tuple[Any, Optional[str]]:
 def oversize(self_schema: dict) -> Optional[str]:
     """The one rule a self-schema has that JSON Schema cannot say: its size,
     every field counted together."""
-    written = (len(self_schema.get("idiolect", ""))
-               + sum(len(line) for line in self_schema.get("traits", []))
-               + sum(len(line) for line in self_schema.get("concerns", []))
-               + sum(len(line) for line in self_schema.get("assumptions", []))
-               + sum(len(impression.get("being", "")) + len(impression.get("impression", ""))
-                     for impression in self_schema.get("impressions", [])))
+    written = (
+        len(self_schema.get("idiolect", ""))
+        + sum(len(line) for line in self_schema.get("traits", []))
+        + sum(len(line) for line in self_schema.get("concerns", []))
+        + sum(len(line) for line in self_schema.get("assumptions", []))
+        + sum(
+            len(impression.get("being", "")) + len(impression.get("impression", ""))
+            for impression in self_schema.get("impressions", [])
+        )
+    )
     if written <= SELF_SCHEMA_CHARACTERS:
         return None
-    return (f"'self_schema' is {written} characters and can hold at most "
-            f"{SELF_SCHEMA_CHARACTERS}; let go of what matters least")
+    return (
+        f"'self_schema' is {written} characters and can hold at most "
+        f"{SELF_SCHEMA_CHARACTERS}; let go of what matters least"
+    )
 
 
 def grammar(name: CallName) -> dict:
@@ -233,14 +252,14 @@ def grammar(name: CallName) -> dict:
     return schema
 
 
-def act_grammar(places: List[str], beings: List[str],
-                may_leave: bool = False) -> dict:
+def act_grammar(places: List[str], beings: List[str], may_leave: bool = False) -> dict:
     schema = grammar(CallName.ACT)
     options = [""] + sorted(set(places) | set(beings))
     schema["properties"]["target"] = {"type": "string", "enum": options}
     schema["properties"]["action"] = {
         "type": "string",
-        "enum": [NO_ACTION] + ALWAYS_OFFERED + ([Tool.LEAVE] if may_leave else [])}
+        "enum": [NO_ACTION] + ALWAYS_OFFERED + ([Tool.LEAVE] if may_leave else []),
+    }
     return schema
 
 
@@ -250,5 +269,6 @@ def stir_grammar(places: List[str], beings: List[str], may_admit: bool = True) -
     schema["properties"]["who"] = {"type": "string", "enum": [""] + sorted(beings)}
     schema["properties"]["action"] = {
         "type": "string",
-        "enum": [NO_ACTION, Tool.OCCUR] + ([Tool.ADMIT] if may_admit else [])}
+        "enum": [NO_ACTION, Tool.OCCUR] + ([Tool.ADMIT] if may_admit else []),
+    }
     return schema

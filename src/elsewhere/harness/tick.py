@@ -78,6 +78,7 @@ class Move(NamedTuple):
 
 class Miss(NamedTuple):
     """A being went looking for another and did not find them."""
+
     being_id: str
     sought: str
 
@@ -85,6 +86,7 @@ class Miss(NamedTuple):
 @dataclass
 class Stir:
     """The world's turn: what it decided, and what came of it."""
+
     decision: Decision
     occurrence: Optional[Occurrence] = None
     arrival: Optional[Arrival] = None
@@ -93,7 +95,8 @@ class Stir:
 @dataclass
 class Refusal:
     """A call the server would not make, and why."""
-    caller: str                    # a being id, or "world"
+
+    caller: str  # a being id, or "world"
     tool: str
     complaint: str
 
@@ -133,6 +136,7 @@ WORLD = "world"
 @dataclass
 class Step:
     """One step's connection to the server, and what it has come to so far."""
+
     world: World
     configuration: dict
     transcript: Optional[Transcript]
@@ -157,12 +161,14 @@ async def converse(step: Step, initiator: Being, respondent: Being) -> Optional[
     talk = Talk(between=(initiator.id, respondent.id))
     speaker, listener = initiator, respondent
     for _ in range(TURNS):
-        utterance = being_agent.speak(step.world, speaker, listener, step.configuration,
-                                      step.transcript)
+        utterance = being_agent.speak(
+            step.world, speaker, listener, step.configuration, step.transcript
+        )
         if utterance is None:
             break
-        said = await step.call(Tool.SAY, {"being": speaker.id, "to": listener.id,
-                                          "utterance": utterance}, speaker.id)
+        said = await step.call(
+            Tool.SAY, {"being": speaker.id, "to": listener.id, "utterance": utterance}, speaker.id
+        )
         if said is None:
             break
         talk.turns.append(Turn(speaker.id, listener.id, utterance, said["event"]))
@@ -179,8 +185,9 @@ async def converse(step: Step, initiator: Being, respondent: Being) -> Optional[
     return talk
 
 
-async def live(world: World, configuration, transcript: Optional[Transcript],
-               client: Client) -> TickReport:
+async def live(
+    world: World, configuration, transcript: Optional[Transcript], client: Client
+) -> TickReport:
     before = world.current
     after = schedule.advance_to_next_due(world)
     if after is None:
@@ -202,8 +209,11 @@ async def live(world: World, configuration, transcript: Optional[Transcript],
                 stir.arrival = Arrival(result["being"], result["event"], result["account"])
 
     # 1. Whoever is due decides, before anyone moves.
-    due = [world.beings[being_id] for being_id in sorted(world.beings)
-           if schedule.being_due(world, being_id)]
+    due = [
+        world.beings[being_id]
+        for being_id in sorted(world.beings)
+        if schedule.being_due(world, being_id)
+    ]
     for being in due:
         decision = being_agent.act(world, being, configuration, transcript)
         report.decisions[being.id] = decision
@@ -218,10 +228,11 @@ async def live(world: World, configuration, transcript: Optional[Transcript],
         result = await step.call(decision.tool, decision.arguments, being.id)
         if result is None:
             if decision.tool != Tool.STAY:
-                await step.stay(being, decision.doing)     # refused: they stay put
+                await step.stay(being, decision.doing)  # refused: they stay put
         elif decision.tool == Tool.LEAVE:
-            report.departures.append(Departure(being.id, result["event"],
-                                               decision.arguments.get("reason", "")))
+            report.departures.append(
+                Departure(being.id, result["event"], decision.arguments.get("reason", ""))
+            )
         elif decision.tool == Tool.MOVE:
             report.moves.append(Move(being.id, result["from"], result["to"]))
 
@@ -233,8 +244,11 @@ async def live(world: World, configuration, transcript: Optional[Transcript],
         if decision.tool != Tool.TALK or being.id in engaged:
             continue
         addressee = world.beings.get(decision.arguments.get("to", ""))
-        if addressee is not None and addressee.id in engaged \
-                and addressee in reachability.companions(world, being):
+        if (
+            addressee is not None
+            and addressee.id in engaged
+            and addressee in reachability.companions(world, being)
+        ):
             await step.stay(being, f"waited to speak with {addressee.name}")
             continue
         result = await step.call(Tool.TALK, decision.arguments, being.id)
@@ -261,9 +275,11 @@ async def live(world: World, configuration, transcript: Optional[Transcript],
 
 def tick(world: World, configuration, transcript: Optional[Transcript] = None) -> TickReport:
     """Lives one step, over a fresh MCP session with this world's server."""
+
     async def run() -> TickReport:
         async with Client(server.build(world)) as client:
             return await live(world, configuration, transcript, client)
+
     return anyio.run(run)
 
 
@@ -275,8 +291,7 @@ def backlog(last_tick_at: Optional[float], now: float) -> float:
     return max(0.0, (now - last_tick_at) / REAL_TIME_PER_VIRTUAL_TIME)
 
 
-def reconcile(last_tick_at: Optional[float], now: float,
-              lived: float, backlog: float) -> float:
+def reconcile(last_tick_at: Optional[float], now: float, lived: float, backlog: float) -> float:
     """A capped backlog is dropped rather than carried forward."""
     if last_tick_at is None or lived < backlog:
         return now

@@ -22,8 +22,7 @@ from elsewhere.domain.chronicle import PRESENCE_CHANGES, Category
 from elsewhere.domain.memory import episodes_of_event
 
 CALLS = tuple(CallName)
-STAY = {"reason": "", "doing": "", "action": "", "target": "",
-        "duration": 21600, "sleep": False}
+STAY = {"reason": "", "doing": "", "action": "", "target": "", "duration": 21600, "sleep": False}
 
 
 def configuration():
@@ -54,7 +53,7 @@ class TownTest(unittest.TestCase):
 
 class TestTime(TownTest):
     def test_a_step_is_as_long_as_the_next_thing_due(self):
-        tick.tick(self.world, configuration())              # the opening step
+        tick.tick(self.world, configuration())  # the opening step
         was = self.world.current
         report = tick.tick(self.world, configuration())
         self.assertEqual(self.world.current, was + 6.0)
@@ -63,7 +62,7 @@ class TestTime(TownTest):
     def test_a_step_is_as_long_as_whoever_asked_for_the_least(self):
         tick.tick(self.world, configuration())
         self.acts(havvah={**STAY, "duration": 5400})
-        tick.tick(self.world, configuration())              # Havvah now wants 1.5h
+        tick.tick(self.world, configuration())  # Havvah now wants 1.5h
         was = self.world.current
         report = tick.tick(self.world, configuration())
         self.assertEqual(report.elapsed, 1.5)
@@ -79,13 +78,16 @@ class TestTime(TownTest):
         deep = self.world.beings["lilith"]
         deep.clock.due_at = self.world.current + 100.0
         schedule.interrupt(self.world, ["lilith"])
-        self.assertEqual(deep.clock.due_at, self.world.current,
-                         "whether it is her business is for her to say when asked")
+        self.assertEqual(
+            deep.clock.due_at,
+            self.world.current,
+            "whether it is her business is for her to say when asked",
+        )
 
     def test_a_world_nobody_scheduled_stops_rather_than_inventing_an_hour(self):
         self.say(CallName.ACT, {"reason": "", "action": "", "target": ""})
         self.say(CallName.STIR, {"action": ""})
-        tick.tick(self.world, configuration())              # everyone answers, nobody says when
+        tick.tick(self.world, configuration())  # everyone answers, nobody says when
         was = self.world.current
         report = tick.tick(self.world, configuration())
         self.assertTrue(report.idle)
@@ -110,12 +112,10 @@ class TestChoices(TownTest):
         havvah_call = next(call for call in self.calls_for(CallName.ACT) if call.mind == "havvah")
         options = havvah_call.schema["properties"]["target"]["enum"]
         # Havvah is alone at the garden, next to Beth El, Marah and the Boatyard.
-        self.assertEqual(sorted(options),
-                         ["", "Beth El", "Marah", "The Boatyard"])
+        self.assertEqual(sorted(options), ["", "Beth El", "Marah", "The Boatyard"])
 
     def test_going_somewhere(self):
-        self.acts(havvah={"reason": "the seedbed can wait", "action": "move",
-                         "target": "Beth El"})
+        self.acts(havvah={"reason": "the seedbed can wait", "action": "move", "target": "Beth El"})
         report = tick.tick(self.world, configuration())
         self.assertEqual(self.world.beings["havvah"].location.place, "bethel")
         self.assertIn(("havvah", "garden", "bethel"), report.moves)
@@ -130,11 +130,18 @@ class TestConversation(TownTest):
 
     def test_something_said_reaches_whoever_is_there(self):
         self.world.beings["lilith"].location.place = "yard"
-        self.acts(havvah={"reason": "he was on the roof that night",
-                         "action": "talk", "target": "Bezalel"})
+        self.acts(
+            havvah={
+                "reason": "he was on the roof that night",
+                "action": "talk",
+                "target": "Bezalel",
+            }
+        )
         self.say(CallName.SPEAK, {"utterance": "You were up there. Could you feel it?"})
-        self.stub.answers["speak|bezalel"] = {"encoded": "she asked if I could feel it",
-                                                "utterance": "Feel what?"}
+        self.stub.answers["speak|bezalel"] = {
+            "encoded": "she asked if I could feel it",
+            "utterance": "Feel what?",
+        }
 
         report = tick.tick(self.world, configuration())
 
@@ -145,12 +152,20 @@ class TestConversation(TownTest):
         self.assertIn("Could you feel it?", event.account)
         self.assertEqual(sorted(event.informed), ["bezalel", "havvah", "lilith"])
         kept = episodes_of_event(self.world.episodes("bezalel").all(), event.id)
-        self.assertEqual([note.account for note in kept], ["she asked if I could feel it"],
-                         "he kept his own version of it, in the answer he gave")
-        stood = dict((event.id, where) for event, where in memory.percepts(
-            self.world, self.world.beings["lilith"]))
-        self.assertIn("within earshot", stood[event.id],
-                      "and she overheard it, and will see it when she looks up")
+        self.assertEqual(
+            [note.account for note in kept],
+            ["she asked if I could feel it"],
+            "he kept his own version of it, in the answer he gave",
+        )
+        stood = dict(
+            (event.id, where)
+            for event, where in memory.percepts(self.world, self.world.beings["lilith"])
+        )
+        self.assertIn(
+            "within earshot",
+            stood[event.id],
+            "and she overheard it, and will see it when she looks up",
+        )
 
     def test_the_other_one_answers(self):
         self.acts(havvah={"reason": "", "action": "talk", "target": "Bezalel"})
@@ -175,21 +190,27 @@ class TestConversation(TownTest):
         tick.tick(self.world, configuration())
         call = self.calls_for(CallName.SPEAK)[0]
         self.assertIn(self.world.beings["havvah"].identity.self_schema.concerns[0], call.user)
-        self.assertNotIn(self.world.beings["bezalel"].identity.self_schema.concerns[0], call.user,
-                         "and not what the other one carries")
+        self.assertNotIn(
+            self.world.beings["bezalel"].identity.self_schema.concerns[0],
+            call.user,
+            "and not what the other one carries",
+        )
 
     def test_you_cannot_talk_to_someone_who_just_left(self):
-        self.acts(havvah={"reason": "", "action": "talk", "target": "Bezalel"},
-                  bezalel={"reason": "the roof", "action": "move",
-                          "target": "Beth El"})
+        self.acts(
+            havvah={"reason": "", "action": "talk", "target": "Bezalel"},
+            bezalel={"reason": "the roof", "action": "move", "target": "Beth El"},
+        )
         report = tick.tick(self.world, configuration())
         self.assertEqual(report.talks, [])
         self.assertIn(("havvah", "bezalel"), report.missed)
         self.assertIn("who had gone", self.world.beings["havvah"].activity.doing)
 
     def test_two_beings_reaching_for_each_other_have_one_conversation(self):
-        self.acts(havvah={"reason": "", "action": "talk", "target": "Bezalel"},
-                  bezalel={"reason": "", "action": "talk", "target": "Havvah"})
+        self.acts(
+            havvah={"reason": "", "action": "talk", "target": "Bezalel"},
+            bezalel={"reason": "", "action": "talk", "target": "Havvah"},
+        )
         self.say(CallName.SPEAK, {"utterance": "Evening."})
         report = tick.tick(self.world, configuration())
         self.assertEqual(len(report.talks), 1)
@@ -200,24 +221,29 @@ class TestStayingPut(TownTest):
     def test_the_verbs_are_only_what_the_engine_can_resolve(self):
         self.assertEqual(set(schemas.ALWAYS_OFFERED), {"move", "talk"})
         offered = schemas.act_grammar([], [])["properties"]["action"]["enum"]
-        self.assertEqual(offered, ["", "move", "talk"],
-                         "there is no verb for doing nothing; that is an empty action")
+        self.assertEqual(
+            offered,
+            ["", "move", "talk"],
+            "there is no verb for doing nothing; that is an empty action",
+        )
         self.assertNotIn("enum", schemas.ACT["properties"]["doing"])
 
     def test_staying_put_is_described_rather_than_categorised(self):
         self.stub.answers["act|havvah"] = {
             "reason": "nothing I could name",
             "doing": "sitting in the doorway with the seed trays, not sorting them",
-            "action": "", "target": ""}
+            "action": "",
+            "target": "",
+        }
         tick.tick(self.world, configuration())
         self.assertEqual(
             self.world.beings["havvah"].activity.doing,
-            "sitting in the doorway with the seed trays, not sorting them")
+            "sitting in the doorway with the seed trays, not sorting them",
+        )
 
     def test_a_mind_that_says_nothing_still_gets_a_plain_sentence(self):
-        tick.tick(self.world, configuration())      # the stub's doing is ""
-        self.assertEqual(self.world.beings["havvah"].activity.doing,
-                         "stayed where they were")
+        tick.tick(self.world, configuration())  # the stub's doing is ""
+        self.assertEqual(self.world.beings["havvah"].activity.doing, "stayed where they were")
 
 
 class TestCategories(unittest.TestCase):
@@ -229,15 +255,20 @@ class TestCategories(unittest.TestCase):
         world = seed.build(Path(temporary.name) / "world")
         for pid in ("bezalel", "havvah"):
             world.beings[pid].location.place = "bethel"
-        stub = StubBackend({CallName.ACT: STAY,
-                            CallName.STIR: {"action": ""},
-                            CallName.SPEAK: {"utterance": "Cold."}})
+        stub = StubBackend(
+            {
+                CallName.ACT: STAY,
+                CallName.STIR: {"action": ""},
+                CallName.SPEAK: {"utterance": "Cold."},
+            }
+        )
         stub.answers["act|bezalel"] = {"reason": "", "action": "talk", "target": "Havvah"}
         register(stub)
         tick.tick(world, configuration())
         said = [event for event in world.chronicle.all() if event.category == Category.CONVERSATION]
-        self.assertEqual(len(said), tick.TURNS,
-                         "one event per turn, and the stub always has a line")
+        self.assertEqual(
+            len(said), tick.TURNS, "one event per turn, and the stub always has a line"
+        )
 
     def test_the_three_kinds_account_for_everything_the_engine_writes(self):
         world_acts = {Category.OCCURRENCE}
@@ -245,7 +276,9 @@ class TestCategories(unittest.TestCase):
         self.assertEqual(world_acts | PRESENCE_CHANGES | exchanges, set(Category))
         self.assertEqual(
             len(world_acts) + len(PRESENCE_CHANGES) + len(exchanges),
-            len(Category), "the three kinds do not overlap")
+            len(Category),
+            "the three kinds do not overlap",
+        )
 
     def test_the_names_stay_the_shape_a_string_match_needs(self):
         for name in Category:
@@ -261,12 +294,10 @@ class TestBacklog(unittest.TestCase):
         self.assertEqual(tick.backlog(100 * 3600, 0), 0.0)
 
     def test_a_capped_backlog_is_slept_through(self):
-        self.assertEqual(
-            tick.reconcile(0, 100 * 3600, lived=24.0, backlog=96.0), 100 * 3600)
+        self.assertEqual(tick.reconcile(0, 100 * 3600, lived=24.0, backlog=96.0), 100 * 3600)
 
     def test_an_uncapped_backlog_keeps_its_remainder(self):
-        self.assertEqual(
-            tick.reconcile(0, 25 * 3600, lived=24.0, backlog=24.0), 24 * 3600)
+        self.assertEqual(tick.reconcile(0, 25 * 3600, lived=24.0, backlog=24.0), 24 * 3600)
 
 
 class TestContinue(unittest.TestCase):
@@ -322,9 +353,9 @@ class TestContinue(unittest.TestCase):
 
     def test_nothing_is_owed_until_the_world_has_something_due(self):
         # Everyone is busy for six hours and only one has passed.
-        self.run_cli("continue")                  # starts the clock
+        self.run_cli("continue")  # starts the clock
         self.set_last_tick(7)
-        self.run_cli("continue")                  # lives up to the next thing due
+        self.run_cli("continue")  # lives up to the next thing due
         self.set_last_tick(1)
         out = self.run_cli("continue")
         self.assertIn("nothing is due", out)
@@ -369,15 +400,30 @@ class TestContinue(unittest.TestCase):
         self.assertIn("Not now", str(raised.exception))
 
     def test_a_tuning_run_does_write_when_nothing_is_in_its_way(self):
-        register(StubBackend({CallName.ACT: STAY, CallName.CONSOLIDATE: {
-            "engrams": [], "self_schema": {
-                "idiolect": "", "traits": [], "concerns": ["The frame took both of us to hold."],
-                "assumptions": [], "impressions": []}}}))
+        register(
+            StubBackend(
+                {
+                    CallName.ACT: STAY,
+                    CallName.CONSOLIDATE: {
+                        "engrams": [],
+                        "self_schema": {
+                            "idiolect": "",
+                            "traits": [],
+                            "concerns": ["The frame took both of us to hold."],
+                            "assumptions": [],
+                            "impressions": [],
+                        },
+                    },
+                }
+            )
+        )
         out = self.run_cli("consolidate", "Havvah")
         self.assertIn("slept on it", out)
-        self.assertEqual(storage.load(self.root).beings["havvah"].identity.self_schema.concerns,
-                         ["The frame took both of us to hold."],
-                         "it took the lock and then wrote nothing")
+        self.assertEqual(
+            storage.load(self.root).beings["havvah"].identity.self_schema.concerns,
+            ["The frame took both of us to hold."],
+            "it took the lock and then wrote nothing",
+        )
 
 
 if __name__ == "__main__":

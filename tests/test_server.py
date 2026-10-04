@@ -22,8 +22,7 @@ from elsewhere.harness.schemas import CallName
 from elsewhere.interface import cli, seed
 from elsewhere.server import Tool
 
-STAY = {"reason": "", "doing": "", "action": "", "target": "",
-        "duration": 21600, "sleep": False}
+STAY = {"reason": "", "doing": "", "action": "", "target": "", "duration": 21600, "sleep": False}
 QUIET = {"action": "", "duration": 86400}
 
 
@@ -33,9 +32,11 @@ def configuration():
 
 def calling(world, tool, arguments):
     """One call on the world's server, as the harness makes it."""
+
     async def run():
         async with Client(server.build(world)) as client:
             return await client.call_tool(str(tool), arguments)
+
     return anyio.run(run)
 
 
@@ -59,6 +60,7 @@ class TestTheServer(Town):
         async def run():
             async with Client(server.build(self.world)) as client:
                 return await client.list_tools()
+
         offered = {tool.name for tool in anyio.run(run).tools}
         self.assertEqual(offered, {str(tool) for tool in Tool})
 
@@ -82,8 +84,11 @@ class TestTheServer(Town):
         self.assertEqual(len(self.world.chronicle), before)
 
     def test_the_world_has_its_own_tools(self):
-        result = calling(self.world, Tool.OCCUR, {"what": "A storm broke.", "where": "bethel",
-                                                  "reach": "the whole town"})
+        result = calling(
+            self.world,
+            Tool.OCCUR,
+            {"what": "A storm broke.", "where": "bethel", "reach": "the whole town"},
+        )
         self.assertFalse(result.is_error)
         event = self.world.chronicle.all()[-1]
         self.assertEqual(event.category, Category.OCCURRENCE)
@@ -94,11 +99,19 @@ class TestTheServer(Town):
         self.assertEqual(self.world.due_at, self.world.current + 48.0)
 
 
-FLOOD = {"why_now": "the river has been rising for days",
-         "what": "The water came into the garden.",
-         "where": "Gan Eden", "who": "Havvah", "reach": "the people there",
-         "name": "", "from_where": "", "biography": "", "idiolect": "",
-         "action": "occur", "duration": 604800}
+FLOOD = {
+    "why_now": "the river has been rising for days",
+    "what": "The water came into the garden.",
+    "where": "Gan Eden",
+    "who": "Havvah",
+    "reach": "the people there",
+    "name": "",
+    "from_where": "",
+    "biography": "",
+    "idiolect": "",
+    "action": "occur",
+    "duration": 604800,
+}
 
 
 class TestTheWorldThrowsAnEvent(Town):
@@ -107,8 +120,9 @@ class TestTheWorldThrowsAnEvent(Town):
         self.stub.set(CallName.STIR, FLOOD)
 
     def her_act(self):
-        return next(call for call in self.stub.calls
-                    if call.name == CallName.ACT and call.mind == "havvah")
+        return next(
+            call for call in self.stub.calls if call.name == CallName.ACT and call.mind == "havvah"
+        )
 
     def test_the_world_is_not_offered_anybody_s_tools(self):
         tick.tick(self.world, configuration())
@@ -120,19 +134,28 @@ class TestTheWorldThrowsAnEvent(Town):
         self.assertIn("The water came into the garden.", self.her_act().user)
 
     def test_what_she_does_about_it_is_hers(self):
-        self.stub.answers["act|havvah"] = {**STAY, "reason": "the water",
-                                          "action": "move", "target": "Beth El"}
+        self.stub.answers["act|havvah"] = {
+            **STAY,
+            "reason": "the water",
+            "action": "move",
+            "target": "Beth El",
+        }
         report = tick.tick(self.world, configuration())
         self.assertEqual(report.stir.decision.tool, Tool.OCCUR, "the world only threw an event")
-        self.assertEqual(report.decisions["havvah"].arguments,
-                         {"being": "havvah", "to": "bethel"},
-                         "she chose it, and the harness named the method")
+        self.assertEqual(
+            report.decisions["havvah"].arguments,
+            {"being": "havvah", "to": "bethel"},
+            "she chose it, and the harness named the method",
+        )
         self.assertEqual(self.world.beings["havvah"].location.place, "bethel")
 
     def test_and_staying_is_hers_too(self):
-        tick.tick(self.world, configuration())       # her answer is to stay
-        self.assertEqual(self.world.beings["havvah"].location.place, "garden",
-                         "nothing in the world moved her for her")
+        tick.tick(self.world, configuration())  # her answer is to stay
+        self.assertEqual(
+            self.world.beings["havvah"].location.place,
+            "garden",
+            "nothing in the world moved her for her",
+        )
 
 
 class TestNoWayInFromOutside(unittest.TestCase):

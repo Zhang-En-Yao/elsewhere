@@ -17,8 +17,13 @@ from elsewhere.domain.memory import Impression, SelfSchema
 
 
 def self_schema(*concerns):
-    return {"idiolect": "", "traits": [], "concerns": list(concerns), "assumptions": [],
-            "impressions": []}
+    return {
+        "idiolect": "",
+        "traits": [],
+        "concerns": list(concerns),
+        "assumptions": [],
+        "impressions": [],
+    }
 
 
 def consolidated(*concerns):
@@ -44,10 +49,12 @@ class TestWorldStore(unittest.TestCase):
         self.assertEqual(back.name, world.name)
         self.assertEqual(back.current, world.current)
         self.assertEqual(len(back.beings), len(world.beings))
-        self.assertEqual(back.beings["havvah"].identity.biography,
-                         world.beings["havvah"].identity.biography)
-        self.assertEqual(back.beings["havvah"].identity.self_schema,
-                         world.beings["havvah"].identity.self_schema)
+        self.assertEqual(
+            back.beings["havvah"].identity.biography, world.beings["havvah"].identity.biography
+        )
+        self.assertEqual(
+            back.beings["havvah"].identity.self_schema, world.beings["havvah"].identity.self_schema
+        )
         self.assertEqual(back.beings["havvah"].identity.self_schema.concerns, ["the water, again"])
         self.assertEqual(back.beings["havvah"].clock.perceived_through, 3)
         self.assertEqual(back.beings["havvah"].clock.consolidated_through, 2)
@@ -61,12 +68,15 @@ class TestWorldStore(unittest.TestCase):
         havvah.clock.due_at = world.current + 3.0
         storage.save(world)
         back = storage.load(self.root).beings["havvah"]
-        self.assertEqual(back.identity.self_schema.impressions, [Impression("Bezalel", "good hands")])
+        self.assertEqual(
+            back.identity.self_schema.impressions, [Impression("Bezalel", "good hands")]
+        )
         self.assertEqual(back.identity.biography, havvah.identity.biography)
         self.assertEqual(back.activity.doing, "standing at the edge of it")
         self.assertEqual(back.clock.due_at, world.current + 3.0)
-        self.assertEqual(set(back.to_dict()),
-                         {"id", "name", "mind", "identity", "location", "activity", "clock"})
+        self.assertEqual(
+            set(back.to_dict()), {"id", "name", "mind", "identity", "location", "activity", "clock"}
+        )
 
     def test_being_here_is_one_fact_and_not_two(self):
         world = seed.build(self.root)
@@ -90,8 +100,7 @@ class TestWorldStore(unittest.TestCase):
 
     def test_starting_over_does_not_leave_the_old_town_on_disk(self):
         world = seed.build(self.root)
-        world.beings["ghost"] = type(world.beings["havvah"])(
-            id="ghost", name="Ghost")
+        world.beings["ghost"] = type(world.beings["havvah"])(id="ghost", name="Ghost")
         storage.save(world)
         again = seed.build(self.root)
         storage.save(again)
@@ -112,19 +121,16 @@ class TestWorldStore(unittest.TestCase):
             with self.assertRaises(storage.Locked):
                 with storage.Lock(self.root):
                     pass
-        with storage.Lock(self.root):      # released, so it can be taken again
+        with storage.Lock(self.root):  # released, so it can be taken again
             pass
 
 
 class TestAnswers(unittest.TestCase):
     def test_json_is_found_inside_whatever_came_back(self):
         self.assertEqual(extract_json('{"stuck": true}'), {"stuck": True})
-        self.assertEqual(extract_json('```json\n{"stuck": false}\n```'),
-                         {"stuck": False})
-        self.assertEqual(extract_json('Sure! {"stuck": true} Hope that helps.'),
-                         {"stuck": True})
-        self.assertEqual(extract_json('{"account": "a } brace"}'),
-                         {"account": "a } brace"})
+        self.assertEqual(extract_json('```json\n{"stuck": false}\n```'), {"stuck": False})
+        self.assertEqual(extract_json('Sure! {"stuck": true} Hope that helps.'), {"stuck": True})
+        self.assertEqual(extract_json('{"account": "a } brace"}'), {"account": "a } brace"})
         self.assertIsNone(extract_json("I am a 125M parameter model and I ramble"))
 
     def test_a_bad_answer_is_complained_about_and_retried(self):
@@ -132,29 +138,42 @@ class TestAnswers(unittest.TestCase):
 
         def answer(call):
             attempts.append(call.user)
-            return ({"engrams": [], "self_schema": 5} if len(attempts) == 1
-                    else consolidated("the water"))
+            return (
+                {"engrams": [], "self_schema": 5}
+                if len(attempts) == 1
+                else consolidated("the water")
+            )
 
         backend = StubBackend({CallName.CONSOLIDATE: answer})
-        got = ask(backend, Call(CallName.CONSOLIDATE, "s", "u", schemas.CONSOLIDATE, "havvah"),
-                  Settings(backend="stub", model="stub"),
-                  check=lambda data: schemas.validate(CallName.CONSOLIDATE, data))
+        got = ask(
+            backend,
+            Call(CallName.CONSOLIDATE, "s", "u", schemas.CONSOLIDATE, "havvah"),
+            Settings(backend="stub", model="stub"),
+            check=lambda data: schemas.validate(CallName.CONSOLIDATE, data),
+        )
         self.assertEqual(got, consolidated("the water"))
         self.assertEqual(len(attempts), 2)
         self.assertIn("not usable", attempts[1])
 
     def test_a_mind_that_never_makes_sense_is_simply_silent(self):
         backend = StubBackend({CallName.CONSOLIDATE: "I am not going to answer that"})
-        got = ask(backend, Call(CallName.CONSOLIDATE, "s", "u", schemas.CONSOLIDATE, "p"),
-                  Settings(backend="stub", model="stub"))
+        got = ask(
+            backend,
+            Call(CallName.CONSOLIDATE, "s", "u", schemas.CONSOLIDATE, "p"),
+            Settings(backend="stub", model="stub"),
+        )
         self.assertIsNone(got)
 
     def test_every_exchange_is_written_to_the_tape(self):
         with tempfile.TemporaryDirectory() as temporary:
             tape = Path(temporary) / "t.jsonl"
             backend = StubBackend({CallName.CONSOLIDATE: consolidated("the water")})
-            ask(backend, Call(CallName.CONSOLIDATE, "s", "u", schemas.CONSOLIDATE, "havvah"),
-                Settings(backend="stub", model="stub"), Transcript(tape))
+            ask(
+                backend,
+                Call(CallName.CONSOLIDATE, "s", "u", schemas.CONSOLIDATE, "havvah"),
+                Settings(backend="stub", model="stub"),
+                Transcript(tape),
+            )
             rows = [json.loads(line) for line in tape.read_text().splitlines()]
             self.assertEqual(len(rows), 1)
             self.assertTrue(rows[0]["ok"])
@@ -163,26 +182,44 @@ class TestAnswers(unittest.TestCase):
     def test_a_self_schema_is_as_long_as_the_schema_says_and_no_longer(self):
         most = schemas.SELF_SCHEMA_CHARACTERS
         half = most // 2
-        clean, complaint = schemas.validate(CallName.CONSOLIDATE,
-                                            consolidated("x" * half, "y" * (most - half)))
+        clean, complaint = schemas.validate(
+            CallName.CONSOLIDATE, consolidated("x" * half, "y" * (most - half))
+        )
         self.assertIsNone(complaint)
-        clean, complaint = schemas.validate(CallName.CONSOLIDATE,
-                                            consolidated("x" * half, "y" * (most - half + 1)))
+        clean, complaint = schemas.validate(
+            CallName.CONSOLIDATE, consolidated("x" * half, "y" * (most - half + 1))
+        )
         self.assertIsNone(clean)
         self.assertIn(f"at most {most}", complaint, "every field counted together")
 
     def test_what_is_inside_an_answer_is_checked_too(self):
-        clean, complaint = schemas.validate(CallName.CONSOLIDATE, {
-            "engrams": [{"gists": [{"proposition": "its eye was open", "weight": "heavy"}]}],
-            "self_schema": self_schema()})
+        clean, complaint = schemas.validate(
+            CallName.CONSOLIDATE,
+            {
+                "engrams": [{"gists": [{"proposition": "its eye was open", "weight": "heavy"}]}],
+                "self_schema": self_schema(),
+            },
+        )
         self.assertIsNone(clean)
         self.assertIn("'weight' must be a number", complaint)
-        clean, complaint = schemas.validate(CallName.CONSOLIDATE, {
-            "engrams": [{"gists": [{"proposition": "its eye was open", "weight": 1, "why": "x"}]}],
-            "self_schema": self_schema(), "mood": "x"})
-        self.assertEqual(clean, {"engrams": [{"gists": [{"proposition": "its eye was open", "weight": 1.0}]}],
-                                 "self_schema": self_schema()},
-                         "and what nobody asked for is dropped, at every depth")
+        clean, complaint = schemas.validate(
+            CallName.CONSOLIDATE,
+            {
+                "engrams": [
+                    {"gists": [{"proposition": "its eye was open", "weight": 1, "why": "x"}]}
+                ],
+                "self_schema": self_schema(),
+                "mood": "x",
+            },
+        )
+        self.assertEqual(
+            clean,
+            {
+                "engrams": [{"gists": [{"proposition": "its eye was open", "weight": 1.0}]}],
+                "self_schema": self_schema(),
+            },
+            "and what nobody asked for is dropped, at every depth",
+        )
 
     def test_every_call_has_a_schema_and_a_grammar(self):
         for name in CallName:
@@ -199,7 +236,6 @@ class TestAnswers(unittest.TestCase):
             CallName("setle")
 
 
-
 class TestIdiolectIsAFactNotASpecification(unittest.TestCase):
 
     def test_the_seed_says_what_they_do_not_what_the_output_should_look_like(self):
@@ -210,16 +246,26 @@ class TestIdiolectIsAFactNotASpecification(unittest.TestCase):
         for being in world.beings.values():
             idiolect = being.identity.self_schema.idiolect
             self.assertTrue(idiolect, f"{being.name} has no idiolect")
-            self.assertTrue(idiolect.startswith("You "),
-                            f"{being.name}'s idiolect is not about them: {idiolect!r}")
+            self.assertTrue(
+                idiolect.startswith("You "),
+                f"{being.name}'s idiolect is not about them: {idiolect!r}",
+            )
             for word in spec:
-                self.assertNotIn(word, idiolect.lower(),
-                                 f"{being.name}'s idiolect specifies output: {idiolect!r}")
+                self.assertNotIn(
+                    word,
+                    idiolect.lower(),
+                    f"{being.name}'s idiolect specifies output: {idiolect!r}",
+                )
 
     def test_it_is_a_line_of_its_own_because_that_is_what_worked(self):
-        being = Being(id="p", name="Havvah",
-                      identity=Identity(biography="You keep the garden alive.",
-                              self_schema=SelfSchema(idiolect="You say as little as will do.")))
+        being = Being(
+            id="p",
+            name="Havvah",
+            identity=Identity(
+                biography="You keep the garden alive.",
+                self_schema=SelfSchema(idiolect="You say as little as will do."),
+            ),
+        )
         block = prompts.being_block(being)
         self.assertIn("\nHow you talk: You say as little as will do.", block)
 

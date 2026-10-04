@@ -68,9 +68,25 @@ BITS = ((0x01, 0x08), (0x02, 0x10), (0x04, 0x20), (0x40, 0x80))
 
 # Measured on docs/logo.jpg, in its pixels.
 #: The left wing's outline; the right wing is its mirror image.
-WING = ((165, 160), (230, 170), (300, 178), (355, 178), (440, 183), (452, 215),
-        (466, 255), (510, 272), (522, 320), (512, 368), (470, 382), (420, 382),
-        (350, 352), (290, 337), (240, 297), (205, 272), (175, 205))
+WING = (
+    (165, 160),
+    (230, 170),
+    (300, 178),
+    (355, 178),
+    (440, 183),
+    (452, 215),
+    (466, 255),
+    (510, 272),
+    (522, 320),
+    (512, 368),
+    (470, 382),
+    (420, 382),
+    (350, 352),
+    (290, 337),
+    (240, 297),
+    (205, 272),
+    (175, 205),
+)
 #: x of a point plus x of its mirror image.
 MIRROR = 1057
 #: Where the left wing turns about.
@@ -170,8 +186,9 @@ def backdrop(image: Image.Image, wings: Image.Image) -> Image.Image:
     draw = ImageDraw.Draw(ring)
     draw.ellipse(ellipse(OUTER), fill=255)
     draw.ellipse(ellipse(INNER), fill=0)
-    reflection = ImageChops.offset(image.transpose(Image.FLIP_TOP_BOTTOM), 0,
-                                   round(2 * CENTER[1] - image.height + 1))
+    reflection = ImageChops.offset(
+        image.transpose(Image.FLIP_TOP_BOTTOM), 0, round(2 * CENTER[1] - image.height + 1)
+    )
     behind = Image.composite(reflection, Image.new("L", image.size, PAPER_GREY), ring)
     bare = Image.composite(behind, image, wings)
     beyond = Image.new("L", image.size, 255)
@@ -184,21 +201,24 @@ def angle(x: float, y: float, shoulder: tuple, side: int, time: float) -> float:
     (0 to 1); `side` is 1 for the left wing, -1 for the right."""
     across, down = side * (x - shoulder[0]), y - shoulder[1]
     reach = min(1.0, math.hypot(across, down) / SPAN)
-    direction = math.atan2(down, -across)             # 0 along the wing, toward the tip
+    direction = math.atan2(down, -across)  # 0 along the wing, toward the tip
     beat = REST + SWING * math.sin(2 * math.pi * time)
     phase = 2 * math.pi * (CYCLES * time - FEATHERS * direction / math.pi - LAG * reach)
-    return beat + FLUTTER * reach ** 1.5 * math.sin(phase)
+    return beat + FLUTTER * reach**1.5 * math.sin(phase)
 
 
 def turn(x: float, y: float, shoulder: tuple, degrees: float) -> tuple:
     radians = math.radians(degrees)
     across, down = x - shoulder[0], y - shoulder[1]
-    return (shoulder[0] + across * math.cos(radians) - down * math.sin(radians),
-            shoulder[1] + across * math.sin(radians) + down * math.cos(radians))
+    return (
+        shoulder[0] + across * math.cos(radians) - down * math.sin(radians),
+        shoulder[1] + across * math.sin(radians) + down * math.cos(radians),
+    )
 
 
-def raised(wing: Image.Image, extent: tuple, shoulder: tuple, side: int,
-           time: float) -> Image.Image:
+def raised(
+    wing: Image.Image, extent: tuple, shoulder: tuple, side: int, time: float
+) -> Image.Image:
     """The wing, lying within `extent`, turned by `angle` everywhere: each
     square of the result is taken from the quadrilateral turning it back lands on."""
     left, top, right, bottom = extent
@@ -254,17 +274,22 @@ def hatching(image: Image.Image, extent: tuple) -> Image.Image:
     """A mask of the hatched parts of `extent`: a sample standard deviation
     over a box, from the box means of grey and of grey squared."""
     mean = image.filter(ImageFilter.BoxBlur(WINDOW)).load()
-    squares = image.point(lambda grey: grey * grey // 255).filter(ImageFilter.BoxBlur(WINDOW)).load()
+    squares = (
+        image.point(lambda grey: grey * grey // 255).filter(ImageFilter.BoxBlur(WINDOW)).load()
+    )
     mask = Image.new("L", image.size, 0)
     marks = mask.load()
     left, top, right, bottom = extent
     for y in range(top, bottom):
         for x in range(left, right):
-            if squares[x, y] * 255 - mean[x, y] ** 2 > SPREAD ** 2 and mean[x, y] < SHADE:
+            if squares[x, y] * 255 - mean[x, y] ** 2 > SPREAD**2 and mean[x, y] < SHADE:
                 marks[x, y] = 255
     # Close the gaps between strokes, drop stray marks, then give the edge back.
-    return (mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(7))
-            .filter(ImageFilter.MaxFilter(5)))
+    return (
+        mask.filter(ImageFilter.MaxFilter(3))
+        .filter(ImageFilter.MinFilter(7))
+        .filter(ImageFilter.MaxFilter(5))
+    )
 
 
 def body(image: Image.Image) -> tuple:
@@ -283,12 +308,16 @@ def body(image: Image.Image) -> tuple:
     for y in range(top, bottom, CELL):
         for x in range(left, right, CELL):
             middle = (x + CELL / 2, y + CELL / 2)
-            distance, pieces = min(((project(*middle, pieces)[0], pieces) for pieces in tracks),
-                                   key=lambda candidate: candidate[0])
+            distance, pieces = min(
+                ((project(*middle, pieces)[0], pieces) for pieces in tracks),
+                key=lambda candidate: candidate[0],
+            )
             if distance > BODY + CELL:
                 continue
-            corners = [project(*corner, pieces)[1:] for corner in
-                       ((x, y), (x, y + CELL), (x + CELL, y + CELL), (x + CELL, y))]
+            corners = [
+                project(*corner, pieces)[1:]
+                for corner in ((x, y), (x, y + CELL), (x + CELL, y + CELL), (x + CELL, y))
+            ]
             squares.append(((x, y, x + CELL, y + CELL), pieces, corners))
     return mask, squares
 
@@ -310,13 +339,17 @@ def scales(image: Image.Image, snake: tuple, time: float) -> Image.Image:
     phase = (CRAWLS * time) % 1.0
     other = (phase + 0.5) % 1.0
     # Each slide is faded out as it nears its jump back to the start.
-    crawl = Image.blend(crept(image, squares, phase * SLIDE), crept(image, squares, other * SLIDE),
-                        abs(1 - 2 * phase))
+    crawl = Image.blend(
+        crept(image, squares, phase * SLIDE),
+        crept(image, squares, other * SLIDE),
+        abs(1 - 2 * phase),
+    )
     return Image.composite(crawl, image, mask)
 
 
-def frame(image: Image.Image, background: Image.Image, wings: tuple, snake: tuple,
-          time: float) -> Image.Image:
+def frame(
+    image: Image.Image, background: Image.Image, wings: tuple, snake: tuple, time: float
+) -> Image.Image:
     lighter = image.point(lambda grey: 255 if grey > WING_PAPER else grey)
     white = Image.new("L", image.size, 255)
     picture = Image.composite(scales(image, snake, time), background, snake[0])
@@ -336,12 +369,15 @@ def main() -> None:
     left_edge, top_edge, right_edge, bottom_edge = drawing.getbbox()
     box = (left_edge, top_edge - HEADROOM, right_edge, bottom_edge)
     snake = body(image)
-    pictures = [frame(image, background, wings, snake, index / FRAMES).crop(box)
-                for index in range(FRAMES)]
+    pictures = [
+        frame(image, background, wings, snake, index / FRAMES).crop(box) for index in range(FRAMES)
+    ]
     sizes = [[braille(picture, columns) for picture in pictures] for columns in WIDTHS]
     TARGET.write_bytes(lzma.compress(json.dumps(sizes, ensure_ascii=False).encode("utf-8")))
-    print(f"wrote {TARGET.relative_to(REPOSITORY)} ({TARGET.stat().st_size // 1024} KB): "
-          f"{FRAMES} frames at {', '.join(map(str, WIDTHS))} columns")
+    print(
+        f"wrote {TARGET.relative_to(REPOSITORY)} ({TARGET.stat().st_size // 1024} KB): "
+        f"{FRAMES} frames at {', '.join(map(str, WIDTHS))} columns"
+    )
 
 
 if __name__ == "__main__":

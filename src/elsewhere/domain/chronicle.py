@@ -11,7 +11,7 @@ class Category(str, Enum):
     """The categories the engine writes and acts on. A world may record events
     under any other category name (the seed's backstory does)."""
 
-    OCCURRENCE = "occurrence"          # something that befalls the town
+    OCCURRENCE = "occurrence"  # something that befalls the town
     ARRIVAL = "arrival"
     DEPARTURE = "departure"
     CONVERSATION = "conversation"
@@ -28,8 +28,8 @@ class Event:
     #: Its place in the chronicle, counting from 1: the third thing that ever
     #: happened here is "3". Append-only, so it never changes.
     id: str
-    at: float                      # time since the world began
-    category: str                  # a `Category` or a world-specific name
+    at: float  # time since the world began
+    category: str  # a `Category` or a world-specific name
     account: str
     place: Optional[str] = None
 
@@ -48,8 +48,13 @@ class Event:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Event":
-        return cls(id=data["id"], at=float(data["at"]), category=data["category"],
-                   account=data["account"], place=data.get("place"),
-                   involved=list(data.get("involved", [])),
-                   informed=list(data.get("informed", [])),
-                   data=dict(data.get("data", {})))
+        return cls(
+            id=data["id"],
+            at=float(data["at"]),
+            category=data["category"],
+            account=data["account"],
+            place=data.get("place"),
+            involved=list(data.get("involved", [])),
+            informed=list(data.get("informed", [])),
+            data=dict(data.get("data", {})),
+        )

@@ -16,4 +16,5 @@ __all__ = ["run"]
 def run(root) -> None:
     """Imported late: curses is heavy."""
     from .screen import run as _run
+
     _run(root)

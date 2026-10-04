@@ -85,15 +85,27 @@ def say(world: World, being_id: str, to: str, utterance: str) -> Event:
     if not utterance:
         raise Refused("nothing was said")
     here = [being.id for being in world.beings_at(speaker.location.place)]
-    perspectives = {other: (f"face to face with {speaker.name}" if other == listener.id
-                          else f"nearby, within earshot of {speaker.name} and {listener.name}")
-                  for other in here if other != speaker.id}
+    perspectives = {
+        other: (
+            f"face to face with {speaker.name}"
+            if other == listener.id
+            else f"nearby, within earshot of {speaker.name} and {listener.name}"
+        )
+        for other in here
+        if other != speaker.id
+    }
     return world.record(
         Category.CONVERSATION,
         f'{speaker.name} said to {listener.name}: "{utterance}"',
-        place=speaker.location.place, involved=[speaker.id, listener.id], informed=here,
-        data={"speaker": speaker.id, "listener": listener.id, "utterance": utterance,
-              "perspectives": perspectives},
+        place=speaker.location.place,
+        involved=[speaker.id, listener.id],
+        informed=here,
+        data={
+            "speaker": speaker.id,
+            "listener": listener.id,
+            "utterance": utterance,
+            "perspectives": perspectives,
+        },
     )
 
 
@@ -113,12 +125,17 @@ def leave(world: World, being_id: str, reason: str = "") -> Event:
             perspectives[other] = f"right there, at {where}"
         else:
             whereabouts = world.places.get(world.beings[other].location.place)
-            perspectives[other] = (f"at {whereabouts.name}, and word of it reached you there"
-                                 if whereabouts else "and word of it reached you")
+            perspectives[other] = (
+                f"at {whereabouts.name}, and word of it reached you there"
+                if whereabouts
+                else "and word of it reached you"
+            )
     event = world.record(
         Category.DEPARTURE,
         f"{being.name} took the road out of {world.name} and did not come back.",
-        place=being.location.place, involved=[being.id], informed=informed,
+        place=being.location.place,
+        involved=[being.id],
+        informed=informed,
         data={"reason": reason.strip(), "being": being.id, "perspectives": perspectives},
     )
     schedule.interrupt(world, [other for other in informed if other != being.id])
@@ -127,8 +144,9 @@ def leave(world: World, being_id: str, reason: str = "") -> Event:
     return event
 
 
-def wait(world: World, duration: Optional[float],
-         being_id: Optional[str] = None) -> Optional[float]:
+def wait(
+    world: World, duration: Optional[float], being_id: Optional[str] = None
+) -> Optional[float]:
     """Sets the one timer of a being, or of the world when no being is named:
     the only thing that says when they are next asked. No positive duration
     leaves no timer. Returns when it falls due."""
@@ -141,8 +159,9 @@ def wait(world: World, duration: Optional[float],
     return at
 
 
-def occur(world: World, what: str, where: str, who: str = "",
-          extent: str = Reach.THERE, why_now: str = "") -> Event:
+def occur(
+    world: World, what: str, where: str, who: str = "", extent: str = Reach.THERE, why_now: str = ""
+) -> Event:
     """Something happens to the town that nobody in it chose. Something that
     happens to somebody happens where they are."""
     what = what.strip()
@@ -158,16 +177,26 @@ def occur(world: World, what: str, where: str, who: str = "",
     if place is None:
         raise Refused(f"there is no place called {where!r}")
 
-    informed = ([resident.id for resident in residents] if noticed == Reach.TOWN
-                else [resident.id for resident in world.beings_at(place.id)])
-    perspectives = {other: (f"right there, at {place.name}"
-                          if world.beings[other].location.place == place.id
-                          else f"at {world.places[world.beings[other].location.place].name}, "
-                               f"and word of it reached you there")
-                  for other in informed}
+    informed = (
+        [resident.id for resident in residents]
+        if noticed == Reach.TOWN
+        else [resident.id for resident in world.beings_at(place.id)]
+    )
+    perspectives = {
+        other: (
+            f"right there, at {place.name}"
+            if world.beings[other].location.place == place.id
+            else f"at {world.places[world.beings[other].location.place].name}, "
+            f"and word of it reached you there"
+        )
+        for other in informed
+    }
     event = world.record(
-        Category.OCCURRENCE, what, place=place.id,
-        involved=[subject.id] if subject is not None else [], informed=informed,
+        Category.OCCURRENCE,
+        what,
+        place=place.id,
+        involved=[subject.id] if subject is not None else [],
+        informed=informed,
         data={"why_now": why_now.strip(), "reach": str(noticed), "perspectives": perspectives},
     )
     schedule.interrupt(world, event.informed)
@@ -182,8 +211,14 @@ def unused_id(world: World, name: str) -> str:
     return candidate
 
 
-def admit(world: World, name: str, from_where: str = "", biography: str = "",
-          idiolect: str = "", why_now: str = "") -> Tuple[Being, Event]:
+def admit(
+    world: World,
+    name: str,
+    from_where: str = "",
+    biography: str = "",
+    idiolect: str = "",
+    why_now: str = "",
+) -> Tuple[Being, Event]:
     """Somebody comes up the road, carrying nothing of this place, and lives
     the day they arrived."""
     name = name.strip()
@@ -194,9 +229,12 @@ def admit(world: World, name: str, from_where: str = "", biography: str = "",
     place = world.places[world.map.road]
     origin = from_where.strip()
     being = Being(
-        id=unused_id(world, name), name=name,
-        identity=Identity(biography=biography.strip(),
-                self_schema=SelfSchema(at=world.current, idiolect=idiolect.strip())),
+        id=unused_id(world, name),
+        name=name,
+        identity=Identity(
+            biography=biography.strip(),
+            self_schema=SelfSchema(at=world.current, idiolect=idiolect.strip()),
+        ),
         location=Location(place=place.id, home=""),
         # Nothing that happened here before they came is theirs to see.
         clock=Clock(arrived_at=world.current, perceived_through=len(world.chronicle)),
@@ -217,12 +255,23 @@ def admit(world: World, name: str, from_where: str = "", biography: str = "",
             perspectives[other] = f"right there, at {place.name}"
         else:
             whereabouts = world.places.get(world.beings[other].location.place)
-            perspectives[other] = (f"at {whereabouts.name}, and word of it reached you there"
-                                 if whereabouts else "and word of it reached you")
+            perspectives[other] = (
+                f"at {whereabouts.name}, and word of it reached you there"
+                if whereabouts
+                else "and word of it reached you"
+            )
     event = world.record(
-        Category.ARRIVAL, account, place=place.id, involved=[being.id], informed=informed,
-        data={"why_now": why_now.strip(), "from_where": origin, "being": being.id,
-              "perspectives": perspectives},
+        Category.ARRIVAL,
+        account,
+        place=place.id,
+        involved=[being.id],
+        informed=informed,
+        data={
+            "why_now": why_now.strip(),
+            "from_where": origin,
+            "being": being.id,
+            "perspectives": perspectives,
+        },
     )
     schedule.interrupt(world, event.informed)
     return being, event
