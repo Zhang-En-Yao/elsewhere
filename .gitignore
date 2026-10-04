@@ -3,8 +3,8 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.mypy_cache/
 .DS_Store
-world.json
-worlds/
+.claude/settings.local.json
 .elsewhere/
 /world/
