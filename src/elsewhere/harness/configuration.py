@@ -39,6 +39,8 @@ GUIDANCE = [
     "with its endpoint set: llama-server, LM Studio, vLLM on a GPU box. A hosted "
     "endpoint takes its key from ELSEWHERE_OPENAI_KEY, the only thing read "
     "from the environment",
+    "embed on backend \"openai\" asks the endpoint's /v1/embeddings, which not "
+    "every server has (mlx_lm.server does not); without it retrieval is BM25 alone",
     "mlx: options go to the chat template, with enable_thinking false unless "
     "it says otherwise",
     "change a whole backend at once with `elsewhere configure`; "

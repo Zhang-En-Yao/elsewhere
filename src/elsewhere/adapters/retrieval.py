@@ -15,7 +15,9 @@ hand, fused by a third:
               Rank Learning Methods"), at the paper's k = 60.
 
 Without an embedder, or without sqlite-vec, the dense ranking is left out and
-BM25 alone decides. There is no threshold: the best there is comes back,
+BM25 alone decides. sqlite-vec is an extension, and the SQLite that python.org
+builds Python with for macOS cannot load one, so sqlean.py's SQLite (which can,
+and has FTS5) is used whenever it is installed, and the standard library's when not. There is no threshold: the best there is comes back,
 however slight, and whether it meant anything is the mind's to say.
 
 What comes back of it follows the power law of forgetting (Wixted & Ebbesen
@@ -28,12 +30,16 @@ from __future__ import annotations
 
 import math
 import re
-import sqlite3
 from contextlib import closing
 from dataclasses import replace
 from typing import Dict, List, Optional, Sequence
 
 from ..domain.memory import Engram
+
+try:
+    import sqlean as sqlite
+except ImportError:
+    import sqlite3 as sqlite
 
 #: RRF's k, as published: it damps how much the very top of one ranking counts.
 FUSION_K = 60
@@ -41,7 +47,12 @@ FUSION_K = 60
 DECAY = 0.5
 
 
-def load_vector_extension(connection: sqlite3.Connection) -> bool:
+def connect() -> sqlite.Connection:
+    """An in-memory database, on whichever SQLite can load sqlite-vec."""
+    return sqlite.connect(":memory:")
+
+
+def load_vector_extension(connection: sqlite.Connection) -> bool:
     """Load sqlite-vec into this connection; False if it cannot be."""
     try:
         import sqlite_vec
@@ -49,11 +60,11 @@ def load_vector_extension(connection: sqlite3.Connection) -> bool:
         sqlite_vec.load(connection)
         connection.enable_load_extension(False)
         return True
-    except (ImportError, AttributeError, sqlite3.OperationalError):
+    except (ImportError, AttributeError, sqlite.OperationalError):
         return False
 
 
-def lexical_ranking(connection: sqlite3.Connection, documents: Sequence[str],
+def lexical_ranking(connection: sqlite.Connection, documents: Sequence[str],
                     cue: str) -> List[int]:
     # Each word quoted, so the cue is only ever words and never FTS5 syntax.
     words = sorted(set(re.findall(r"\w+", cue)))
@@ -69,7 +80,7 @@ def lexical_ranking(connection: sqlite3.Connection, documents: Sequence[str],
     return [row[0] - 1 for row in rows]
 
 
-def dense_ranking(connection: sqlite3.Connection, engrams: Sequence[Engram],
+def dense_ranking(connection: sqlite.Connection, engrams: Sequence[Engram],
                   cue_vector: Sequence[float], embedder: str) -> List[int]:
     if not cue_vector or not embedder or not load_vector_extension(connection):
         return []
@@ -101,7 +112,7 @@ def search(engrams: Sequence[Engram], cue: str,
     """The one engram the cue points at most, or None when nothing is shared."""
     if not engrams:
         return None
-    with closing(sqlite3.connect(":memory:")) as connection:
+    with closing(connect()) as connection:
         rankings = [lexical_ranking(connection, [engram.text for engram in engrams], cue),
                     dense_ranking(connection, engrams, cue_vector, embedder)]
     scores = fuse(rankings)

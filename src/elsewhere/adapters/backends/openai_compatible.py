@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import List
 
 import openai
 
@@ -54,3 +55,10 @@ class OpenAICompatibleBackend:
                 raise
             return response.choices[0].message.content or ""
         return ""
+
+    def embed(self, texts: List[str], settings: Settings) -> List[List[float]]:
+        client = openai.OpenAI(base_url=self._endpoint(settings), api_key=self._key(),
+                               timeout=settings.timeout)
+        response = client.embeddings.create(model=settings.model, input=list(texts))
+        return [list(embedding.embedding)
+                for embedding in sorted(response.data, key=lambda embedding: embedding.index)]

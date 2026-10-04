@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
 import sys
 import time
 from contextlib import closing
@@ -395,7 +394,7 @@ def command_doctor(arguments) -> None:
         print(heading("What brings an engram back"))
         started = time.time()
         vectors = embed(["the water came up over the waterline"], embed_settings)
-        with closing(sqlite3.connect(":memory:")) as connection:
+        with closing(retrieval.connect()) as connection:
             extension = retrieval.load_vector_extension(connection)
         print(f"  embed     {embed_settings.backend}/{embed_settings.model:<18} "
               + (f"ok ({len(vectors[0])} dimensions, {time.time() - started:.1f}s)" if vectors

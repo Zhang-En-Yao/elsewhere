@@ -328,6 +328,10 @@ there is, not a gate: there is no threshold, so on a day that points at nothing
 much, what comes back is only loosely related, the way a mind wanders. Without
 an embedder or without sqlite-vec, BM25 alone decides; an engram placed by one
 embedder is never compared with another's vectors (`Engram.embedded_by`).
+sqlite-vec is a loadable extension, and python.org's macOS builds of Python
+compile SQLite without extension loading, so `retrieval.connect` uses
+sqlean.py's SQLite when it is installed (`.[recall]` brings it) and the
+standard library's otherwise.
 
 What comes back of it is `retrieval.fragment`: the power law of forgetting
 (Wixted & Ebbesen 1991), at ACT-R's decay d = 0.5 (Anderson & Lebiere 1998).
@@ -539,7 +543,8 @@ sites: a `Call` carries its own grammar and `ask` is handed its own check.
 - [`backends/openai_compatible.py`](../src/elsewhere/adapters/backends/openai_compatible.py) —
   `OpenAICompatibleBackend` (any `/v1` server — LM Studio, llama-server, vLLM —
   through the official `openai` client pointed at the configured endpoint; tries
-  `response_format: json_schema` and falls back to plain `json_object`).
+  `response_format: json_schema` and falls back to plain `json_object`). It embeds
+  through the same API's `/v1/embeddings`, for a server that has it.
 - [`backends/stub.py`](../src/elsewhere/adapters/backends/stub.py) — answers every call
   with a fixed or scripted answer. This is what `make test` runs against; no
   model, no key, no latency.

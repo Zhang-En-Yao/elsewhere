@@ -354,9 +354,8 @@ class TestConsolidate(Town):
 
 
 def vector_extension_installed():
-    import sqlite3
     from contextlib import closing
-    with closing(sqlite3.connect(":memory:")) as connection:
+    with closing(retrieval.connect()) as connection:
         return retrieval.load_vector_extension(connection)
 
 
