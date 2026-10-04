@@ -14,7 +14,6 @@ from ..domain.world import World
 
 
 def load(world: World) -> int:
-    """How many events of the chronicle you have read; none, if you never looked."""
     path = storage.root(world) / "bookmark.json"
     if not path.exists():
         return 0

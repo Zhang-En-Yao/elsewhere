@@ -70,8 +70,6 @@ def being_block(being: Being) -> str:
 
 
 def percepts_block(percepts: Sequence[Tuple[Event, str]]) -> str:
-    """`percepts` is (event, perspective), oldest first, from `harness.memory.percepts`:
-    the only time anybody is shown what happened as it happened."""
     if not percepts:
         return "Nothing new has reached you since you last looked up."
     lines = ["Just now, and since you last looked up:"]

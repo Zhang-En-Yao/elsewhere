@@ -144,7 +144,6 @@ class App:
         return tuple(times)
 
     def reload(self, announce: bool = False) -> None:
-        """Reload, keeping the current selection."""
         selected = self.selected()
         try:
             self.world = storage.load(self.root)

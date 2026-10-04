@@ -22,10 +22,8 @@ def destinations(world: World, being: Being) -> List[Place]:
 
 
 def may_leave(world: World, being: Being) -> bool:
-    """Does the road go out from where they are standing."""
     return bool(world.map.road) and being.location.place == world.map.road
 
 
 def may_admit(world: World) -> bool:
-    """Is there a road for anybody to come up."""
     return world.map.road in world.places

@@ -171,5 +171,4 @@ def episodes_of_engram(episodes: Sequence[Episode], engram: Engram) -> List[Epis
 
 
 def episodes_of_event(episodes: Sequence[Episode], event_id: str) -> List[Episode]:
-    """The episodes somebody encoded of one event."""
     return [episode for episode in episodes if event_id in episode.event_ids]

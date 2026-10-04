@@ -103,7 +103,6 @@ def clip(text: str, columns: int) -> str:
 
 
 def fit(text: str, columns: int) -> int:
-    """How many characters of `text` fit in `columns`."""
     used = 0
     for index, character in enumerate(text):
         step = (
@@ -336,7 +335,6 @@ def logo(columns: int, rows: int) -> List[List[str]]:
 
 @functools.lru_cache(maxsize=8)
 def widest(columns: int, rows: int) -> int:
-    """Columns taken by the widest frame of `logo(columns, rows)`."""
     return max((width(line) for lines in logo(columns, rows) for line in lines), default=0)
 
 

@@ -13,7 +13,7 @@ from .schemas import CallName
 # Hugging Face repo or a local MLX directory. Sized for ~4GB free on an 8GB
 # Apple-silicon Mac (3.4GB resident, ~4.1GB peak); one model for every call,
 # since two cannot stay resident at once.
-LOCAL = {"backend": "mlx", "model": "mlx-community/gemma-4-E2B-it-qat-4bit"}  # ~4GB
+LOCAL = {"backend": "mlx", "model": "mlx-community/gemma-4-E2B-it-qat-4bit"}
 
 # Optional: without it, retrieval is BM25 alone. Engrams placed by one
 # embedder are not compared with another's.

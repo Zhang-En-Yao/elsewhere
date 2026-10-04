@@ -44,7 +44,7 @@ class Identity:
 
 @dataclass
 class Location:
-    place: str = ""  # place id
+    place: str = ""
     home: str = ""  # "" for a newcomer
 
     def to_dict(self) -> dict:
@@ -206,7 +206,6 @@ class Map:
 
 
 def ways_from_neighbours(neighbours: Dict[str, List[str]]) -> List[List[str]]:
-    """Fold a seed's per-place neighbour lists into deduplicated `ways`."""
     seen = set()
     ways: List[List[str]] = []
     for place_id, others in neighbours.items():

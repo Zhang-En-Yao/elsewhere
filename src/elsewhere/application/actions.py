@@ -42,12 +42,10 @@ def present(world: World, being_id: str) -> Being:
 
 
 def stay(world: World, being_id: str, doing: str = "") -> None:
-    """Somebody is where they are, doing what they say they are doing."""
     present(world, being_id).activity.log(doing.strip() or "stayed where they were")
 
 
 def move(world: World, being_id: str, to: str) -> str:
-    """Walks somebody to a place beside where they stand; returns where from."""
     being = present(world, being_id)
     if to not in world.places:
         raise Refused(f"there is no place called {to!r}")

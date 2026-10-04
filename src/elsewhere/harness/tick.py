@@ -85,8 +85,6 @@ class Miss(NamedTuple):
 
 @dataclass
 class Stir:
-    """The world's turn: what it decided, and what came of it."""
-
     decision: Decision
     occurrence: Optional[Occurrence] = None
     arrival: Optional[Arrival] = None
@@ -94,8 +92,6 @@ class Stir:
 
 @dataclass
 class Refusal:
-    """A call the server would not make, and why."""
-
     caller: str  # a being id, or "world"
     tool: str
     complaint: str
@@ -107,7 +103,6 @@ class TickReport:
     elapsed: float = 0.0
     #: No timer was set anywhere, so the clock did not move.
     idle: bool = False
-    #: The world's turn, if it had one this step.
     stir: Optional[Stir] = None
     #: Each due being's turn, by being id.
     decisions: Dict[str, Decision] = field(default_factory=dict)
@@ -115,7 +110,6 @@ class TickReport:
     departures: List[Departure] = field(default_factory=list)
     talks: List[Talk] = field(default_factory=list)
     missed: List[Miss] = field(default_factory=list)
-    #: Who went over their day and laid it down as engrams.
     consolidated: List[str] = field(default_factory=list)
     refusals: List[Refusal] = field(default_factory=list)
 

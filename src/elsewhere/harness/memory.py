@@ -50,8 +50,6 @@ def percepts(world: World, being: Being) -> List[Tuple[Event, str]]:
 
 
 def short_term(world: World, being: Being) -> List[Episode]:
-    """What they have encoded since they last consolidated, in their own
-    words."""
     return world.episodes(being.id).all()[being.clock.consolidated_through :][-SHORT_TERM_SPAN:]
 
 

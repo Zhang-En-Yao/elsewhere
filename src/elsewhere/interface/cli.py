@@ -26,9 +26,6 @@ from ..harness.schemas import CallName
 DEFAULT_ROOT = Path("world")
 
 
-# helpers
-
-
 def open_world(arguments) -> World:
     root = Path(arguments.world)
     if not storage.exists(root):
@@ -226,7 +223,6 @@ def command_status(arguments) -> None:
 
 
 def describe(self_schema: SelfSchema) -> List[str]:
-    """A self-schema as plain lines, labelled by what each one is."""
     return (
         [f"trait        {trait}" for trait in self_schema.traits]
         + [f"concern      {concern}" for concern in self_schema.concerns]
@@ -518,9 +514,6 @@ def command_consolidate(arguments) -> None:
         print(f"  {line}")
 
 
-# cli wiring
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="elsewhere", description="A persistent world that remembers."
@@ -528,13 +521,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--world", default=str(DEFAULT_ROOT), help="path to the world")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # create
     subparser = subparsers.add_parser("initialize", help="make a small world")
     subparser.add_argument("--name", default="Nod")
     subparser.add_argument("--force", action="store_true")
     subparser.set_defaults(handler=command_initialize)
 
-    # read-only views
     subparser = subparsers.add_parser("status", help="where everyone is, and how much they hold")
     subparser.set_defaults(handler=command_status)
 
@@ -562,7 +553,6 @@ def build_parser() -> argparse.ArgumentParser:
     subparser = subparsers.add_parser("watch", help="sit with the world in a window; reads only")
     subparser.set_defaults(handler=command_watch)
 
-    # time passing
     subparser = subparsers.add_parser(
         "continue", help="let the world go on for however long you have been away"
     )
@@ -579,13 +569,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparser.add_argument("-n", type=int, default=1)
     subparser.set_defaults(handler=command_tick)
 
-    # ending
     subparser = subparsers.add_parser(
         "end", help="end the world for good; what happened stays readable"
     )
     subparser.set_defaults(handler=command_end)
 
-    # development (internal)
     subparser = subparsers.add_parser("doctor", help="[DEV] diagnose model backend connectivity")
     subparser.set_defaults(handler=command_doctor)
 

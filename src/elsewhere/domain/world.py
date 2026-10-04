@@ -40,8 +40,6 @@ class Log(Protocol, Generic[Item]):
 
 
 class Records(Protocol):
-    """Where the world's append-only records are kept."""
-
     @property
     def chronicle(self) -> Log[Event]: ...
 

@@ -4,9 +4,8 @@ answer turned into what it comes to.
 `act` comes to one tool call on the server (stay, move, talk or leave) and a
 timer; `speak` to one line, which the step says with `Tool.SAY`;
 `consolidate` to engrams and a new self-schema, which are memory and never
-reach the server. None of these
-decide anything themselves: a mind that gives nothing usable had nothing,
-which is allowed.
+reach the server. None of these decide anything themselves: a mind that gives
+nothing usable had nothing, which is allowed.
 """
 
 from __future__ import annotations
@@ -119,7 +118,6 @@ def speak(
     configuration,
     transcript: Optional[Transcript] = None,
 ) -> Optional[str]:
-    """What they say, or None when they have nothing."""
     settings = configuration[CallName.SPEAK]
     place = world.places.get(speaker.location.place)
     percepts = memory.percepts(world, speaker)

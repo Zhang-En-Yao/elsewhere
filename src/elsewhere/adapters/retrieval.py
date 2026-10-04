@@ -17,8 +17,9 @@ hand, fused by a third:
 Without an embedder, or without sqlite-vec, the dense ranking is left out and
 BM25 alone decides. sqlite-vec is an extension, and the SQLite that python.org
 builds Python with for macOS cannot load one, so sqlean.py's SQLite (which can,
-and has FTS5) is used whenever it is installed, and the standard library's when not. There is no threshold: the best there is comes back,
-however slight, and whether it meant anything is the mind's to say.
+and has FTS5) is used whenever it is installed, and the standard library's when
+not. There is no threshold: the best there is comes back, however slight, and
+whether it meant anything is the mind's to say.
 
 What comes back of it follows the power law of forgetting (Wixted & Ebbesen
 1991, "On the Form of Forgetting"): the share of its gists that survive is
@@ -53,7 +54,6 @@ def connect() -> sqlite.Connection:
 
 
 def load_vector_extension(connection: sqlite.Connection) -> bool:
-    """Load sqlite-vec into this connection; False if it cannot be."""
     try:
         import sqlite_vec
 
