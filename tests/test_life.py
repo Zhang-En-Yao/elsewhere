@@ -1,4 +1,4 @@
-"""Events befall the town, and each person carries one page from day to day."""
+"""Events befall the town, and each person sleeps on what they kept of it."""
 
 import sys
 import tempfile
@@ -7,19 +7,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import agents, recollection, schemas, seed, tick
-from elsewhere.schemas import CallName
-from elsewhere.backends import Settings, register
-from elsewhere.backends.stub import StubBackend
-from elsewhere.world import chronicle
-from elsewhere.world.notes import Note
+from elsewhere.adapters import retrieval
+from elsewhere.harness import memory, prompts, schemas, tick, world as world_agent
+from elsewhere.interface import seed
+from elsewhere.harness.schemas import CallName
+from elsewhere.adapters.backends import Settings, register
+from elsewhere.adapters.backends.stub import StubBackend
+from elsewhere.domain.chronicle import Category
+from elsewhere.domain.memory import Engram, Episode, Gist, SelfSchema, episodes_of_engram
 
-CALLS = tuple(CallName)[:-1]    # every call but the probe
-STAY = {"because": "", "doing": "", "action": "", "target": "",
-        "again_in_hours": 6.0, "settling": False}
+CALLS = tuple(CallName)
+STAY = {"reason": "", "doing": "", "action": "", "target": "",
+        "duration": 21600, "sleep": False}
 QUIET = {"why_now": "", "what": "", "where": "Beth El", "who": "",
-         "reach": "the people there", "happens": False,
-         "again_in_hours": 24.0}
+         "reach": "the people there", "action": "",
+         "duration": 86400}
 
 
 def configuration():
@@ -40,7 +42,7 @@ class Town(unittest.TestCase):
         return [call for call in self.stub.calls if call.name == name]
 
     def a_day_on(self):
-        self.world.at += 24
+        self.world.current += 24
 
 
 class TestStir(Town):
@@ -63,53 +65,53 @@ class TestStir(Town):
     def test_most_days_nothing_happens(self):
         before = len(self.world.chronicle)
         report = tick.tick(self.world, configuration())
-        self.assertIsNone(report.occurrence)
+        self.assertIsNone(report.stir.occurrence)
         self.assertEqual(len(self.world.chronicle), before)
 
     def test_something_happening_to_someone_happens_where_they_are(self):
         self.stub.set(CallName.STIR, {"why_now": "the roof", "what": "A beam cracked overhead.",
                                       "where": "Mizpah", "who": "Bezalel",
-                                      "reach": "the people there", "happens": True})
+                                      "reach": "the people there", "action": "occur"})
         report = tick.tick(self.world, configuration())
-        event = self.world.chronicle.get(report.occurrence.event_id)
+        event = self.world.event(report.stir.occurrence.event_id)
         self.assertEqual(event.place, "yard", "Bezalel is in his own yard, not on the ridge")
-        self.assertEqual(event.category, chronicle.OCCURRENCE)
+        self.assertEqual(event.category, Category.OCCURRENCE)
         self.assertEqual(event.informed, ["bezalel"])
-        bezalel = next(call for call in self.calls(CallName.ACT) if call.about == "bezalel")
+        bezalel = next(call for call in self.calls(CallName.ACT) if call.mind == "bezalel")
         self.assertIn("A beam cracked overhead.", bezalel.user,
                       "and it is in front of him when he decides what to do")
 
     def test_something_the_whole_town_notices_reaches_everyone(self):
         self.stub.set(CallName.STIR, {"why_now": "", "what": "A storm broke over the town.",
                                       "where": "Beth El", "who": "",
-                                      "reach": "the whole town", "happens": True})
+                                      "reach": "the whole town", "action": "occur"})
         report = tick.tick(self.world, configuration())
-        event = self.world.chronicle.get(report.occurrence.event_id)
+        event = self.world.event(report.stir.occurrence.event_id)
         self.assertEqual(sorted(event.informed), sorted(self.world.beings))
-        lilith = next(call for call in self.calls(CallName.ACT) if call.about == "lilith")
+        lilith = next(call for call in self.calls(CallName.ACT) if call.mind == "lilith")
         self.assertIn("A storm broke over the town.", lilith.user)
         self.assertIn("word of it reached you", lilith.user)
 
     def test_the_town_says_itself_how_long_a_quiet_stretch_it_gets(self):
         self.stub.set(CallName.STIR, {"why_now": "", "what": "A goat got loose.",
                                       "where": "Beth El", "who": "",
-                                      "reach": "the people there", "happens": True,
-                                      "again_in_hours": 336.0})
+                                      "reach": "the people there", "action": "occur",
+                                      "duration": 1209600})
         tick.tick(self.world, configuration())
         self.assertEqual(len(self.calls(CallName.STIR)), 1)
-        self.assertEqual(self.world.town_wake_at, self.world.at + 336.0)
+        self.assertEqual(self.world.due_at, self.world.current + 336.0)
         for _ in range(8):                       # two days further on
             tick.tick(self.world, configuration())
         self.assertEqual(len(self.calls(CallName.STIR)), 1,
                          "it said a fortnight, and a fortnight is what it gets")
         for name in ("DIRECTOR_MIN_GAP", "DIRECTOR_EVERY"):
-            self.assertFalse(hasattr(agents, name))
+            self.assertFalse(hasattr(world_agent, name))
 
     def test_the_town_does_not_see_inside_anyone(self):
         tick.tick(self.world, configuration())
         user = self.calls(CallName.STIR)[0].user
         for being in self.world.beings.values():
-            self.assertNotIn(being.who.notebook.splitlines()[0], user)
+            self.assertNotIn(being.identity.self_schema.concerns[0], user)
 
 
 class TestNoting(Town):
@@ -122,212 +124,319 @@ class TestNoting(Town):
 
     def look_up(self):
         for being in self.world.beings.values():
-            being.when.wake_at = self.world.at
+            being.clock.due_at = self.world.current
         return tick.tick(self.world, configuration())
 
     def test_what_they_keep_is_written_in_their_own_words(self):
         event = self.happen("A hawk took one of the ridge hens.")
-        self.stub.answers["act|lilith"] = {**STAY, "noted": "feathers on the path, still moving"}
+        self.stub.answers["act|lilith"] = {**STAY, "encoded": "feathers on the path, still moving"}
         self.look_up()
-        notes = self.world.notes("lilith").all()
-        self.assertEqual([note.account for note in notes], ["feathers on the path, still moving"])
-        self.assertIn(event.id, notes[0].event_ids, "and it knows what it was a note of")
-        self.assertTrue(notes[0].embedding, "placed, so it can be found by meaning later")
+        episodes = self.world.episodes("lilith").all()
+        self.assertEqual([episode.account for episode in episodes],
+                         ["feathers on the path, still moving"])
+        self.assertIn(event.id, episodes[0].event_ids, "and it knows what it was of")
 
     def test_the_chronicle_is_shown_once_and_never_again(self):
         self.happen("A hawk took one of the ridge hens.")
         self.look_up()
-        self.world.at += 1
+        self.world.current += 1
         self.look_up()
-        lilith = [call for call in self.calls(CallName.ACT) if call.about == "lilith"]
+        lilith = [call for call in self.calls(CallName.ACT) if call.mind == "lilith"]
         self.assertIn("A hawk took one of the ridge hens.", lilith[0].user)
         self.assertNotIn("A hawk took one of the ridge hens.", lilith[1].user,
                          "what she did not note, she no longer has")
 
     def test_most_of_it_sticks_to_nobody(self):
         self.happen("A hawk took one of the ridge hens.")
-        self.look_up()                        # the stub notes nothing
-        self.assertEqual(self.world.notes("lilith").all(), [])
+        self.look_up()                        # the stub encodes nothing
+        self.assertEqual(self.world.episodes("lilith").all(), [])
 
     def test_their_day_is_in_front_of_them_all_day(self):
         self.happen("A hawk took one of the ridge hens.")
-        self.stub.answers["act|lilith"] = {**STAY, "noted": "feathers on the path"}
+        self.stub.answers["act|lilith"] = {**STAY, "encoded": "feathers on the path"}
         self.look_up()
-        self.world.at += 1
+        self.world.current += 1
         self.stub.answers["act|lilith"] = STAY
         self.look_up()
-        later = [call for call in self.calls(CallName.ACT) if call.about == "lilith"][-1]
+        later = [call for call in self.calls(CallName.ACT) if call.mind == "lilith"][-1]
         self.assertIn("feathers on the path", later.user)
 
     def test_what_did_not_reach_them_is_not_theirs(self):
         self.happen("Havvah found the gate open.", to=("havvah",))
         self.look_up()
-        lilith = next(call for call in self.calls(CallName.ACT) if call.about == "lilith")
+        lilith = next(call for call in self.calls(CallName.ACT) if call.mind == "lilith")
         self.assertNotIn("Havvah found the gate open.", lilith.user)
 
     def test_only_so_much_is_ever_in_front_of_anyone_at_once(self):
-        for index in range(agents.NEW_EVENTS + 3):
+        for index in range(memory.SENSORY_SPAN + 3):
             self.happen(f"the {index}th thing")
-        seen = agents.unseen(self.world, self.world.beings["lilith"])
-        self.assertEqual(len(seen), agents.NEW_EVENTS)
-        self.assertEqual(seen[-1][0].account, f"the {agents.NEW_EVENTS + 2}th thing",
+        seen = memory.percepts(self.world, self.world.beings["lilith"])
+        self.assertEqual(len(seen), memory.SENSORY_SPAN)
+        self.assertEqual(seen[-1][0].account, f"the {memory.SENSORY_SPAN + 2}th thing",
                          "the newest, and what is older than that is gone")
 
 
-class TestSettle(Town):
-    PAGE = "The water is in everything I own now. Havvah will not look at me."
+def written(*concerns, engrams=()):
+    """A consolidate answer: these engrams, and a self-schema of these concerns."""
+    return {"engrams": [{"gists": [{"proposition": proposition, "weight": weight}
+                                   for proposition, weight in gists]}
+                        for gists in engrams],
+            "self_schema": {"idiolect": "You are quick.", "traits": [],
+                            "concerns": list(concerns),
+                            "assumptions": [], "impressions": []}}
 
-    def note(self, account, who="lilith", at=None):
-        return self.world.notes(who).append(Note(at=self.world.at if at is None else at,
-                                                 account=account))
+
+#: What a sleep that made nothing of the day answers.
+NOTHING = {"engrams": [], "self_schema": {"idiolect": "", "traits": [], "concerns": [],
+                                          "assumptions": [],
+                                          "impressions": []}}
+
+
+class TestConsolidate(Town):
+    CONCERN = "The water is in everything I own now."
+
+    def encode(self, account, who="lilith", at=None):
+        return self.world.episodes(who).append(
+            Episode(at=self.world.current if at is None else at, account=account))
 
     def settling(self, who="lilith"):
-        self.stub.answers[f"act|{who}"] = {**STAY, "settling": True}
+        self.stub.answers[f"act|{who}"] = {**STAY, "sleep": True}
         return tick.tick(self.world, configuration())
 
-    def test_only_whoever_is_stopping_goes_over_their_day(self):
+    def test_only_whoever_is_stopping_sleeps_on_their_day(self):
         self.settling()
-        self.assertEqual([call.about for call in self.calls(CallName.SETTLE)], ["lilith"])
+        self.assertEqual([call.mind for call in self.calls(CallName.CONSOLIDATE)], ["lilith"])
 
-    def test_the_page_is_theirs_to_write(self):
-        self.stub.set(CallName.SETTLE, {"notebook": self.PAGE})
+    def test_the_self_schema_is_rewritten_whole(self):
+        self.stub.set(CallName.CONSOLIDATE, written(self.CONCERN))
         report = self.settling()
-        self.assertEqual(self.world.beings["lilith"].who.notebook, self.PAGE, "all of it, replaced")
-        self.assertEqual(report.settled, ["lilith"])
-        self.assertNotIn(self.PAGE, self.world.beings["havvah"].who.notebook, "and only hers")
+        lilith = self.world.beings["lilith"].identity.self_schema
+        self.assertEqual(lilith.concerns, [self.CONCERN])
+        self.assertEqual(lilith.impressions, [], "all of it, replaced")
+        self.assertEqual(lilith.at, self.world.current)
+        self.assertEqual(report.consolidated, ["lilith"])
+        self.assertNotIn(self.CONCERN, self.world.beings["havvah"].identity.self_schema.concerns,
+                         "and only hers")
 
-    def test_they_go_over_their_notes_and_not_what_happened(self):
+    def test_what_they_are_like_is_rewritten_and_carried_into_the_next_day(self):
+        answer = written(self.CONCERN)
+        answer["self_schema"]["traits"] = ["I do not leave a thing half-mended."]
+        self.stub.set(CallName.CONSOLIDATE, answer)
+        self.settling()
+        self.assertEqual(self.world.beings["lilith"].identity.self_schema.traits,
+                         ["I do not leave a thing half-mended."])
+        self.assertIn("I do not leave a thing half-mended.",
+                      prompts.being_block(self.world.beings["lilith"]),
+                      "and it is in front of them on every call after")
+
+    def test_the_biography_is_never_rewritten(self):
+        biography = self.world.beings["lilith"].identity.biography
+        self.stub.set(CallName.CONSOLIDATE, written(self.CONCERN))
+        self.settling()
+        self.assertEqual(self.world.beings["lilith"].identity.biography, biography)
+
+    def test_the_day_is_laid_down_as_gists(self):
+        self.encode("feathers on the path, still moving")
+        self.stub.set(CallName.CONSOLIDATE, written(
+            self.CONCERN, engrams=[[("feathers on the path", 0.9), ("they were still moving", 0.4),
+                                   ("it was below the ridge", 1.7)]]))
+        self.settling()
+        engrams = self.world.engrams("lilith").all()
+        self.assertEqual(len(engrams), 1)
+        self.assertEqual(engrams[0].gists, [Gist("feathers on the path", 0.9),
+                                            Gist("they were still moving", 0.4),
+                                            Gist("it was below the ridge", 1.0)],
+                         "in the order they were laid down, weights held to 0 to 1")
+        self.assertEqual(engrams[0].at, self.world.current)
+        self.assertTrue(engrams[0].embedding, "placed, so it can be found by meaning later")
+        self.assertEqual([episode.account for episode in episodes_of_engram(
+            self.world.episodes("lilith").all(), engrams[0])],
+            ["feathers on the path, still moving"], "and traceable to the day it came from")
+
+    def test_an_ordinary_day_lays_down_nothing(self):
+        self.encode("the goat again")
+        self.stub.set(CallName.CONSOLIDATE, written(self.CONCERN))
+        self.settling()
+        self.assertEqual(self.world.engrams("lilith").all(), [])
+        self.assertEqual(memory.short_term(self.world, self.world.beings["lilith"]), [],
+                         "and the day is gone over all the same")
+
+    def test_it_is_not_put_to_them(self):
+        self.settling()
+        call = self.calls(CallName.CONSOLIDATE)[0]
+        self.assertIn("You are not them", call.system)
+        self.assertNotIn("What you have kept", call.user, "they are asleep")
+
+    def test_they_sleep_on_their_episodes_and_not_what_happened(self):
         self.world.record("occurrence", "A hawk took one of the ridge hens.",
                           place="mizpah", informed=["lilith"])
-        self.note("feathers on the path")
-        self.world.beings["lilith"].when.seen_through = len(self.world.chronicle)
-        self.stub.set(CallName.SETTLE, {"notebook": self.PAGE})
+        self.encode("feathers on the path")
+        self.world.beings["lilith"].clock.perceived_through = len(self.world.chronicle)
+        self.stub.set(CallName.CONSOLIDATE, written(self.CONCERN))
         self.settling()
-        user = self.calls(CallName.SETTLE)[0].user
+        user = self.calls(CallName.CONSOLIDATE)[0].user
         self.assertIn("feathers on the path", user)
         self.assertNotIn("A hawk took one of the ridge hens.", user,
                          "the chronicle is not shown twice, not even at night")
-        self.assertEqual(agents.day_notes(self.world, self.world.beings["lilith"]), [],
-                         "and once gone over, the day is the page")
+        self.assertEqual(memory.short_term(self.world, self.world.beings["lilith"]), [],
+                         "and once slept on, the short-term store is empty")
 
-    def test_a_page_nobody_wrote_changes_nothing_and_loses_nothing(self):
+    def test_an_empty_self_schema_changes_nothing_and_loses_nothing(self):
         lilith = self.world.beings["lilith"]
-        before = lilith.who.notebook
-        self.note("feathers on the path")
-        report = self.settling()                     # the stub writes an empty page
-        self.assertEqual(lilith.who.notebook, before)
-        self.assertEqual(report.settled, [])
-        self.assertTrue(agents.day_notes(self.world, lilith),
-                        "the day waits to be gone over next time")
+        before = lilith.identity.self_schema
+        self.encode("feathers on the path")
+        report = self.settling()                     # the stub writes an empty one
+        self.assertEqual(lilith.identity.self_schema, before)
+        self.assertEqual(report.consolidated, [])
+        self.assertEqual(self.world.engrams("lilith").all(), [])
+        self.assertTrue(memory.short_term(self.world, lilith),
+                        "the day waits to be slept on next time")
 
-    def test_what_they_did_is_something_to_go_over(self):
-        self.world.beings["lilith"].where.log("walking the ridge path again")
+    def test_what_they_did_is_something_to_sleep_on(self):
+        self.world.beings["lilith"].activity.log("walking the ridge path again")
         self.settling()
-        user = self.calls(CallName.SETTLE)[0].user
-        self.assertIn("What you have been doing", user)
+        user = self.calls(CallName.CONSOLIDATE)[0].user
+        self.assertIn("What they have been doing", user)
         self.assertIn("walking the ridge path again", user)
 
-    def test_the_page_has_a_size_and_they_are_told_it(self):
+    def test_the_self_schema_has_a_size_and_it_is_told(self):
         self.settling()
-        user = self.calls(CallName.SETTLE)[0].user
-        self.assertIn(f"of {schemas.NOTEBOOK_CHARACTERS} characters", user)
-        self.assertIn(self.world.beings["lilith"].who.notebook, user,
-                      "and they are shown the page they are rewriting")
+        user = self.calls(CallName.CONSOLIDATE)[0].user
+        self.assertIn(f"of {schemas.SELF_SCHEMA_CHARACTERS} characters", user)
+        self.assertIn(self.world.beings["lilith"].identity.self_schema.concerns[0], user,
+                      "and it is shown the self-schema it is rewriting")
 
-    def test_a_page_too_long_is_handed_back_to_be_cut(self):
+    def test_a_self_schema_too_long_is_handed_back_to_be_cut(self):
         attempts = []
 
         def answer(call):
             attempts.append(call.user)
-            return {"notebook": ("x" * (schemas.NOTEBOOK_CHARACTERS + 1)
-                                 if len(attempts) == 1 else self.PAGE)}
+            return written("x" * (schemas.SELF_SCHEMA_CHARACTERS + 1)
+                           if len(attempts) == 1 else self.CONCERN)
 
-        self.stub.set(CallName.SETTLE, answer)
+        self.stub.set(CallName.CONSOLIDATE, answer)
         self.settling()
         self.assertEqual(len(attempts), 2)
         self.assertIn("at most", attempts[1])
-        self.assertEqual(self.world.beings["lilith"].who.notebook, self.PAGE)
+        self.assertEqual(self.world.beings["lilith"].identity.self_schema.concerns, [self.CONCERN])
 
-    def test_every_page_they_ever_wrote_is_kept(self):
-        first = self.world.beings["lilith"].who.notebook
-        for page in ("the first night", "", "the second night"):
-            self.stub.set(CallName.SETTLE, {"notebook": page})
+    def test_every_self_schema_they_ever_held_is_kept(self):
+        first = self.world.beings["lilith"].identity.self_schema.concerns
+        for concern in ("the first night", "", "the second night"):
+            self.stub.set(CallName.CONSOLIDATE, written(concern) if concern else NOTHING)
             self.settling()
-            self.world.at += 24
-        kept = [page.notebook for page in self.world.pages("lilith").all()]
-        self.assertEqual(kept, [first, "the first night", "the second night"],
-                         "the page she started with, then one per night she wrote one")
+            self.world.current += 24
+        kept = [version.concerns for version in self.world.self_schemas("lilith").all()]
+        self.assertEqual(kept, [first, ["the first night"], ["the second night"]],
+                         "the one she started with, then one per night that changed it")
 
-    def test_an_old_note_can_come_back_when_the_day_points_at_it(self):
-        self.note("the road past Mizpah goes further than anyone says", at=10.0)
-        self.note("the goat is lame again", at=11.0)
-        self.stub.set(CallName.SETTLE, {"notebook": self.PAGE})
-        self.settling()                          # those two are now gone over
-        self.world.at += 24
-        self.note("a stranger asked where the road past Mizpah goes")
+    def test_an_old_engram_comes_back_in_pieces_when_the_day_points_at_it(self):
+        self.encode("the road past Mizpah goes further than anyone says", at=10.0)
+        self.stub.set(CallName.CONSOLIDATE, written(self.CONCERN, engrams=[
+            [("road", 0.9), ("Mizpah", 0.8), ("further", 0.3), ("anyone", 0.1)],
+            [("goat", 0.9), ("lame", 0.8)]]))
+        self.settling()                          # laid down tonight
+        self.world.current += 24 * 15                 # a fortnight and a day: a quarter left
+        self.encode("a stranger asked where the road past Mizpah goes")
+        self.stub.set(CallName.CONSOLIDATE, written(self.CONCERN))
         self.settling()
-        user = self.calls(CallName.SETTLE)[-1].user
-        self.assertIn("the road past Mizpah goes further than anyone says", user,
-                      "in the words she had it in then")
-        self.assertNotIn("the goat is lame again", user, "one thing comes back, not all")
+        user = self.calls(CallName.CONSOLIDATE)[-1].user
+        self.assertIn("weeks ago", user, "roughly when, never to the hour")
+        self.assertIn("  road\n", user, "only the heaviest of its words")
+        self.assertNotIn("further", user)
+        self.assertNotIn("goat", user, "one thing comes back, not all")
+        self.assertNotIn("further than anyone says", user,
+                         "never the words she had it in: those were never laid down")
 
-    def test_a_being_is_three_pieces_of_writing(self):
-        self.assertEqual(set(self.world.beings["lilith"].who.to_dict()),
-                         {"card", "manner", "notebook"})
+    def test_a_being_is_two_pieces_of_writing(self):
+        self.assertEqual(set(self.world.beings["lilith"].identity.to_dict()),
+                         {"biography", "self_schema"})
 
 
 def vector_extension_installed():
     import sqlite3
     from contextlib import closing
     with closing(sqlite3.connect(":memory:")) as connection:
-        return recollection.load_vector_extension(connection)
+        return retrieval.load_vector_extension(connection)
 
 
-class TestRecollection(unittest.TestCase):
-    NOTES = [Note(at=10.0, account="The flood took the first garden."),
-             Note(at=20.0, account="Bezalel has good hands."),
-             Note(at=30.0, account="The goat is lame.")]
+def engram(*propositions, at=0.0, embedding=(), embedded_by=""):
+    return Engram(at=at, gists=[Gist(proposition, 1.0) for proposition in propositions],
+                  embedding=list(embedding), embedded_by=embedded_by)
 
-    def test_the_note_the_cue_points_at_comes_back(self):
-        self.assertEqual(recollection.recall(self.NOTES, "The goat went lame again"),
-                         self.NOTES[2])
+
+class TestSearch(unittest.TestCase):
+    ENGRAMS = [engram("the first flood came", "it took the garden", at=10.0),
+               engram("Bezalel showed me his hands", at=20.0),
+               engram("the goat is lame", at=30.0)]
+
+    def test_the_engram_the_cue_points_at_comes_back(self):
+        self.assertEqual(retrieval.search(self.ENGRAMS, "The goat went lame again"),
+                         self.ENGRAMS[2])
 
     def test_a_word_in_another_form_is_the_same_word(self):
-        got = recollection.recall(self.NOTES, "Floods in the lower garden")
-        self.assertEqual(got.account, "The flood took the first garden.")
+        got = retrieval.search(self.ENGRAMS, "Floods in the lower garden")
+        self.assertIs(got, self.ENGRAMS[0])
 
     def test_there_is_no_threshold_only_the_best_there_is(self):
         """A request answered with the best match, however slight: whether it
         meant anything is the mind's to say, not a number's."""
-        self.assertIsNotNone(recollection.recall(self.NOTES, "rain on the ridge"),
-                             "'the' is a word they share")
+        self.assertIsNotNone(retrieval.search(self.ENGRAMS, "his hands were cold"),
+                             "'hands' is a word they share")
 
     def test_nothing_shared_brings_nothing_back(self):
-        self.assertIsNone(recollection.recall(self.NOTES, "rain upon a ridge"))
-        self.assertIsNone(recollection.recall([], "the flood"))
+        self.assertIsNone(retrieval.search(self.ENGRAMS, "rain upon a ridge"))
+        self.assertIsNone(retrieval.search([], "the flood"))
 
     def test_a_cue_is_only_ever_words(self):
         for cue in ('He said "NOT this" AND (that', "* ^ : - OR", ""):
-            recollection.recall(self.NOTES, cue)       # must not raise
+            retrieval.search(self.ENGRAMS, cue)       # must not raise
 
     def test_two_rankings_are_fused_by_rank(self):
-        # A note first in both beats one first in only one.
-        fused = recollection.fuse([[0, 1], [0, 2]])
+        # An engram first in both beats one first in only one.
+        fused = retrieval.fuse([[0, 1], [0, 2]])
         self.assertGreater(fused[0], fused[1])
-        self.assertAlmostEqual(fused[0], 2 / (recollection.FUSION_K + 1))
+        self.assertAlmostEqual(fused[0], 2 / (retrieval.FUSION_K + 1))
 
     @unittest.skipUnless(vector_extension_installed(), "sqlite-vec is not installed")
     def test_meaning_finds_what_no_word_does(self):
-        placed = [Note(at=1.0, account="a", embedding=[1.0, 0.0], embedded_by="e"),
-                  Note(at=2.0, account="b", embedding=[0.0, 1.0], embedded_by="e")]
-        got = recollection.recall(placed, "", cue_vector=[0.1, 0.9], embedder="e")
+        placed = [engram("a", embedding=[1.0, 0.0], embedded_by="e"),
+                  engram("b", embedding=[0.0, 1.0], embedded_by="e")]
+        got = retrieval.search(placed, "", cue_vector=[0.1, 0.9], embedder="e")
         self.assertIs(got, placed[1])
 
     @unittest.skipUnless(vector_extension_installed(), "sqlite-vec is not installed")
     def test_another_embedder_s_vectors_are_not_compared(self):
-        placed = [Note(at=1.0, account="a", embedding=[0.0, 1.0], embedded_by="old")]
-        self.assertIsNone(recollection.recall(placed, "", cue_vector=[0.0, 1.0],
-                                                    embedder="new"))
+        placed = [engram("a", embedding=[0.0, 1.0], embedded_by="old")]
+        self.assertIsNone(retrieval.search(placed, "", cue_vector=[0.0, 1.0],
+                                           embedder="new"))
+
+
+class TestForgetting(unittest.TestCase):
+    """The power law of forgetting (Wixted & Ebbesen 1991), at ACT-R's d = 0.5."""
+
+    ENGRAM = Engram(at=0.0, gists=[Gist("he came up the road", 0.3),
+                                   Gist("he said he was from Mizpah", 0.9),
+                                   Gist("nobody knew him", 0.6),
+                                   Gist("there was dust on him", 0.1)])
+
+    def test_it_follows_a_power_law(self):
+        self.assertEqual(retrieval.retention(0), 1.0)
+        self.assertAlmostEqual(retrieval.retention(3), 0.5)
+        self.assertAlmostEqual(retrieval.retention(99), 0.1)
+        self.assertEqual(retrieval.retention(-1), 1.0, "nothing is fresher than new")
+
+    def test_what_is_left_is_what_weighed_most(self):
+        self.assertEqual(retrieval.fragment(self.ENGRAM, 0), self.ENGRAM, "all of it, at first")
+        self.assertEqual([gist.proposition for gist in retrieval.fragment(self.ENGRAM, 3).gists],
+                         ["he said he was from Mizpah", "nobody knew him"],
+                         "half, the heaviest, in the order laid down")
+        self.assertEqual([gist.proposition for gist in retrieval.fragment(self.ENGRAM, 99).gists],
+                         ["he said he was from Mizpah"], "and something is always left of it")
+
+    def test_the_engram_itself_is_never_revised(self):
+        retrieval.fragment(self.ENGRAM, 99)
+        self.assertEqual(len(self.ENGRAM.gists), 4)
 
 
 if __name__ == "__main__":

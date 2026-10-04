@@ -13,8 +13,8 @@ does not admit you, make anything, or grow anything larger than one being.
 ## You
 
 **The gap.** `Being.mind` is typed `model | player`
-([`entities.py`](../src/elsewhere/world/entities.py)), and nothing reads
-`"player"`: [`schedule.due`](../src/elsewhere/schedule.py) selects only
+([`entities.py`](../src/elsewhere/domain/entities.py)), and nothing reads
+`"player"`: [`schedule.being_due`](../src/elsewhere/application/schedule.py) admits only
 `mind == "model"`, so a player is skipped entirely — not asked, not spoken to,
 leaving no trace.
 
@@ -30,19 +30,19 @@ become an administrator.
 - A `play` command that lives one step with you in it: you are shown only what
   your being could see, you pick from the same target enum the engine builds,
   and when someone speaks to you, you answer in your own words.
-- `noted` and `settle` for the player are the interesting question. Either you
-  write your own notes and page, or — more in keeping with the rest — a model
-  writes them *for* you, from what you did, and you find out later what you
-  turned out to have kept. Worth trying both; the second is the one that makes
+- `encoded` and `consolidate` for the player are the interesting question.
+  Either you write your own episodes and self-schema, or — more in keeping with
+  the rest — a model writes them *for* you, from what you did, and you find out
+  later what you turned out to have kept. Worth trying both; the second is the one that makes
   forgetting apply to you.
 - A player who is away must not stall the world: `elsewhere continue` while
   you are gone lets it run without waiting on an answer that is not coming.
-- Other beings writing you onto their pages is free once you are a `Being`
+- Other beings forming an impression of you is free once you are a `Being`
   like any other.
 
 **Acceptance.** Play three steps, leave for a week of wall clock, come back and
-run `elsewhere person Havvah` — she should have a line about you, and it should
-be wrong in some specific way.
+run `elsewhere person Havvah` — she should have an impression of you, and it
+should be wrong in some specific way.
 
 ## Real life, back in
 
@@ -51,9 +51,9 @@ README's first promise is a sentence from your life admitted into it.
 
 - `elsewhere remember "the night bus back from Hualien, and the rain"` records
   an event nobody witnessed and lets it reach beings as something carried in —
-  it becomes a note in whoever keeps it, like anything else.
+  it becomes an episode in whoever keeps it, like anything else.
 - `elsewhere invite "Momo" --premise "..."` — a presence is a being with a
-  thinner card, who comes up the road with a card you wrote. `arrive` already
+  thinner biography, who comes up the road with a biography you wrote. `admit` already
   does everything else.
 - Photographs and places are the same shape of problem and can wait.
 
@@ -61,17 +61,17 @@ README's first promise is a sentence from your life admitted into it.
 
 **The gap.** `act` has two verbs everywhere (`schemas.ALWAYS_OFFERED`) and a
 third only where the road goes out. Nothing a being does leaves anything
-behind but a line in `Where.lately`.
+behind but a line in `Activity.doings`.
 
 **What it means to build.** An artifact is not a new kind of object so much as
 an event with a maker and a durable presence in a place.
 
 - A `make` verb, and a call site asked only of whoever chose it: what they are
-  making, out of what on their page, and what it is for. What it came from is
+  making, out of what in their self-schema, and what it is for. What it came from is
   the whole point; a painting of nothing is decoration.
 - Artifacts live in the chronicle as events and in a place. Seeing one is an
   event that reaches whoever is there, so somebody else's painting can end up
-  in your notes — that is the ripple the README describes, and it needs no new
+  in your episodes — that is the ripple the README describes, and it needs no new
   machinery.
 - `tend`, the cheap half: maintaining a thing keeps it in the world. Without
   it, everything made survives forever, which is the wrong failure.
@@ -80,26 +80,29 @@ an event with a maker and a durable presence in a place.
 **Watch out for.** A small model asked to write a poem will write a bad poem
 every step. Making should be rare. A cooldown is the obvious gate and the wrong
 kind of rule: it would have the engine decide whether somebody makes something
-today, on the same clock for everyone. Rarity has to come from the page — and a
-page with something on it worth making a thing out of is rare at a different
-moment for each being.
+today, on the same clock for everyone. Rarity has to come from the self-schema —
+and a concern worth making a thing out of is rare at a different moment for
+each being.
 
 ## Long-term memory in the weights
 
-**The gap.** What a being carries is one page in the prompt, plus a search over
-their notes. Nothing of them is in the model itself: every being is the same
-weights with a different page.
+**The gap.** What a being carries is one self-schema in the prompt, plus a
+search over their engrams. Nothing of them is in the model itself: every being
+is the same weights with a different self-schema.
 
 **What it means to build.** The second half of complementary learning systems
 (McClelland, McNaughton & O'Reilly 1995): what is written down fast, day by
 day, folded slowly into the network itself.
 
 - A LoRA adapter per being (Hu et al. 2021), trained with `mlx_lm.lora` on
-  their own notes and pages. The subjective record is kept whole from the first
-  night, so the training data already exists.
+  their own episodes and every self-schema they have held. The subjective
+  record is kept whole from the first night, so the training data already
+  exists.
+- `consolidate` is the natural call to run on the being's own adapter first:
+  it is already the mind beneath the person, not the person answering.
 - Trained rarely, on the world's clock — a season, say — and only on what the
   being wrote, never on the chronicle.
-- `MLXBackend` loads the adapter of whoever `Call.about` names. Only one base
+- `MLXBackend` loads the adapter of whoever `Call.mind` names. Only one base
   model fits on an 8GB Mac, so adapters swap rather than stack.
 
 **Watch out for.** A model trained on its own summaries of its own summaries
@@ -108,11 +111,11 @@ at before it is left running.
 
 ## Coming back
 
-A being who leaves is never asked anything again, and `arrive` always makes a
+A being who leaves is never asked anything again, and `admit` always makes a
 new one — so the one thing the README asks for by name, meeting again years
 later with both of you changed, cannot happen. Returning is its own call site:
-the being already exists, with the page they left holding, and the town has
-been writing its own pages about them since.
+the being already exists, with the self-schema they left holding, and the
+town has been forming its own impressions of them since.
 
 ## Above the individual
 
@@ -122,19 +125,19 @@ ways nobody designed, so the engine's job is to notice a pattern, not to offer
 a `Tradition` class for a model to fill in.
 
 - A detector, not a schema: the same thing done by the same beings at the same
-  time of year, found in the chronicle. Whether three beings' pages hold the
-  same belief is a question about meaning, so it is a model's, asked once.
+  time of year, found in the chronicle. Whether three beings hold the same
+  assumption is a question about meaning, so it is a model's, asked once.
 - Once named, it is visible in the world the way a place is — something `act`
   can see and choose, which is how a tradition sustains itself.
 - `elsewhere culture` to read what has hardened.
 - Generational memory needs only time: somebody here long enough that what
-  they hold came from a town that exists in nobody else's notes.
+  they hold came from a town that exists in nobody else's engrams.
 
 ## Ending a world, properly
 
 `elsewhere end` closes a world and leaves it readable. What it does not do yet
 is take leave of it: a last pass over what each being turned out to be and what
-is still on their page, a final line in the chronicle, and an archive to
+is still in their self-schema, a final line in the chronicle, and an archive to
 `worlds/`. Small, and worth doing once a world is long enough for that pass to
 say something.
 
@@ -143,11 +146,19 @@ say something.
 - **A newcomer has no home.** `home` is empty and nothing gives them one, so at
   night they do whatever a mind does with nowhere to go. Watch what that turns
   into before deciding whether it is a bug.
-- **Recollection has no threshold.** One older note always comes back when
-  anything is shared, however slightly. Watch whether small models treat a
-  loosely related note as important before deciding to gate it.
+- **Retrieval has no threshold.** One engram always comes back when anything
+  is shared, however slightly. Watch whether small models treat a loosely
+  related couple of gists as important before deciding to gate it.
+- **Recall does not rehearse.** An engram fades on the same curve whether it
+  comes back every day or never; in people, retrieval strengthens a memory.
+  If the town's oldest memories turn out too thin, count the age from the last
+  time it came back (ACT-R's base-level learning, Anderson & Lebiere 1998)
+  rather than from the night it was laid down.
+- **How heavily a night weighs its gists** is a small model's call. Watch
+  whether it weights everything near 1, which would make forgetting keep
+  arbitrary pieces.
 - **Consequence is thin.** The engine does not resolve an action into an
-  outcome; `stir` reading `Where.lately` is the whole of it. Full action
+  outcome; `stir` reading `Activity.doings` is the whole of it. Full action
   resolution is Concordia's Game Master
   (`components/game_master/event_resolution.py`).
 
@@ -155,11 +166,11 @@ say something.
 
 1. **You** — the project's stated point, and nothing else is blocked on it.
 2. **Real life, back in** — small, and it finishes the entrance the README
-   promises. `invite` is close to `arrive` already.
+   promises. `invite` is close to `admit` already.
 3. **Making things** — needs nothing new from the engine, and produces the
    first things worth returning for.
-4. **Long-term memory in the weights** — once there are seasons of notes to
-   train on.
+4. **Long-term memory in the weights** — once there are seasons of episodes
+   and self-schemas to train on.
 5. **Coming back** — once there is a town old enough for it to mean anything.
 6. **Above the individual** — once there is enough chronicle for a detector to
    find something real in it.

@@ -565,8 +565,10 @@ The goal is to build a world that feels worth returning to.
 > [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how the engine is put
 > together, and [docs/ROADMAP.md](docs/ROADMAP.md) is what comes next.
 
-The engine itself is Python 3.10+ with no dependencies. Everything that thinks
-needs a model it can reach — by default one running on the same machine.
+The engine itself is Python 3.10+, and its one dependency is the official MCP
+Python SDK (`mcp`), which the server every action goes through is built on.
+Everything that thinks needs a model it can reach — by default one running on
+the same machine.
 
 ### Setup (first time)
 
@@ -589,9 +591,7 @@ make live           # fetches Gemma 4 E2B (~4GB) and EmbeddingGemma (~330MB),
 
 `world/configuration.json` names a model per call site, so the cheap decisions
 can run at home while the ones that need judgement go somewhere larger. Anything
-with an OpenAI-compatible `/v1` works (llama-server, LM Studio, vLLM), as does
-Claude with `pip install -e ".[llm]"` and `ANTHROPIC_API_KEY`, and OpenAI and
-Gemini with `OPENAI_API_KEY` and `GEMINI_API_KEY`. The notes at the top of that
+with an OpenAI-compatible `/v1` works (llama-server, LM Studio, vLLM). The notes at the top of that
 file say how; `elsewhere configure --backend … --model …` changes every mind at
 once; `elsewhere doctor` says whether it worked.
 
@@ -640,7 +640,7 @@ elsewhere initialize --force   # a new Nod in place of the old one
 ```
 
 This replaces the world rather than archiving it: the chronicle, every being,
-their notes and their pages are deleted. Only `configuration.json` and the
+their episodes, engrams and self-schemas are deleted. Only `configuration.json` and the
 transcripts survive. `make world` refuses to overwrite a world that exists.
 
 ### Watching it
@@ -657,7 +657,7 @@ terminal holds. Past it are four views, on the keys 1 to 4:
 | View | What it shows |
 |---|---|
 | 1 World | every place and who is in it; and the world as a whole — its clock, what falls due next, and whether anything is running it |
-| 2 Beings | each being: where they are, what they are doing, the page they carry, and what they have kept of today |
+| 2 Beings | each being: where they are, what they are doing, who they take themselves to be, what they have kept of today, and what sleep has laid down |
 | 3 History | every event, oldest first, with a line where you stopped reading; beside each, what each being kept of it |
 | 4 View | the map, then who is where, what falls due next and what happened lately — everywhere, or at the place selected, whose name is in bold |
 
@@ -720,15 +720,15 @@ elsewhere continue              # live whatever the wall clock says is owed
 elsewhere news                  # what happened since you last looked
 
 elsewhere watch                 # sit with it: one window on the world, which only reads
-elsewhere status                # where everyone is, and how much they carry
-elsewhere person Havvah         # the page she carries, and what she has kept of today
-elsewhere person Havvah --pages # every page she has ever written, oldest first
+elsewhere status                # where everyone is, and how much they hold
+elsewhere person Havvah         # who she takes herself to be, today's episodes, her engrams
+elsewhere person Havvah --history # every self-schema she has ever held, oldest first
 elsewhere timeline              # history: what happened
 elsewhere event 3               # one event, and what each being kept of it
 
 elsewhere end                   # end the world for good; what happened stays readable
 
-elsewhere settle Havvah         # have one being go over their day now, for prompt tuning
+elsewhere consolidate Havvah    # have one being sleep on their day now, for prompt tuning
 elsewhere doctor                # can the configured minds, and the embedder, be reached?
 elsewhere configure --backend mlx --model mlx-community/Llama-3.2-3B-Instruct-4bit   # point every mind at one model
 ```
@@ -764,7 +764,7 @@ the three do not agree: nobody was shown anyone else's.
 ### A world that keeps going while you are away
 
 A day here is a day there. `elsewhere continue` lives whatever the wall clock
-says is owed — counted in hours, and paid off in whatever steps the beings in
+says is owed — counted in world time, and paid off in whatever steps the beings in
 the world asked for — at most eight steps in one go (`--max`), or 48 when
 `make schedule` runs it, enough for a whole day at half an hour a step, so a
 Mac that is opened once a day misses nothing; a longer backlog is slept through
@@ -775,47 +775,66 @@ waits rather than inventing a day. `make schedule` runs it every 24 minutes;
 
 ### What is asked of a mind
 
-Five questions, and nothing else:
+Four questions, put to two kinds of mind that are never mixed — a being, who
+only ever sees what reached them, and the world itself, which sees what anyone
+could see and never inside anyone:
 
-| | |
-|---|---|
-| `act` | this just reached you — what do you keep of it? It is this hour and you are standing here — what do you do? |
-| `speak` | this was just said to you — what do you keep of it? What do you say back? |
-| `settle` | you have stopped for the day — here is what you kept of it; what is on your page now? |
-| `stir` | does anything happen to the town — and when should you be asked again? |
-| `arrive` | does anybody come up the road, who would they be, and when should you be asked again? |
+| | | |
+|---|---|---|
+| a being | `act` | this just reached you — what do you keep of it? It is this hour and you are standing here — what do you do? |
+| | `speak` | this was just said to you — what do you keep of it? What do you say back? |
+| | `consolidate` | not put to them — they are asleep — but to what their sleep does with the day: what is laid down, and who do they take themselves to be now? |
+| the world | `stir` | does anything happen to the town, or does anybody come up the road — and when should you be asked again? |
 
-Each one has a schema ([`schemas.py`](src/elsewhere/schemas.py)) that is handed
-to the model as a decoding grammar and checked again on the way in, so an
-answer the world cannot use is not representable. A mind only ever sees what
-its being could see.
+Each one has a schema ([`harness/schemas.py`](src/elsewhere/harness/schemas.py))
+that is handed to the model as a decoding grammar and checked again on the way
+in, so an answer the world cannot use is not representable.
+
+An answer is not an action yet. A harness sits between every mind and the
+world: it decides what the mind is shown and keeps what it keeps, and turns
+the answer into one tool call on an MCP server that holds every action there
+is — `stay`, `move`, `talk`, `say`, `leave`, `wait` for a being; `occur`,
+`admit`, `wait` for the world. The server checks what can be reached before it
+does anything, so it is the only thing that ever changes the world.
+
+No model ever sees the server's tools or picks one. The harness names the
+method itself, straight from the answer: a being that says `"action": "move",
+"target": "Beth El"` becomes `move {"being": "havvah", "to": "bethel"}`. And
+the world never acts for anybody. When the water comes into the garden, the
+world records that; the event reaches Havvah and wakes her, and whether she
+goes up to Beth El, or stays and watches it, is hers to answer.
 
 What happens is shown to a being once, as it reaches them, and what they keep
-of it is a note in their own words — a fragment, often less than what happened
-and sometimes wrong — or nothing, which is usual. At night they go over their
-notes, never what happened, and write their page again.
+of it is an episode in their own words — a fragment, often less than what
+happened and sometimes wrong — or nothing, which is usual. That is their
+short-term memory, and it lasts until they sleep.
 
-What a being carries from one day to the next is one page in their own words —
-what keeps coming back to them, what they want, what they hold true, what they
-make of the others, whatever of the past is still with them — and it has a
-fixed size. When they stop for the day they write it again, whole, with the old
-page and the day's notes in front of them. Whatever does not fit is gone from
-them. **The engine never writes a word of it and never decides what goes.**
-That is MemGPT's self-edited core memory (Packer et al. 2023), done once a day.
+Sleep is not a question put to them. When they stop for the day, their mind —
+asked about them in the third person, as what their sleep does — goes over
+the day's episodes, never what happened, and makes two things of it. The day
+is laid down as engrams: for each thing that will last, a few broken-off pieces
+of it — short gists of who did what — each weighted by how much of the memory hangs on it — by what matters
+to this person, not by what was remarkable. An ordinary day lays down nothing.
+And their self-schema is rewritten whole — how they talk, what they are like, what they are after,
+what they take to be true, how they see each of the others — at a fixed size.
+**The engine never writes a word of either and never decides what goes.**
+That is MemGPT's self-edited core memory (Packer et al. 2023), done once a
+night. Where they came from, their biography, is written once and never
+again.
 
-Nothing is thrown away because a formula said so, and nothing is kept because
-the engine thought it mattered. A memory wears down, gets shorter, gets
-something wrong, or goes, because the being writing the page had to choose.
-But every note and every page is kept — the chronicle is what happened, the
-notes and pages are what it was to them, and none of it is ever revised — so
-what they lost is lost to them, not to the world. And it can come back:
-whenever they act, speak or go over their day, the moment is searched against
-every note they made before today — by words (BM25) and by meaning
-(embeddings), fused by Reciprocal Rank Fusion — and the best match is put in
-front of them, in the words they had it in then. Whether it goes back on the
-page is theirs.
+An old memory comes back in pieces. Whenever they act, speak or sleep, the
+moment is searched against every engram they have — by words (BM25) and by
+meaning (embeddings), fused by Reciprocal Rank Fusion — and the best match is
+put in front of them: not the words they had it in, which were never laid
+down, but only its gists, and only as many as time has left. That is the power
+law of forgetting (Wixted & Ebbesen 1991): all of it the first night, half
+after three days, a tenth after three months, and the heaviest pieces last.
+What they make of a few broken-off pieces is theirs, and that is where misremembering
+comes from. Every episode, engram and self-schema is kept all the same — the
+chronicle is what happened, the rest is what it was to them, and none of it is
+ever revised — so what they lost is lost to them, not to the world.
 
-Three of the five also say when they want to be asked again, and that is the
+`act` and `stir` also say when they want to be asked again, and that is the
 only thing anywhere that paces this world. See below.
 
 ### The road runs both ways
@@ -829,9 +848,9 @@ week are nobody's business but theirs.
 When somebody goes, the whole town hears it and each of them keeps their own
 version. What they took with them stays exactly as it was on the day they
 walked out: `elsewhere person <name>` still reads them, frozen, and whatever
-the others wrote about them stays on their pages, wrong now and not updated.
+the others make of them stays in their self-schemas, wrong now and not updated.
 
-Somebody may also come up it. The road is asked whether anybody is on it, is
+Somebody may also come up it. The world is asked whether anybody is on it, is
 told who has gone, and says both who that would be and how long before it is
 worth asking again — a year for a town that is short of nobody, a month for one
 that has just lost the only one who could do a thing it needs doing. The
@@ -840,20 +859,18 @@ nowhere of their own to sleep, and live the day they arrived.
 
 So the town's population moves in both directions, and the engine sets no
 floor and no ceiling on it: anybody may leave, even the last of them, and the
-road is asked however many are already here.
+world is asked however many are already here.
 
 ### One clock, and no step on it
 
-The world keeps a single number: hours since it began. Days, seasons, the
+The world keeps a single number: the time since it began. Days, seasons, the
 date and the reading on a clock face are all worked out from it; none of them
 are stored, and nothing anywhere stores a named part of the day.
 
-The year those days fall into is the idealised Hindu one — twelve months of
-thirty tithis, two months to a season, six seasons, three hundred and sixty
-days, each month running from one new moon to the next. It is the calendar the
-town's own history is dated in, so that the flood in its past falls on Chaitra
-3 waxing because that is Matsya Jayanti, and not because day 363 was a
-convenient number.
+The year those days fall into is the Gregorian one, counted from the day the
+world began. The town's own history is dated in it too: the flood in its past
+falls on 11 April 2024 because that is the day Matsya Jayanti fell, and not
+because some day number was convenient.
 
 That is deliberate. "Morning" and "night" are not facts about a town so much as
 a suggestion about what the beings in it should be doing, and the engine has no
@@ -862,7 +879,7 @@ is content is asleep by dusk. So a mind is told the time and whether the sun is
 up, and nothing else:
 
 ```
-It is 03:00 and dark, spring, Chaitra 3 waxing.
+It is 03:00 and dark, spring, 11 April.
 ```
 
 What that hour is worth doing with is read off who they are.
@@ -872,9 +889,9 @@ is next due and no further, and what is due is whatever the beings in it asked
 for: everything in the world carries exactly one timer and sets it itself. A
 being says how long they will be at what they are doing — half an hour for a
 conversation, four for mending a net, eight for a night's sleep — and is not
-asked anything again until it runs out. The town says how long a quiet stretch
-it is giving itself. The road says how long before it is worth asking who is
-on it. A town where everybody has settled sleeps through the night in one
+asked anything again until it runs out. The world says how long a quiet
+stretch it is giving the town, whether or not anything happened or anybody
+came up the road. A town where everybody has settled sleeps through the night in one
 move; a town in the middle of something is asked again in minutes.
 
 Anything that reaches somebody pulls their timer to now, so a fire does not
@@ -904,7 +921,7 @@ random seed to keep.
 
 ### The world
 
-- One clock, and only one: hours since it began. Days, seasons and the reading
+- One clock, and only one: the time since it began. Days, seasons and the reading
   on a clock face are worked out from it and never stored, and nothing anywhere
   stores a named part of the day.
 - No step on that clock. Everything in the world keeps one timer and sets it
@@ -916,13 +933,16 @@ random seed to keep.
   back; sometimes somebody comes up it, knowing nobody.
 - An append-only chronicle of what happened, and a transcript of every question
   ever put to a mind.
+- Every action a tool on one MCP server, which checks what can be reached
+  before it does anything. A mind's answer becomes one of those calls, named
+  by the harness; the world throws events, and only beings decide what they do.
 
 ### The beings
 
 - A paragraph and a way of speaking, not a vector of traits — and beliefs with
   no confidence number under them either.
-- What one being makes of another is a line on their own page, which never has
-  to agree with the line coming back.
+- What one being makes of another is an impression in their own self-schema,
+  which never has to agree with the one coming back.
 - Everyone due decides at once, from where they stand, and then the world
   settles what is physically so.
 - Conversations that go both ways. An exchange is turns, alternating, until
@@ -931,21 +951,20 @@ random seed to keep.
 
 ### Memory
 
-- What happens is shown once; what a being keeps of it is a note in their own
-  words, or nothing.
-- One page per being, in their own words, of a fixed size. It is all they carry
-  from one day to the next, and they rewrite it when they stop for the day, from
-  their notes — never from what happened.
-- The mind decides what stays. Nothing decides what a memory was worth: there
-  is no weight, no importance score, no decay curve — the engine keeps no
-  memory algorithm of its own.
-- Forgetting is the page being full. What wears down, what gets misremembered,
-  and what goes, is decided by the being writing it.
-- Every note and every page is kept, and an old note can come back whenever the
-  moment points at it — by its words or by its meaning.
-- Beliefs, wants, and what they make of each other are all on the same page,
-  and change when the being writing it has a reason to change them.
-- What they have been doing, which is what an evening goes over and what the
+- Laid out the way memory research lays out a mind: what reaches them is
+  shown once; what they keep of it is an episode in their own words — their
+  short-term memory — or nothing.
+- Sleep consolidates. Their mind, asked about them and not as them, lays the
+  day down as engrams — a few weighted gists each — and rewrites their
+  self-schema: idiolect, traits, concerns, assumptions, impressions, of a fixed size.
+- The mind decides what stays and what it hangs by. The engine decides only how
+  much of it can still be reached: the power law of forgetting, published, not
+  invented — and it keeps the gists the mind weighted heaviest.
+- An old memory comes back as a few broken-off pieces with a rough age, and the
+  being makes the rest up.
+- Every episode, engram and self-schema is kept; the biography is never
+  rewritten.
+- What they have been doing, which is what a night goes over and what the
   town reads to decide whether anything came of it.
 
 ### Watching it
@@ -953,7 +972,7 @@ random seed to keep.
 - `elsewhere status`, `person`, `timeline`, `event`, `news`.
 - `elsewhere watch`: the same views in a window, which is where to sit with it.
   The printed commands each answer one question and stop; a window has room to
-  put the page a being carries beside what they have kept of today, and an
+  put a being's self-schema beside what they have kept of today, and an
   event beside what each of them kept of it.
 
   The window only reads. It writes nothing under the world's directory, not

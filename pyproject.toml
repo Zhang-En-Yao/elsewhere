@@ -1,20 +1,19 @@
 [project]
 name = "elsewhere"
-version = "1.0.0"
+version = "0.1.0"
 description = "A persistent world that remembers."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-dependencies = []
+dependencies = ["mcp>=2.3", "openai>=1.0", "networkx>=3.0", "numpy>=1.24", "scipy>=1.10"]
 
 [project.optional-dependencies]
-llm = ["anthropic>=0.40"]
 mlx = ["mlx-lm>=0.31", "mlx-embeddings>=0.1", "llguidance>=1.8", "sqlite-vec>=0.1.6"]
 recall = ["sqlite-vec>=0.1.6"]
-dev = ["mypy>=1.8"]
+dev = ["mypy>=1.8", "black>=24.0"]
 
 [project.scripts]
-elsewhere = "elsewhere.cli:main"
+elsewhere = "elsewhere.interface.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -25,7 +24,11 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 # The logo the window opens on, drawn by scripts/logo.py.
-"elsewhere.tui" = ["logo.json.xz"]
+"elsewhere.interface.tui" = ["logo.json.xz"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
 
 [tool.mypy]
 files = ["src/elsewhere"]
@@ -34,11 +37,6 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 
 [[tool.mypy.overrides]]
-# Optional extras.
-module = ["anthropic", "anthropic.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 module = ["mlx", "mlx.*", "mlx_lm", "mlx_lm.*", "mlx_embeddings", "mlx_embeddings.*",
-          "llguidance", "llguidance.*", "huggingface_hub", "sqlite_vec"]
+          "llguidance", "llguidance.*", "huggingface_hub", "sqlite_vec", "networkx", "numpy"]
 ignore_missing_imports = true

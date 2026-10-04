@@ -1,0 +1,537 @@
+"""The `elsewhere` command line."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sqlite3
+import sys
+import time
+from contextlib import closing
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from . import bookmark, seed
+from ..adapters import retrieval, storage
+from ..adapters.backends import Transcript, embed, probe
+from ..application import schedule
+from ..domain import perspective
+from ..domain.calendar import SECONDS_PER_HOUR, clock_of, day_of, real_of
+from ..domain.chronicle import Category
+from ..domain.memory import SelfSchema, episodes_of_event, episodes_of_engram
+from ..domain.world import World
+from ..harness import being as being_agent, configuration, memory
+from ..harness.configuration import MINDS, configure
+from ..harness.schemas import CallName
+
+DEFAULT_ROOT = Path("world")
+
+
+# helpers
+
+def open_world(arguments) -> World:
+    root = Path(arguments.world)
+    if not storage.exists(root):
+        sys.exit(f"No world at {root}. Run: elsewhere --world {root} initialize")
+    return storage.load(root)
+
+
+def open_live(arguments):
+    world = open_world(arguments)
+    if world.closed:
+        sys.exit(f"{world.name} has ended. Nothing more happens here.")
+    return world
+
+
+def catch_up(world: World, limit: int = 8, output=print) -> None:
+    """Live the time the wall clock says is owed, reporting each step via `output`."""
+    from ..harness.tick import backlog, reconcile, tick
+
+    stamp = time.strftime("%Y-%m-%d %H:%M")
+    root = storage.root(world)
+    try:
+        with storage.Lock(root):
+            now = time.time()
+            if world.last_tick_at is None:
+                world.last_tick_at = now
+                storage.save(world)
+                output(f"[{stamp}] clock started for {world.name}")
+                return
+            unlived = backlog(world.last_tick_at, now)
+            ahead = schedule.next_at(world)
+            if ahead is not None and world.current + unlived < ahead:
+                output(f"[{stamp}] checked; nothing is due for "
+                    f"{real_of(ahead - world.current - unlived) / SECONDS_PER_HOUR:.1f}h of world time")
+                return
+            settings = configuration.load(root)
+            ok, message = probe(settings[CallName.ACT])
+            if not ok:
+                output(f"[{stamp}] {real_of(unlived) / SECONDS_PER_HOUR:.1f}h owed, but the minds are {message}; "
+                    f"{world.name} waits")
+                return
+            # `limit` bounds model calls, not world time.
+            began, steps = world.current, 0
+            while world.current - began < unlived and steps < limit:
+                report = tick(world, settings, transcript_for(world))
+                steps += 1
+                storage.save(world)
+                output(f"[{stamp}]")
+                for line in report_lines(world, report):
+                    output(line)
+                if report.idle:
+                    break
+            lived = world.current - began
+            world.last_tick_at = reconcile(world.last_tick_at, now, lived, unlived)
+            storage.save(world)
+            if lived < unlived:
+                output(f"[{stamp}] {real_of(unlived - lived) / SECONDS_PER_HOUR:.1f}h more were owed; "
+                    f"{world.name} slept through them")
+    except storage.Locked as exception:
+        output(f"[{stamp}] skipped: {exception}")
+
+
+def transcript_for(world: World) -> Transcript:
+    return Transcript(storage.root(world) / "transcript" / f"day{day_of(world.current):05d}.jsonl")
+
+
+def timestamp(at: float) -> str:
+    return f"day {day_of(at)}, {clock_of(at)}"
+
+
+def heading(text: str) -> str:
+    return f"\n{text}\n{'-' * len(text)}"
+
+
+def name_of(world, being_id: str) -> str:
+    being = world.beings.get(being_id)
+    return being.name if being else being_id
+
+
+def report_lines(world, report) -> List[str]:
+    """Shared by the terminal and the TUI so both describe a step the same way."""
+    if report.idle:
+        return [report.label, "  (nothing in the world is scheduled)"]
+    lines: List[str] = []
+    lines.append(f"{report.label}  (+{real_of(report.elapsed) / SECONDS_PER_HOUR:g}h)")
+    if report.stir is not None and report.stir.occurrence is not None:
+        lines.append(f"  * {report.stir.occurrence.account}")
+    if report.stir is not None and report.stir.arrival is not None:
+        lines.append(f"  + {report.stir.arrival.account}")
+    for departure in report.departures:
+        event = world.event(departure.event_id)
+        lines.append(f"  - {event.account if event else name_of(world, departure.being_id) + ' left.'}")
+        if departure.reason:
+            lines.append(f'      "{departure.reason}"')
+    talked = {talk.speaker for talk in report.talks} | {talk.listener for talk in report.talks}
+    talked |= {departure.being_id for departure in report.departures}
+    for being_id, decision in sorted(report.decisions.items()):
+        being = world.beings[being_id]
+        if being_id in talked:
+            continue
+        what = being.activity.doing or decision.doing or (decision.tool or '')
+        why = (f'  - "{decision.reason}"' if decision.reason
+               else ("  (no answer)" if decision.defaulted else ""))
+        lines.append(f"  {being.name:<7} {what:<34}{why}")
+    for talk in report.talks:
+        for turn in talk.turns:
+            lines.append(f"  {name_of(world, turn.speaker):<7} to {name_of(world, turn.listener)}: "
+                       f"\"{turn.utterance}\"")
+    for being_id in report.consolidated:
+        lines.append(f"  {name_of(world, being_id):<7} stops for the day, and sleeps on it")
+    if report.unanswered:
+        lines.append(f"  ({report.unanswered} mind(s) gave no usable answer and stayed put)")
+    for refusal in report.refusals:
+        lines.append(f"  (refused {refusal.tool} for {name_of(world, refusal.caller)}: "
+                     f"{refusal.complaint})")
+    return lines
+
+
+def print_report(world, report) -> None:
+    print()
+    for line in report_lines(world, report):
+        print(line)
+
+
+# create
+
+def command_initialize(arguments) -> None:
+    root = Path(arguments.world)
+    if storage.exists(root) and not arguments.force:
+        sys.exit(f"{root} already holds a world. Use --force to start over.")
+    world = seed.create(root, name=arguments.name)
+    print("\n".join([
+        f"{world.name} exists. {world.label()}",
+        f"  {len(world.beings)} people, {len(world.places)} places, "
+        f"{len(world.chronicle)} events already behind them, which each of them "
+        f"sees the first time they look up",
+        f"  configuration at {configuration.locate(root)}; check it with: elsewhere doctor",
+    ]))
+
+
+# read-only views
+
+def command_status(arguments) -> None:
+    world = open_world(arguments)
+    print(f"{world.name} - {world.label()}" + ("  (ended)" if world.closed else ""))
+    print(f"  chronicle: {len(world.chronicle)} events")
+    for place in world.places.values():
+        here = world.beings_at(place.id)
+        if not here:
+            continue
+        print(f"  {place.name}: " +
+              ", ".join(f"{being.name} ({being.activity.doing or 'just here'})"
+                        for being in here))
+    gone = [being for being in world.beings.values() if not being.present]
+    if gone:
+        print("  gone: " + ", ".join(
+            f"{being.name} ({timestamp(being.clock.left_at)})" if being.clock.left_at
+            else being.name
+            for being in sorted(gone, key=lambda being: being.clock.left_at or 0)))
+    for being in world.beings.values():
+        mark = "" if being.present else "  (left)"
+        print(f"  {being.name:<8} a self-schema of {being.identity.self_schema.characters} characters, "
+              f"{len(memory.short_term(world, being))} episodes from today, "
+              f"{len(world.engrams(being.id))} engrams in all{mark}")
+
+
+def describe(self_schema: SelfSchema) -> List[str]:
+    """A self-schema as plain lines, labelled by what each one is."""
+    return ([f"trait        {trait}" for trait in self_schema.traits]
+            + [f"concern      {concern}" for concern in self_schema.concerns]
+            + [f"assumption   {assumption}" for assumption in self_schema.assumptions]
+            + [f"impression   {impression.being}: {impression.impression}"
+               for impression in self_schema.impressions])
+
+
+def command_person(arguments) -> None:
+    world = open_world(arguments)
+    being = world.being_by_name(arguments.name)
+    if being is None:
+        sys.exit(f"Nobody here is called {arguments.name!r}")
+    print(heading(being.name))
+    print(f"  {being.identity.biography}")
+    if being.identity.self_schema.idiolect:
+        print(f"  {being.identity.self_schema.idiolect}")
+    if not being.present:
+        print(f"\n  Left on {timestamp(being.clock.left_at or world.current)}. What follows is "
+              f"how they stood then; nothing here has touched it since.")
+    else:
+        print(f"\n  at: "
+              f"{world.places[being.location.place].name if being.location.place in world.places else '-'}")
+    if being.clock.arrived_at:
+        print(f"  came up the road on {timestamp(being.clock.arrived_at)}")
+    versions = world.self_schemas(being.id).all()
+    if arguments.history:
+        print(f"\n  every self-schema they have held ({len(versions)})")
+        for version in versions:
+            print(f"\n    {timestamp(version.at)}")
+            for line in describe(version):
+                print(f"      {line}")
+    else:
+        print(f"\n  who they take themselves to be  "
+              f"(the newest of {len(versions)}; --history for all)")
+        for line in describe(being.identity.self_schema) or ["nothing yet"]:
+            print(f"    {line}")
+    today = memory.short_term(world, being)[-arguments.limit:]
+    print("\n  what they have encoded today, not slept on yet" if today
+          else "\n  nothing encoded since they last slept")
+    for episode in today:
+        print(f"    {timestamp(episode.at):<18} {episode.account}")
+    engrams = world.engrams(being.id).all()
+    print(f"\n  {len(world.episodes(being.id))} episodes and {len(engrams)} engrams "
+          f"in all, every one kept")
+    for engram in engrams[-arguments.limit:]:
+        print(f"    {timestamp(engram.at):<18} "
+              + " ... ".join(f"{gist.proposition} ({gist.weight:.1f})" for gist in engram.gists))
+        for episode in episodes_of_engram(world.episodes(being.id).all(), engram):
+            print(f"    {'':<18}   from {timestamp(episode.at)}: {episode.account}")
+
+
+def command_timeline(arguments) -> None:
+    world = open_world(arguments)
+    print(heading(f"{world.name}: what happened"))
+    for event in world.chronicle.all()[-arguments.limit:]:
+        print(f"  {event.id:>4}  {timestamp(event.at):<18} {event.category:<12} {event.account}")
+
+
+def command_event(arguments) -> None:
+    world = open_world(arguments)
+    event = world.event(arguments.event_id)
+    if event is None:
+        sys.exit(f"No event {arguments.event_id}")
+    place = world.places.get(event.place or "")
+    print(heading(f"Event {event.id} - {timestamp(event.at)}, {event.category}, "
+                  f"at {place.name if place else '-'}"))
+    print(f"  History says:  {event.account}")
+    if not event.informed:
+        print("\n  It reached nobody.")
+        return
+    print("\n  What it left in people:")
+    for being_id in event.informed:
+        being = world.beings.get(being_id)
+        if being is None:
+            continue
+        print(f"    {being.name:<8} they were {perspective.of(world, being, event)}")
+        episodes = episodes_of_event(world.episodes(being_id).all(), event.id)
+        if not episodes:
+            perceived = being.clock.perceived_through > world.chronicle.all().index(event)
+            print(f"    {'':<8} {'kept nothing of it' if perceived else 'has not seen it yet'}")
+        for episode in episodes:
+            print(f"    {'':<8} kept: \"{episode.account}\"")
+
+
+def command_news(arguments) -> None:
+    world = open_world(arguments)
+    events = world.chronicle.all()[bookmark.load(world):]
+    print(f"{world.name} - {world.label()}")
+    if not events:
+        print("  Nothing has happened since you last looked.")
+    for event in events:
+        place = world.places.get(event.place or "")
+        print(f"\n  {timestamp(event.at)}, {place.name if place else '-'}")
+        marks: Dict[str, str] = {Category.OCCURRENCE: "* ", Category.ARRIVAL: "+ ",
+                 Category.DEPARTURE: "- "}
+        print(f"    {marks.get(event.category, '')}{event.account}")
+        for being_id in event.informed:
+            for episode in episodes_of_event(world.episodes(being_id).all(), event.id):
+                print(f"      {name_of(world, being_id)} kept: {episode.account}")
+    print("\n  Now:")
+    for being in sorted(world.beings.values(), key=lambda being: being.name):
+        if not being.present:
+            continue
+        place = world.places.get(being.location.place)
+        print(f"    {being.name:<7} at {place.name if place else '-':<20} "
+              f"{being.activity.doing or ''}")
+    if not arguments.peek:
+        bookmark.save(world, len(world.chronicle))
+
+
+def command_watch(arguments) -> None:
+    """Read-only TUI; it never writes under the world's directory."""
+    root = Path(arguments.world)
+    if not storage.exists(root):
+        sys.exit(f"No world at {root}. Run: elsewhere --world {root} initialize")
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        sys.exit("watch needs a terminal. For a pipe or a log: elsewhere news")
+    try:
+        from .tui import screen
+    except ImportError as exception:
+        sys.exit(f"no curses on this Python, so no window: {exception}")
+    try:
+        screen.run(root)
+    except ValueError as exception:
+        # A world written by an older, incompatible version.
+        sys.exit(str(exception))
+
+
+# time passing
+
+
+def command_continue(arguments) -> None:
+    world = open_live(arguments)
+    catch_up(world, arguments.max)
+
+
+def command_tick(arguments) -> None:
+    from ..harness.tick import tick
+
+    world = open_live(arguments)
+    settings = configuration.load(arguments.world)
+    try:
+        with storage.Lock(arguments.world):
+            for _ in range(arguments.n):
+                report = tick(world, settings, transcript_for(world))
+                storage.save(world)
+                print_report(world, report)
+            world.last_tick_at = time.time()
+            storage.save(world)
+    except storage.Locked as exception:
+        sys.exit(f"Not now: {exception}")
+
+
+
+# ending
+
+def command_end(arguments) -> None:
+    try:
+        with storage.Lock(Path(arguments.world)):
+            # Load under the lock so a running step finishes and saves first.
+            world = open_world(arguments)
+            if world.closed:
+                print(f"{world.name} had already ended.")
+                return
+            world.closed = True
+            storage.save(world)
+    except storage.Locked as exception:
+        sys.exit(f"Not now: {exception}")
+    print(f"{world.name} has ended. {world.label()}")
+    print(f"  {len(world.chronicle)} events are on record; status, person, timeline "
+          f"and event still read them.")
+    print("  If it was scheduled: make unschedule")
+
+
+# development
+
+def command_doctor(arguments) -> None:
+    root = Path(arguments.world)
+    path = configuration.locate(root)
+    settings = configuration.load(root)
+    print(f"Reading {path}" if path.exists()
+          else f"No {path} yet; these are the defaults it would be written with")
+    print(heading("Minds"))
+    seen = set()
+    for name, setting in settings.items():
+        if name == "embed":
+            continue                      # probed separately below
+        key = (setting.backend, setting.model, setting.endpoint)
+        if key in seen:
+            print(f"  {name:<12} {setting.backend}/{setting.model:<18} (same model as above)")
+            continue
+        seen.add(key)
+        ok, verdict = probe(setting)
+        print(f"  {name:<12} {setting.backend}/{setting.model:<18} {verdict}")
+    embed_settings = settings.get("embed")
+    if embed_settings is not None:
+        print(heading("What brings an engram back"))
+        started = time.time()
+        vectors = embed(["the water came up over the waterline"], embed_settings)
+        with closing(sqlite3.connect(":memory:")) as connection:
+            extension = retrieval.load_vector_extension(connection)
+        print(f"  embed     {embed_settings.backend}/{embed_settings.model:<18} "
+              + (f"ok ({len(vectors[0])} dimensions, {time.time() - started:.1f}s)" if vectors
+                 else "unreachable - retrieval falls back on BM25 alone"))
+        print("  vectors   sqlite-vec " + ("ok" if extension else
+              "not installed - retrieval falls back on BM25 alone "
+              "(pip install -e '.[recall]')"))
+    print(f'\n  Set "backend": "stub" in {path} to run without any of this.')
+
+
+def command_configure(arguments) -> None:
+    root = Path(arguments.world)
+    try:
+        path = configure(root, arguments.backend, arguments.model, arguments.endpoint,
+                         arguments.call or MINDS)
+    except KeyError as exception:
+        sys.exit(str(exception.args[0]))
+    where = f" at {arguments.endpoint}" if arguments.endpoint else ""
+    print(f"{', '.join(arguments.call or MINDS)} -> "
+          f"{arguments.backend}/{arguments.model}{where}")
+    print(f"  written to {path}; check it with: elsewhere --world {root} doctor")
+
+
+def command_consolidate(arguments) -> None:
+    """Writes a self-schema, so it takes the lock and refuses an ended world."""
+    try:
+        with storage.Lock(Path(arguments.world)):
+            # Load under the lock so a running step finishes and saves first.
+            world = open_live(arguments)
+            being = world.being_by_name(arguments.name)
+            if being is None or not being.present:
+                sys.exit(f"Nobody here is called {arguments.name!r}")
+            consolidated = being_agent.consolidate(world, being,
+                                                   configuration.load(arguments.world),
+                                                   transcript_for(world))
+            storage.save(world)
+    except storage.Locked as exception:
+        sys.exit(f"Not now: {exception}")
+    if not consolidated:
+        print(f"{being.name} slept on nothing; nothing changed.")
+        return
+    print(f"{being.name} slept on it, and now takes themselves to be:")
+    for line in describe(being.identity.self_schema):
+        print(f"  {line}")
+
+
+# cli wiring
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="elsewhere", description="A persistent world that remembers.")
+    parser.add_argument("--world", default=str(DEFAULT_ROOT), help="path to the world")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # create
+    subparser = subparsers.add_parser("initialize", help="make a small world")
+    subparser.add_argument("--name", default="Nod")
+    subparser.add_argument("--force", action="store_true")
+    subparser.set_defaults(handler=command_initialize)
+
+    # read-only views
+    subparser = subparsers.add_parser(
+        "status", help="where everyone is, and how much they hold")
+    subparser.set_defaults(handler=command_status)
+
+    subparser = subparsers.add_parser("person", help="who someone is now")
+    subparser.add_argument("name")
+    subparser.add_argument("--limit", type=int, default=8)
+    subparser.add_argument("--history", action="store_true",
+                           help="every self-schema they have held, oldest first")
+    subparser.set_defaults(handler=command_person)
+
+    subparser = subparsers.add_parser("timeline", help="what happened")
+    subparser.add_argument("--limit", type=int, default=30)
+    subparser.set_defaults(handler=command_timeline)
+
+    subparser = subparsers.add_parser(
+        "event", help="one event, and where it found people")
+    subparser.add_argument("event_id")
+    subparser.set_defaults(handler=command_event)
+
+    # The one view that writes: it marks news as read.
+    subparser = subparsers.add_parser(
+        "news", help="what happened since you last looked")
+    subparser.add_argument("--peek", action="store_true", help="look without marking it read")
+    subparser.set_defaults(handler=command_news)
+
+    subparser = subparsers.add_parser(
+        "watch", help="sit with the world in a window; reads only")
+    subparser.set_defaults(handler=command_watch)
+
+    # time passing
+    subparser = subparsers.add_parser(
+        "continue",
+        help="let the world go on for however long you have been away")
+    subparser.add_argument("--max", type=int, default=8,
+                            help="most steps to live in one go; a bound on model calls, "
+                                 "not on how far the clock may move")
+    subparser.set_defaults(handler=command_continue)
+
+    subparser = subparsers.add_parser("tick", help="[DEV] manually advance N steps")
+    subparser.add_argument("-n", type=int, default=1)
+    subparser.set_defaults(handler=command_tick)
+
+    # ending
+    subparser = subparsers.add_parser(
+        "end", help="end the world for good; what happened stays readable")
+    subparser.set_defaults(handler=command_end)
+
+    # development (internal)
+    subparser = subparsers.add_parser("doctor", help="[DEV] diagnose model backend connectivity")
+    subparser.set_defaults(handler=command_doctor)
+
+    subparser = subparsers.add_parser(
+        "configure", help="point the minds at one backend and model")
+    subparser.add_argument("--backend", required=True)
+    subparser.add_argument("--model", required=True)
+    subparser.add_argument("--endpoint", help="where the server is, if not the default")
+    subparser.add_argument("--call", action="append",
+                           help="only this call site (repeatable); "
+                                "default: every mind, not the embedder")
+    subparser.set_defaults(handler=command_configure)
+
+    subparser = subparsers.add_parser(
+        "consolidate", help="[DEV] have one person sleep on their day now, for prompt tuning")
+    subparser.add_argument("name")
+    subparser.set_defaults(handler=command_consolidate)
+
+    return parser
+
+
+def main(argument_list: Optional[List[str]] = None) -> int:
+    arguments = build_parser().parse_args(argument_list)
+    arguments.handler(arguments)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

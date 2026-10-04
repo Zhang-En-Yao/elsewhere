@@ -7,8 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import cli, seed
-from elsewhere.tui import cartography, views
+from elsewhere.adapters import storage
+from elsewhere.interface import bookmark, cli, seed
+from elsewhere.interface.tui import cartography, views
 
 WIDE = "去年的雨"           # four columns' worth of two characters each
 
@@ -181,14 +182,14 @@ class TestNext(Window):
 
     def test_everybody_starts_due_at_once(self):
         [(at, names)] = views.upcoming(self.world)
-        self.assertEqual(at, self.world.at)
-        self.assertEqual(names, ["Bezalel", "Havvah", "Lilith", "the town", "the road"])
+        self.assertEqual(at, self.world.current)
+        self.assertEqual(names, ["Bezalel", "Havvah", "Lilith", "the world"])
         self.assertIn("now", self.said())
 
     def test_a_world_hour_falls_due_a_real_hour_after_the_last_step(self):
         self.world.last_tick_at = 1000.0
-        self.assertEqual(views.by_clock(self.world, self.world.at + 2.0), 1000.0 + 7200.0)
-        self.assertEqual(views.by_clock(self.world, self.world.at - 5.0), 1000.0)
+        self.assertEqual(views.by_clock(self.world, self.world.current + 2.0), 1000.0 + 7200.0)
+        self.assertEqual(views.by_clock(self.world, self.world.current - 5.0), 1000.0)
 
     def test_nothing_installed_says_nothing_will_happen(self):
         self.assertIn("make schedule", self.said())
@@ -199,11 +200,11 @@ class TestNext(Window):
         self.assertIn("make schedule", self.said())
 
     def test_a_job_that_never_ran_is_said_to_have_never_run(self):
-        self.install(self.world.root)
+        self.install(storage.root(self.world))
         self.assertIn("never ran", self.said())
 
     def test_the_last_run_is_read_off_its_log(self):
-        self.install(self.world.root, ["[2026-09-28 18:30] checked; nothing is due for 2.0h",
+        self.install(storage.root(self.world), ["[2026-09-28 18:30] checked; nothing is due for 2.0h",
                                        "  Havvah  stayed where they were"])
         said = self.said()
         self.assertIn("every 30min", said)
@@ -219,7 +220,7 @@ class TestGeography(Window):
     def test_places_fewer_ways_apart_lie_closer(self):
         import math
         from itertools import combinations
-        from elsewhere.world import geography
+        from elsewhere.domain import geography
         apart = geography.steps(list(self.world.places), self.world.map.ways)
         drawn: dict = {}
         for one, other in combinations(self.world.places, 2):
@@ -229,14 +230,13 @@ class TestGeography(Window):
         self.assertEqual(means, sorted(means))
 
     def test_the_same_town_lies_the_same_way(self):
-        from elsewhere.world import geography
+        from elsewhere.domain import geography
         self.assertEqual(geography.layout(list(self.world.places), self.world.map.ways),
                          self.world.map.positions)
 
     def test_positions_survive_a_save(self):
-        from elsewhere.world import store
-        store.save(self.world)
-        self.assertEqual(store.load(self.world.root).map.positions,
+        storage.save(self.world)
+        self.assertEqual(storage.load(storage.root(self.world)).map.positions,
                          self.world.map.positions)
 
     def test_a_world_made_before_positions_still_has_a_map(self):
@@ -270,14 +270,14 @@ class TestEveryViewAnswers(Window):
     def test_nobody_gone_means_nothing_about_who_is_gone(self):
         self.assertNotIn(views.GONE_KEY,
                          [row.key for row in views.world_rows(self.world)])
-        self.world.beings["lilith"].when.left_at = self.world.at
+        self.world.beings["lilith"].clock.left_at = self.world.current
         self.assertIn(views.GONE_KEY,
                       [row.key for row in views.world_rows(self.world)])
 
 
 class TestWhereYouStoppedReading(Window):
     def test_the_line_falls_where_you_stopped(self):
-        self.world.read_through = 1
+        bookmark.save(self.world, 1)
         rows = views.chronicle_rows(self.world)
         divider = [index for index, row in enumerate(rows) if row.text == views.UNREAD]
         self.assertEqual(len(divider), 1)
@@ -285,12 +285,12 @@ class TestWhereYouStoppedReading(Window):
         self.assertEqual(rows[divider[0] + 1].key, self.world.chronicle.all()[1].id)
 
     def test_having_read_it_all_leaves_no_line(self):
-        self.world.read_through = len(self.world.chronicle)
+        bookmark.save(self.world, len(self.world.chronicle))
         self.assertNotIn(views.UNREAD,
                          [row.text for row in views.chronicle_rows(self.world)])
 
     def test_a_divider_is_not_something_the_cursor_can_land_on(self):
-        self.world.read_through = 1
+        bookmark.save(self.world, 1)
         for row in views.chronicle_rows(self.world):
             if row.text == views.UNREAD:
                 self.assertEqual(row.key, "")
@@ -298,43 +298,63 @@ class TestWhereYouStoppedReading(Window):
 
 class TestItShowsWhatTheyCarry(Window):
 
-    def test_the_whole_page_is_shown(self):
+    def test_the_whole_self_schema_is_shown(self):
         havvah = self.world.beings["havvah"]
         body = text(views.being_detail(self.world, havvah.id))
-        for line in havvah.who.notebook.splitlines():
+        for line in havvah.identity.self_schema.concerns + havvah.identity.self_schema.assumptions:
             self.assertIn(line, body)
+        for impression in havvah.identity.self_schema.impressions:
+            self.assertIn(impression.impression, body)
 
-    def test_it_says_how_many_pages_came_before(self):
-        from elsewhere.world.pages import Page
+    def test_it_says_how_many_self_schemas_came_before(self):
+        from elsewhere.domain.memory import SelfSchema
         havvah = self.world.beings["havvah"]
-        self.world.pages(havvah.id).append(Page(at=self.world.at, notebook="one"))
-        self.world.pages(havvah.id).append(Page(at=self.world.at, notebook="two"))
-        # The page seed wrote them with, then these two.
-        self.assertIn("newest of 3 pages", text(views.being_detail(self.world, havvah.id)))
+        self.world.self_schemas(havvah.id).append(SelfSchema(concerns=["one"]))
+        self.world.self_schemas(havvah.id).append(SelfSchema(concerns=["two"]))
+        # The one seed wrote them with, then these two.
+        self.assertIn("newest of 3 self-schemas",
+                      text(views.being_detail(self.world, havvah.id)))
 
-    def test_what_they_have_not_gone_over_is_shown_apart_from_it(self):
-        from elsewhere.world.notes import Note
+    def test_what_they_have_not_slept_on_is_shown_apart_from_it(self):
+        from elsewhere.domain.memory import Engram, Episode, Gist
         havvah = self.world.beings["havvah"]
-        self.world.notes(havvah.id).append(Note(at=self.world.at,
-                                                account="feathers on the path"))
+        self.world.episodes(havvah.id).append(Episode(at=self.world.current,
+                                                      account="feathers on the path"))
         body = text(views.being_detail(self.world, havvah.id))
-        self.assertIn("not gone over yet", body)
+        self.assertIn("not slept on yet", body)
         self.assertIn("feathers on the path", body)
-        havvah.when.settled_through = 1
+        havvah.clock.consolidated_through = 1
+        self.world.engrams(havvah.id).append(Engram(at=self.world.current,
+                                                    gists=[Gist("feathers by the well", 0.9)]))
         body = text(views.being_detail(self.world, havvah.id))
-        self.assertNotIn("feathers on the path", body, "once gone over, only the page has it")
+        self.assertNotIn("feathers on the path", body,
+                         "once slept on, only what sleep laid down is left")
+        self.assertIn("feathers by the well", body)
+
+    def test_what_sleep_laid_down_shows_the_episodes_it_came_from(self):
+        from elsewhere.domain.memory import Engram, Episode, Gist
+        havvah = self.world.beings["havvah"]
+        self.world.episodes(havvah.id).append(Episode(at=self.world.current,
+                                                      account="feathers on the path"))
+        havvah.clock.consolidated_through = 1
+        self.world.engrams(havvah.id).append(Engram(
+            at=self.world.current, gists=[Gist("feathers by the well", 0.9)],
+            _episode_positions=[0]))
+        body = text(views.being_detail(self.world, havvah.id))
+        self.assertIn("feathers by the well", body)
+        self.assertIn("feathers on the path", body, "under it, the episode it was made from")
 
 
 class TestSomebodyWhoLeft(Window):
     def test_they_are_read_as_they_stood_the_hour_they_went(self):
         lilith = self.world.beings["lilith"]
-        lilith.when.left_at = self.world.at
+        lilith.clock.left_at = self.world.current
         was = text(views.being_detail(self.world, lilith.id))
-        self.assertIn(lilith.who.notebook.splitlines()[0], was)
+        self.assertIn(lilith.identity.self_schema.concerns[0], was)
         self.assertIn("left on", was)
 
         # Frozen at the moment she left.
-        self.world.at += 24 * 360
+        self.world.current += 24 * 360
         self.world.record("occurrence", "A storm broke over the town.",
                           place="bethel", informed=["havvah", "bezalel"])
         self.assertEqual(text(views.being_detail(self.world, lilith.id)), was)
@@ -348,7 +368,7 @@ class TestOneEventManyPlaces(Window):
         self.assertIn(event.account, body, "history's own account is shown too")
         for being_id in event.informed:
             self.assertIn(self.world.beings[being_id].name, body)
-            self.assertIn(event.data["viewpoints"][being_id], body)
+            self.assertIn(event.data["perspectives"][being_id], body)
 
 
 class FakeScreen:
@@ -424,13 +444,12 @@ class TestSplash(Window):
 
     def test_it_opens_until_a_key_and_closes_on_its_own(self):
         from unittest import mock
-        from elsewhere.tui import screen
-        from elsewhere.world import store
-        store.save(self.world)
+        from elsewhere.interface.tui import screen
+        storage.save(self.world)
         closing = screen.CLOSING_MILLISECONDS // screen.FRAME_MILLISECONDS
         opening = [-1, -1, screen.curses.KEY_RESIZE, -1, ord("x")]
         keys = ScriptedScreen(opening + [ord("q")] + [-1] * closing)
-        app = screen.App(self.world.root, keys)
+        app = screen.App(storage.root(self.world), keys)
         with mock.patch.multiple(screen.curses, curs_set=mock.DEFAULT,
                                  set_escdelay=mock.DEFAULT, mousemask=mock.DEFAULT,
                                  doupdate=mock.DEFAULT), \
@@ -449,11 +468,10 @@ class TestGoing(Window):
 
     def setUp(self):
         super().setUp()
-        from elsewhere.tui import screen
-        from elsewhere.world import store
-        store.save(self.world)
+        from elsewhere.interface.tui import screen
+        storage.save(self.world)
         self.screen = screen
-        self.app = screen.App(self.world.root, FakeScreen())
+        self.app = screen.App(storage.root(self.world), FakeScreen())
 
     def names(self):
         return [view.name for view in views.VIEWS]
@@ -490,12 +508,12 @@ class TestGoing(Window):
         app = self.app
         app.key(ord("3"))
         app.snap()
-        event = self.world.chronicle.get(app.selected())
+        event = self.world.event(app.selected())
         app.key(ord("\n"))
         self.assertEqual((self.names()[app.tab], app.selected()), ("view", event.place))
 
     def test_somebody_gone_leads_nowhere_and_says_so(self):
-        self.world.beings["lilith"].when.left_at = self.world.at
+        self.world.beings["lilith"].clock.left_at = self.world.current
         self.assertIsNone(views.being_link(self.world, "lilith"))
 
     def test_esc_comes_back_from_a_tab_clicked_or_typed(self):
@@ -529,7 +547,7 @@ class TestTheWindowWritesNothing(Window):
 
     def files(self):
         out = {}
-        for path in sorted(self.world.root.rglob("*")):
+        for path in sorted(storage.root(self.world).rglob("*")):
             if path.is_file():
                 out[path] = (path.read_bytes(), path.stat().st_mtime_ns)
             else:
@@ -538,8 +556,7 @@ class TestTheWindowWritesNothing(Window):
 
     def setUp(self):
         super().setUp()
-        from elsewhere.world import store
-        store.save(self.world)
+        storage.save(self.world)
 
     def test_looking_at_all_of_it_changes_none_of_it(self):
         was = self.files()
@@ -550,9 +567,9 @@ class TestTheWindowWritesNothing(Window):
         self.assertEqual(self.files(), was)
 
     def test_no_key_on_it_writes_anything(self):
-        from elsewhere.tui import screen
+        from elsewhere.interface.tui import screen
 
-        app = screen.App(self.world.root, FakeScreen())
+        app = screen.App(storage.root(self.world), FakeScreen())
         was = self.files()
         pressed = [ord(character) for character in "123456789jkhlgGb rfcmxyz?\t\n\r"]
         pressed += [127, 27, screen.curses.KEY_BACKSPACE, screen.curses.KEY_ENTER]
@@ -569,11 +586,13 @@ class TestTheWindowWritesNothing(Window):
 
     def test_it_holds_nothing_that_could_write(self):
         """Static guard: drive-the-keys only covers keys that exist today."""
-        source = Path(__file__).resolve().parents[1] / "src" / "elsewhere" / "tui"
-        for path in sorted(source.glob("*.py")):
+        source = Path(__file__).resolve().parents[1] / "src" / "elsewhere" / "interface" / "tui"
+        paths = sorted(source.glob("*.py"))
+        self.assertTrue(paths, f"nothing to guard at {source}")
+        for path in paths:
             body = path.read_text(encoding="utf-8")
-            for writer in ("store.save", "TickLock", ".save(", "open(",
-                           "write_text", "read_through ="):
+            for writer in ("storage.save", "storage.Lock", ".save(", "open(",
+                           "write_text", "bookmark.save"):
                 self.assertNotIn(writer, body,
                                  f"{path.name} reaches for {writer!r}; the "
                                  f"window is supposed to only read")

@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere.backends.open_source.mlx import closed
-from elsewhere.schemas import CallName, grammar
+from elsewhere.adapters.backends.mlx import closed
+from elsewhere.harness.schemas import CallName, grammar
 
 
 class ClosedTest(unittest.TestCase):
@@ -27,7 +27,7 @@ class ClosedTest(unittest.TestCase):
         self.assertEqual(schema["additionalProperties"], {"type": "string"})
 
     def test_the_original_is_not_touched(self):
-        original = grammar(CallName.SETTLE)
+        original = grammar(CallName.CONSOLIDATE)
         closed(original)
         self.assertNotIn("additionalProperties", original)
 

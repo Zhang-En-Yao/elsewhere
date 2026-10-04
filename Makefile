@@ -14,6 +14,12 @@ typecheck:       ## the mistakes a test cannot reach (pip install -e ".[dev]")
 	    echo "  mypy not installed, skipping: pip install -e \".[dev]\""; \
 	fi
 
+format:          ## rewrite the code the way black lays it out (pip install -e ".[dev]")
+	$(PY) -m black src tests scripts
+
+lint:            ## check the layout without changing anything
+	$(PY) -m black --check --diff src tests scripts
+
 world:           ## make a world in ./world and keep it going (launchd)
 	$(ELSEWHERE) --world world initialize
 	./scripts/schedule.sh install
@@ -53,5 +59,5 @@ help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-9s %s\n", $$1, $$2}'
 
-.PHONY: test typecheck world doctor live logo help watch tick news schedule \
+.PHONY: test typecheck format lint world doctor live logo help watch tick news schedule \
         unschedule status end

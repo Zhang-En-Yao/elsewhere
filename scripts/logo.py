@@ -1,7 +1,7 @@
 """Draw docs/logo.jpg in Unicode braille, at each size the window may show it,
 as the frames of one beat of its wings, while the snake's scales creep on.
 
-    python scripts/logo.py            # rewrites src/elsewhere/tui/logo.json.xz
+    python scripts/logo.py            # rewrites src/elsewhere/interface/tui/logo.json.xz
 
 Needs Pillow, which nothing else here does: the window only reads the frames
 this writes. Each braille character is a 2x4 grid of dots (U+2800 plus one
@@ -46,7 +46,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 SOURCE = REPOSITORY / "docs" / "logo.jpg"
-TARGET = REPOSITORY / "src" / "elsewhere" / "tui" / "logo.json.xz"
+TARGET = REPOSITORY / "src" / "elsewhere" / "interface" / "tui" / "logo.json.xz"
 
 #: Widths in columns, smallest first; the window shows the largest that fits.
 #: Close together, so a terminal of any height is filled: the logo is about

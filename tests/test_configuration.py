@@ -12,16 +12,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from elsewhere import cli, seed
-from elsewhere.schemas import CallName
-from elsewhere import configuration
-from elsewhere.configuration import DEFAULTS, MINDS, configure
+from elsewhere.interface import cli, seed
+from elsewhere.harness.schemas import CallName
+from elsewhere.harness import configuration
+from elsewhere.harness.configuration import DEFAULTS, MINDS, configure
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "elsewhere"
 
 # The only environment variables the code may read.
-ALLOWED = {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY",
-           "ELSEWHERE_OPENAI_KEY", "ELSEWHERE_STUB"}
+ALLOWED = {"ELSEWHERE_OPENAI_KEY", "ELSEWHERE_STUB"}
 
 
 class ConfigurationTest(unittest.TestCase):
@@ -70,14 +69,14 @@ class ConfigurationTest(unittest.TestCase):
         self.assertEqual(configuration.load(self.root)[CallName.ACT].endpoint, "")
 
     def test_extra_stays_with_the_backend_it_was_written_for(self):
-        # enable_thinking goes to an MLX chat template; the Claude SDK refuses it.
+        # enable_thinking goes to an MLX chat template; an OpenAI-compatible server refuses it.
         configuration.locate(self.root).parent.mkdir(parents=True)
         configuration.locate(self.root).write_text(json.dumps({"agents": {"act": {
             **DEFAULTS[CallName.ACT], "options": {"enable_thinking": True}}}}),
             encoding="utf-8")
         self.assertEqual(configuration.load(self.root)[CallName.ACT].options,
                          {"enable_thinking": True})
-        configure(self.root, "claude", "claude-sonnet-5")
+        configure(self.root, "openai", "some-model")
         self.assertEqual(configuration.load(self.root)[CallName.ACT].options, {})
 
     def test_an_older_file_on_another_backend_gets_no_default_extra(self):
@@ -90,8 +89,6 @@ class ConfigurationTest(unittest.TestCase):
     def test_a_world_keeps_a_configuration_written_before_it(self):
         configure(self.root, "stub", "stub", calls=list(DEFAULTS))
         seed.create(self.root)
-        self.assertEqual(configuration.load(self.root)[CallName.ACT].backend, "stub")
-        configuration.write_default(self.root)
         self.assertEqual(configuration.load(self.root)[CallName.ACT].backend, "stub")
 
     def test_what_the_file_leaves_out_comes_from_the_defaults(self):
